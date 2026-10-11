@@ -52,3 +52,11 @@ export interface DebtResponse {
   summary: DebtSummary;
   entries: DebtEntry[];
 }
+
+export interface LostDays {
+  id: number;
+  vehicle: number;
+  month: string;
+  week_number: number;
+  days: number;
+}
