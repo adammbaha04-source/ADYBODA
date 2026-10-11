@@ -1,0 +1,17 @@
+[build]
+  command = "npm run build"
+  publish = "dist"
+
+# Send /api calls to the Render backend, so the browser sees one domain and CORS is not needed.
+# Replace the URL with your Render service address after the first deploy.
+[[redirects]]
+  from = "/api/*"
+  to = "https://adybajaj-api.onrender.com/api/:splat"
+  status = 200
+  force = true
+
+# Single-page app: every other path opens the React app.
+[[redirects]]
+  from = "/*"
+  to = "/index.html"
+  status = 200
