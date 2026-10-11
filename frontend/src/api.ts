@@ -80,3 +80,5 @@ export const addManualEntry = (vehicleId: number, kind: string, day: string, amo
     method: "POST",
     body: JSON.stringify({ vehicle: vehicleId, kind, day, amount, note }),
   });
+
+export const deleteVehicle = (id: number) => request<void>(`/vehicles/${id}/`, { method: "DELETE" });
