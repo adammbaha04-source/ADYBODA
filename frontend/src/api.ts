@@ -1,4 +1,4 @@
-import type { DebtResponse, ReturnRecord, Vehicle } from "./types";
+import type { DebtResponse, LostDays, ReturnRecord, Vehicle } from "./types";
 
 const TOKEN_KEY = "adybajaj_token";
 
@@ -57,11 +57,17 @@ export const createReturn = (vehicleId: number, day: string, amount: number, isE
 
 export const deleteReturn = (id: number) => request<void>(`/returns/${id}/`, { method: "DELETE" });
 
-export const createVehicle = (name: string, dailyTarget: number, workingDaysCount: number) =>
+export const createVehicle = (name: string, dailyTarget: number, workingDaysCount: number, vehicleType = "Bajaj") =>
   request<Vehicle>("/vehicles/", {
     method: "POST",
-    body: JSON.stringify({ name, daily_target: dailyTarget, working_days_count: workingDaysCount }),
+    body: JSON.stringify({ name, vehicle_type: vehicleType, daily_target: dailyTarget, working_days_count: workingDaysCount }),
   });
+
+export const updateVehicle = (id: number, data: Partial<Vehicle>) =>
+  request<Vehicle>(`/vehicles/${id}/`, { method: "PATCH", body: JSON.stringify(data) });
+
+export const listLostDays = (vehicleId: number) =>
+  request<LostDays[]>(`/lost-days/`).then((rows) => rows.filter((r) => r.vehicle === vehicleId));
 
 export const changeDriver = (vehicleId: number, driverName: string, phone: string, fromDate: string) =>
   request("/driver-periods/", {
