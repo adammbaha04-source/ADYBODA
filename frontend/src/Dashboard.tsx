@@ -1,8 +1,10 @@
 import { useCallback, useEffect, useState, type FormEvent } from "react";
 import { createReturn, deleteReturn, deleteVehicle, getDebt, listReturns, listVehicles, setCarry } from "./api";
-import { currentMonth, tsh } from "./format";
+import { currentMonth, monthLabel, todayYMD, tsh } from "./format";
 import Manage from "./Manage";
-import type { DebtResponse, DebtSummary, ReturnRecord, Vehicle } from "./types";
+import VehicleDetail from "./VehicleDetail";
+import VehiclesPage from "./VehiclesPage";
+import type { DebtResponse, ReturnRecord, Vehicle } from "./types";
 
 type View = "vehicles" | "income" | "service" | "debt" | "changamoto" | "ripoti" | "grafu" | "users" | "profile" | "settings" | "manage";
 
@@ -20,74 +22,6 @@ const MENU: { key: View; label: string; icon: string; note: string }[] = [
   { key: "settings", label: "Settings", icon: "⚙️", note: "Mipangilio ya app" },
   { key: "manage", label: "Usimamizi", icon: "🛠️", note: "" },
 ];
-const MONTHS_SW = ["Januari", "Februari", "Machi", "Aprili", "Mei", "Juni", "Julai", "Agosti", "Septemba", "Oktoba", "Novemba", "Desemba"];
-
-function monthLabel(ym: string): string {
-  const [y, m] = ym.split("-").map(Number);
-  return `${MONTHS_SW[m - 1]} ${y}`;
-}
-
-function Row({ label, value, cls }: { label: string; value: string; cls?: string }) {
-  return (
-    <div className="row-line">
-      <span>{label}</span>
-      <b className={cls}>{value}</b>
-    </div>
-  );
-}
-
-function VehicleCard(props: {
-  vehicle: Vehicle; month: string; tick: number; selected: boolean;
-  onPick: () => void; onEdit: () => void; onDelete: () => void;
-}) {
-  const { vehicle, month, tick, selected, onPick, onEdit, onDelete } = props;
-  const [s, setS] = useState<DebtSummary | null>(null);
-
-  useEffect(() => {
-    let alive = true;
-    getDebt(vehicle.id, month).then((d) => { if (alive) setS(d.summary); }).catch(() => {});
-    return () => { alive = false; };
-  }, [vehicle.id, month, tick]);
-
-  const latest = [...vehicle.driver_periods].sort((a, b) => a.from_date.localeCompare(b.from_date)).pop();
-  const driverText = latest && latest.driver_name
-    ? `Driver: ${latest.driver_name}${latest.phone ? " • " + latest.phone : ""}`
-    : "Hakuna dereva";
-
-  // Monthly target = weekly target x 4 weeks (approximation shown on the card)
-  const monthTarget = s ? s.weekly_target * 4 : 0;
-
-  return (
-    <article className={"vcard" + (selected ? " selected" : "")} onClick={onPick}>
-      <div className="vhead">
-        <div className="vtitle">
-          <h3>{vehicle.name}</h3>
-          <span className="badge type">{vehicle.vehicle_type.toUpperCase()}</span>
-          <span className="badge month">{monthLabel(month)}</span>
-        </div>
-        <div className="vactions">
-          <button className="icon" aria-label="Hariri" onClick={(e) => { e.stopPropagation(); onEdit(); }}>✏️</button>
-          <button className="icon" aria-label="Futa" onClick={(e) => { e.stopPropagation(); onDelete(); }}>🗑️</button>
-        </div>
-      </div>
-      <p className="driver">{driverText}</p>
-      {s ? (
-        <>
-          <div className="block">
-            <div className="block-title">MONTH</div>
-            <Row label="Target:" value={tsh(monthTarget)} cls="blue" />
-            <Row label="Paid:" value={tsh(s.payments)} cls="green" />
-          </div>
-          <Row label="Month Debt:" value={tsh(s.debt_added)} cls="orange" />
-          <Row label="Carry Over Debt:" value={tsh(s.starting_debt)} cls="orange" />
-          <div className="total"><span>Total Debt:</span><b>{tsh(s.ending_debt)}</b></div>
-        </>
-      ) : (
-        <p className="driver">Inapakia...</p>
-      )}
-    </article>
-  );
-}
 
 export default function Dashboard({ onLogout }: { onLogout: () => void }) {
   const [vehicles, setVehicles] = useState<Vehicle[]>([]);
@@ -96,11 +30,13 @@ export default function Dashboard({ onLogout }: { onLogout: () => void }) {
   const [view, setView] = useState<View>("vehicles");
   const [menuOpen, setMenuOpen] = useState(false);
   const [tick, setTick] = useState(0);
+  const [detailId, setDetailId] = useState<number | null>(null);
+  const detail = vehicles.find((v) => v.id === detailId) ?? null;
   const [debt, setDebt] = useState<DebtResponse | null>(null);
   const [returns, setReturns] = useState<ReturnRecord[]>([]);
   const [error, setError] = useState("");
 
-  const [day, setDay] = useState(`${currentMonth()}-01`);
+  const [day, setDay] = useState(`${todayYMD().slice(0, 7)}-01`);
   const [amount, setAmount] = useState("");
   const [excess, setExcess] = useState(false);
 
@@ -219,23 +155,25 @@ export default function Dashboard({ onLogout }: { onLogout: () => void }) {
           )}
         </section>
 
-        {view === "vehicles" && (
-          <>
-            <button className="btn-add" onClick={() => go("manage")}>+ Add Vehicle</button>
-            {vehicles.length === 0 && <p className="card">Hakuna gari bado. Bonyeza + Add Vehicle.</p>}
-            {vehicles.map((v) => (
-              <VehicleCard
-                key={v.id}
-                vehicle={v}
-                month={month}
-                tick={tick}
-                selected={v.id === vehicleId}
-                onPick={() => { setVehicleId(v.id); go("debt"); }}
-                onEdit={() => { setVehicleId(v.id); go("manage"); }}
-                onDelete={() => removeVehicle(v)}
-              />
-            ))}
-          </>
+        {view === "vehicles" && detail && (
+          <VehicleDetail
+            vehicle={detail}
+            month={month}
+            onBack={() => setDetailId(null)}
+            onChanged={() => { loadVehicles(); setTick((t) => t + 1); }}
+            onDeleted={() => { setDetailId(null); loadVehicles(); setTick((t) => t + 1); }}
+          />
+        )}
+
+        {view === "vehicles" && !detail && (
+          <VehiclesPage
+            vehicles={vehicles}
+            month={month}
+            tick={tick}
+            onOpen={(v) => setDetailId(v.id)}
+            onDelete={(v) => removeVehicle(v)}
+            onAdded={() => { loadVehicles(); setTick((t) => t + 1); }}
+          />
         )}
 
         {view === "debt" && hasVehicle && s && debt && (
