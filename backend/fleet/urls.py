@@ -1,3 +1,4 @@
+from django.urls import path
 from rest_framework.routers import DefaultRouter
 from fleet import views
 
@@ -11,4 +12,5 @@ router.register("payment-records", views.PaymentRecordViewSet, basename="payment
 router.register("service-records", views.ServiceRecordViewSet, basename="service-record")
 router.register("tyre-records", views.TyreRecordViewSet, basename="tyre-record")
 router.register("insurance-records", views.InsuranceRecordViewSet, basename="insurance-record")
-urlpatterns = router.urls
+router.register("personal-expenses", views.PersonalExpenseViewSet, basename="personal-expense")
+urlpatterns = router.urls + [path("expense-summary/", views.ExpenseSummaryView.as_view())]
