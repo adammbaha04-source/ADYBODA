@@ -400,3 +400,18 @@ button.ghost { background: #e2e8f0; color: var(--ink-1); box-shadow: none; }
 .hint { font-size: 13px; color: var(--ink-3); margin: 4px 0 8px; }
 .empty { text-align: center; color: var(--ink-4); font-style: italic; }
 .list li.empty { justify-content: center; }
+
+/* ===== Matumizi tab ===== */
+.total-box { text-align: center; padding: 18px; border-radius: var(--r-md); background: var(--surface-2); border: 1px solid var(--line); margin-bottom: 12px; }
+.total-box span { display: block; font-size: 12px; font-weight: 800; letter-spacing: .6px; color: var(--ink-3); }
+.total-box b { font-size: 26px; font-weight: 900; }
+.cat-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+.cat { background: var(--surface-2); border: 1px solid var(--line); border-radius: var(--r-sm); padding: 12px; }
+.cat span { display: block; font-size: 12px; color: var(--ink-3); font-weight: 700; }
+.cat b { font-size: 16px; font-weight: 800; }
+.sub-title { margin: 16px 0 10px; font-size: 14px; color: var(--ink-2); }
+.expense-buttons { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin: 14px 0 0; }
+.btn-green { background: linear-gradient(135deg, #34d399, #059669); box-shadow: 0 10px 22px -10px rgba(5,150,105,.6); }
+.btn-purple { background: linear-gradient(135deg, #a78bfa, #7c3aed); box-shadow: 0 10px 22px -10px rgba(124,58,237,.6); }
+input.readonly { background: #f1f5f9; color: var(--ink-2); }
+.purple { color: #7c3aed; }
