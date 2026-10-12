@@ -65,3 +65,11 @@ export interface PaymentRecord { id: number; day: string; payment_type: string; 
 export interface ServiceRecord { id: number; day: string; tool: string; count: number; unit_price: number; seller: string; note: string; total: number; }
 export interface TyreRecord { id: number; day: string; tyre_number: string; amount: number; note: string; }
 export interface InsuranceRecord { id: number; day: string; insurance_type: string; amount: number; months: number; note: string; }
+
+export interface PersonalExpense { id: number; day: string; category: string; amount: number; note: string; makato_type: string; transaction_amount: number | null; }
+export interface ExpenseSummary {
+  month: string;
+  categories: Record<string, number>;
+  vehicle: { service: number; tairi: number; bima: number; deni: number; malipo: number };
+  total_personal: number;
+}
