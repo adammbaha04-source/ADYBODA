@@ -1,5 +1,6 @@
 from rest_framework import serializers
-from fleet.models import Vehicle, DriverPeriod, Return, LostDays, ManualLedgerEntry
+from fleet.models import (Vehicle, DriverPeriod, Return, LostDays, ManualLedgerEntry,
+                          PaymentRecord, ServiceRecord, TyreRecord, InsuranceRecord)
 
 
 class DriverPeriodSerializer(serializers.ModelSerializer):
@@ -41,4 +42,34 @@ class ManualLedgerEntrySerializer(serializers.ModelSerializer):
     class Meta:
         model = ManualLedgerEntry
         fields = ["id", "vehicle", "kind", "day", "amount", "note"]
+        read_only_fields = ["vehicle"]
+
+
+class PaymentRecordSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = PaymentRecord
+        fields = ["id", "vehicle", "day", "payment_type", "amount", "note"]
+        read_only_fields = ["vehicle"]
+
+
+class ServiceRecordSerializer(serializers.ModelSerializer):
+    total = serializers.IntegerField(read_only=True)
+
+    class Meta:
+        model = ServiceRecord
+        fields = ["id", "vehicle", "day", "tool", "count", "unit_price", "seller", "note", "total"]
+        read_only_fields = ["vehicle"]
+
+
+class TyreRecordSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = TyreRecord
+        fields = ["id", "vehicle", "day", "tyre_number", "amount", "note"]
+        read_only_fields = ["vehicle"]
+
+
+class InsuranceRecordSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = InsuranceRecord
+        fields = ["id", "vehicle", "day", "insurance_type", "amount", "months", "note"]
         read_only_fields = ["vehicle"]
