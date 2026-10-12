@@ -60,3 +60,8 @@ export interface LostDays {
   week_number: number;
   days: number;
 }
+
+export interface PaymentRecord { id: number; day: string; payment_type: string; amount: number; note: string; }
+export interface ServiceRecord { id: number; day: string; tool: string; count: number; unit_price: number; seller: string; note: string; total: number; }
+export interface TyreRecord { id: number; day: string; tyre_number: string; amount: number; note: string; }
+export interface InsuranceRecord { id: number; day: string; insurance_type: string; amount: number; months: number; note: string; }
