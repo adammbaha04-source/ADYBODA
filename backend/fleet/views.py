@@ -179,3 +179,22 @@ class ExpenseSummaryView(APIView):
         return Response({"month": month, "categories": cats, "vehicle": {
             "service": service, "tairi": tairi, "bima": bima, "deni": deni, "malipo": malipo},
             "total_personal": total})
+
+
+from fleet.reports import build_report
+from fleet.engine import months_between
+
+
+class ReportView(APIView):
+    """GET /api/reports/?from=YYYY-MM&to=YYYY-MM[&vehicle=<id>] for the signed-in owner only."""
+
+    def get(self, request):
+        start = request.query_params.get("from", "")
+        end = request.query_params.get("to", "")
+        if len(start) != 7 or len(end) != 7 or start > end:
+            return Response({"detail": "Use from=YYYY-MM and to=YYYY-MM, with from before to."}, status=400)
+        if len(months_between(start, end)) > 36:
+            return Response({"detail": "Choose 36 months or fewer."}, status=400)
+        vid = request.query_params.get("vehicle")
+        vehicle_id = int(vid) if vid and vid.isdigit() else None
+        return Response(build_report(request.user, start, end, vehicle_id))
