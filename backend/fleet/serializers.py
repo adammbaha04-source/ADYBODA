@@ -73,3 +73,10 @@ class InsuranceRecordSerializer(serializers.ModelSerializer):
         model = InsuranceRecord
         fields = ["id", "vehicle", "day", "insurance_type", "amount", "months", "note"]
         read_only_fields = ["vehicle"]
+
+
+class PersonalExpenseSerializer(serializers.ModelSerializer):
+    class Meta:
+        from fleet.models import PersonalExpense
+        model = PersonalExpense
+        fields = ["id", "day", "category", "amount", "note", "makato_type", "transaction_amount"]
