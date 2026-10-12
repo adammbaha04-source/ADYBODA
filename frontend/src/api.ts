@@ -1,4 +1,4 @@
-import type { DebtResponse, InsuranceRecord, LostDays, PaymentRecord, ReturnRecord, ServiceRecord, TyreRecord, Vehicle } from "./types";
+import type { DebtResponse, ExpenseSummary, InsuranceRecord, LostDays, PaymentRecord, PersonalExpense, ReturnRecord, ServiceRecord, TyreRecord, Vehicle } from "./types";
 
 const TOKEN_KEY = "adybajaj_token";
 
@@ -106,3 +106,12 @@ export const createInsurance = (vehicleId: number, day: string, insuranceType: s
 
 export const deleteRecord = (path: "payment-records" | "service-records" | "tyre-records" | "insurance-records", id: number) =>
   request<void>(`/${path}/${id}/`, { method: "DELETE" });
+
+// ----- Matumizi tab (personal expenses, Makato, summary) -----
+export const listExpenses = (month: string) => request<PersonalExpense[]>(`/personal-expenses/?month=${month}`);
+export const addExpense = (day: string, category: string, amount: number, note: string) =>
+  request<PersonalExpense>("/personal-expenses/", { method: "POST", body: JSON.stringify({ day, category, amount, note }) });
+export const addMakato = (day: string, makatoType: string, transactionAmount: number, note: string) =>
+  request<PersonalExpense>("/personal-expenses/", { method: "POST", body: JSON.stringify({ day, category: "makato", makato_type: makatoType, transaction_amount: transactionAmount, note }) });
+export const deleteExpense = (id: number) => request<void>(`/personal-expenses/${id}/`, { method: "DELETE" });
+export const getExpenseSummary = (month: string) => request<ExpenseSummary>(`/expense-summary/?month=${month}`);
