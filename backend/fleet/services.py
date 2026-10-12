@@ -19,9 +19,12 @@ def vehicle_debt(vehicle, end_month: str):
     returns = [ReturnRecord(r.day, r.amount, r.is_excess) for r in vehicle.returns.all()]
     lost = {(l.month, l.week_number): l.days for l in vehicle.lost_days.all()}
     manual = list(vehicle.manual_entries.all())
+    # Only "Malipo ya Deni" payments reduce debt. TRA, parking and fines are expenses only.
+    debt_payments = list(vehicle.payment_records.filter(payment_type="debt_payment"))
 
     earliest = [_month_of(r.day) for r in vehicle.returns.all()] + \
-               [_month_of(m.day) for m in manual] + [end_month]
+               [_month_of(m.day) for m in manual] + \
+               [_month_of(p.day) for p in debt_payments] + [end_month]
     entries = generate_entries(cfg, returns, lost, min(earliest), end_month)
 
     for m in manual:
@@ -30,6 +33,9 @@ def vehicle_debt(vehicle, end_month: str):
             entries.append(DebtEntry(type="MANUAL_PAYMENT", paid_debt=m.amount, **base))
         else:  # MANUAL_DEBT or CARRY_OVER add to the balance
             entries.append(DebtEntry(type=m.kind, new_debt=m.amount, **base))
+    for p in debt_payments:
+        entries.append(DebtEntry(month=_month_of(p.day), day=p.day, type="MANUAL_PAYMENT",
+                                 paid_debt=p.amount, notes=p.note or "Malipo ya Deni", sub=0))
     return rebuild_chain(entries, carry_over=0)
 
 
