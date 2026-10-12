@@ -5,6 +5,8 @@ import Manage from "./Manage";
 import VehicleDetail from "./VehicleDetail";
 import VehiclesPage from "./VehiclesPage";
 import ExpensesPage from "./ExpensesPage";
+import ServicePage from "./ServicePage";
+import DebtPage from "./DebtPage";
 import type { DebtResponse, ReturnRecord, Vehicle } from "./types";
 
 type View = "vehicles" | "income" | "service" | "debt" | "changamoto" | "ripoti" | "grafu" | "users" | "profile" | "settings" | "manage";
@@ -13,7 +15,7 @@ type View = "vehicles" | "income" | "service" | "debt" | "changamoto" | "ripoti"
 const MENU: { key: View; label: string; icon: string; note: string }[] = [
   { key: "vehicles", label: "Vehicles", icon: "🚗", note: "" },
   { key: "income", label: "Matumizi", icon: "💵", note: "" },
-  { key: "service", label: "Service", icon: "🔧", note: "Huduma za gari, matairi na bima" },
+  { key: "service", label: "Service", icon: "🔧", note: "" },
   { key: "debt", label: "Deni", icon: "📉", note: "" },
   { key: "changamoto", label: "Changamoto", icon: "⚠️", note: "Changamoto za magari" },
   { key: "ripoti", label: "Ripoti", icon: "📊", note: "Ripoti za mwezi, robo mwaka na mwaka" },
@@ -177,42 +179,9 @@ export default function Dashboard({ onLogout }: { onLogout: () => void }) {
           />
         )}
 
-        {view === "debt" && hasVehicle && s && debt && (
-          <>
-            <section className="grid">
-              <div className="card"><h4>Deni la mwanzo</h4><b>{tsh(s.starting_debt)}</b></div>
-              <div className="card"><h4>Deni jipya</h4><b className="red">{tsh(s.debt_added)}</b></div>
-              <div className="card"><h4>Malipo</h4><b className="green">{tsh(s.payments)}</b></div>
-              <div className="card"><h4>Deni la mwisho</h4><b className="red">{tsh(s.ending_debt)}</b></div>
-              <div className="card"><h4>Target ya wiki</h4><b>{tsh(s.weekly_target)}</b></div>
-            </section>
-            <label className="card toggle">
-              <input type="checkbox" checked={s.carry_over_on} onChange={(e) => toggleCarry(e.target.checked)} />
-              Deni la mwezi huu lipelekwe mwezi unaofuata (Carry over)
-            </label>
-            <section className="card">
-              <h3>Historia ya deni</h3>
-              <div className="scroll">
-                <table>
-                  <thead>
-                    <tr><th>Tarehe</th><th>Aina</th><th>Awali</th><th>Mpya</th><th>Imelipwa</th><th>Imefungwa</th><th>Baada</th><th>Maelezo</th></tr>
-                  </thead>
-                  <tbody>
-                    {debt.entries.length === 0 && <tr><td colSpan={8}>Hakuna historia kwa mwezi huu</td></tr>}
-                    {debt.entries.map((e) => (
-                      <tr key={e.id}>
-                        <td>{e.date}</td><td>{e.type}</td>
-                        <td>{tsh(e.previous_debt)}</td><td>{tsh(e.new_debt)}</td>
-                        <td>{tsh(e.paid_debt)}</td><td>{tsh(e.closed_debt)}</td>
-                        <td>{tsh(e.remaining_debt)}</td><td className="notes">{e.notes}</td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            </section>
-          </>
-        )}
+        {view === "service" && <ServicePage vehicles={vehicles} month={month} />}
+
+        {view === "debt" && <DebtPage vehicles={vehicles} month={month} />}
 
         {view === "income" && <ExpensesPage month={month} />}
 
