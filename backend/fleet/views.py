@@ -131,3 +131,51 @@ class TyreRecordViewSet(_VehicleChildViewSet):
 class InsuranceRecordViewSet(_VehicleChildViewSet):
     model = InsuranceRecord
     serializer_class = InsuranceRecordSerializer
+
+
+from rest_framework.views import APIView
+from django.db.models import Sum
+from fleet.fees import makato_fee
+from fleet.models import PersonalExpense, ManualLedgerEntry
+from fleet.serializers import PersonalExpenseSerializer
+
+
+class PersonalExpenseViewSet(viewsets.ModelViewSet):
+    serializer_class = PersonalExpenseSerializer
+
+    def get_queryset(self):
+        qs = PersonalExpense.objects.filter(owner=self.request.user)
+        month = self.request.query_params.get("month")
+        return qs.filter(day__year=int(month[:4]), day__month=int(month[5:7])) if month else qs
+
+    def perform_create(self, serializer):
+        data = serializer.validated_data
+        amount = data.get("amount", 0)
+        if data.get("category") == "makato":
+            amount = makato_fee(data.get("makato_type", ""), data.get("transaction_amount") or 0)
+        serializer.save(owner=self.request.user, amount=amount)
+
+
+class ExpenseSummaryView(APIView):
+    """Totals for the Matumizi tab: personal categories + vehicle-related totals for one month."""
+
+    def get(self, request):
+        month = request.query_params.get("month")
+        if not month or len(month) != 7:
+            return Response({"month": "Use YYYY-MM."}, status=400)
+        y, m = int(month[:4]), int(month[5:7])
+        owner = request.user
+        cats = {k: 0 for k in ["binafsi", "chakula", "ofisi", "mgonjwa", "hospitali", "michango", "vocha", "umeme", "maji", "mavazi", "mengineyo", "makato"]}
+        for row in PersonalExpense.objects.filter(owner=owner, day__year=y, day__month=m).values("category").annotate(t=Sum("amount")):
+            cats[row["category"]] = row["t"] or 0
+        from fleet.models import ServiceRecord, TyreRecord, InsuranceRecord, PaymentRecord
+        vehicles = owner.vehicles.all()
+        service = sum(s.count * s.unit_price for s in ServiceRecord.objects.filter(vehicle__in=vehicles, day__year=y, day__month=m))
+        tairi = TyreRecord.objects.filter(vehicle__in=vehicles, day__year=y, day__month=m).aggregate(t=Sum("amount"))["t"] or 0
+        bima = InsuranceRecord.objects.filter(vehicle__in=vehicles, day__year=y, day__month=m).aggregate(t=Sum("amount"))["t"] or 0
+        malipo = PaymentRecord.objects.filter(vehicle__in=vehicles, day__year=y, day__month=m).aggregate(t=Sum("amount"))["t"] or 0
+        deni = ManualLedgerEntry.objects.filter(vehicle__in=vehicles, kind="MANUAL_DEBT", day__year=y, day__month=m).aggregate(t=Sum("amount"))["t"] or 0
+        total = sum(cats.values())
+        return Response({"month": month, "categories": cats, "vehicle": {
+            "service": service, "tairi": tairi, "bima": bima, "deni": deni, "malipo": malipo},
+            "total_personal": total})
