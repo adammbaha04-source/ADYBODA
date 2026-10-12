@@ -6,6 +6,7 @@ import VehicleDetail from "./VehicleDetail";
 import VehiclesPage from "./VehiclesPage";
 import ExpensesPage from "./ExpensesPage";
 import ServicePage from "./ServicePage";
+import ReportsPage from "./ReportsPage";
 import DebtPage from "./DebtPage";
 import type { DebtResponse, ReturnRecord, Vehicle } from "./types";
 
@@ -18,8 +19,8 @@ const MENU: { key: View; label: string; icon: string; note: string }[] = [
   { key: "service", label: "Service", icon: "🔧", note: "" },
   { key: "debt", label: "Deni", icon: "📉", note: "" },
   { key: "changamoto", label: "Changamoto", icon: "⚠️", note: "Changamoto za magari" },
-  { key: "ripoti", label: "Ripoti", icon: "📊", note: "Ripoti za mwezi, robo mwaka na mwaka" },
-  { key: "grafu", label: "Grafu", icon: "📈", note: "Grafu za mapato na deni" },
+  { key: "ripoti", label: "Ripoti", icon: "📊", note: "" },
+  { key: "grafu", label: "Grafu", icon: "📈", note: "" },
   { key: "users", label: "Users", icon: "👥", note: "Watumiaji: owner, manager, driver" },
   { key: "profile", label: "Profile", icon: "👤", note: "Wasifu wako" },
   { key: "settings", label: "Settings", icon: "⚙️", note: "Mipangilio ya app" },
@@ -182,6 +183,10 @@ export default function Dashboard({ onLogout }: { onLogout: () => void }) {
         {view === "service" && <ServicePage vehicles={vehicles} month={month} />}
 
         {view === "debt" && <DebtPage vehicles={vehicles} month={month} />}
+
+        {view === "ripoti" && <ReportsPage mode="report" vehicles={vehicles} />}
+
+        {view === "grafu" && <ReportsPage mode="graphs" vehicles={vehicles} />}
 
         {view === "income" && <ExpensesPage month={month} />}
 
