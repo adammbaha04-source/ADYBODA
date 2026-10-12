@@ -4,6 +4,7 @@ import { currentMonth, monthLabel, todayYMD, tsh } from "./format";
 import Manage from "./Manage";
 import VehicleDetail from "./VehicleDetail";
 import VehiclesPage from "./VehiclesPage";
+import ExpensesPage from "./ExpensesPage";
 import type { DebtResponse, ReturnRecord, Vehicle } from "./types";
 
 type View = "vehicles" | "income" | "service" | "debt" | "changamoto" | "ripoti" | "grafu" | "users" | "profile" | "settings" | "manage";
@@ -11,7 +12,7 @@ type View = "vehicles" | "income" | "service" | "debt" | "changamoto" | "ripoti"
 // Same order as the old app's menu. Usimamizi (our vehicle setup screen) is kept at the end.
 const MENU: { key: View; label: string; icon: string; note: string }[] = [
   { key: "vehicles", label: "Vehicles", icon: "🚗", note: "" },
-  { key: "income", label: "Mapato", icon: "💵", note: "" },
+  { key: "income", label: "Matumizi", icon: "💵", note: "" },
   { key: "service", label: "Service", icon: "🔧", note: "Huduma za gari, matairi na bima" },
   { key: "debt", label: "Deni", icon: "📉", note: "" },
   { key: "changamoto", label: "Changamoto", icon: "⚠️", note: "Changamoto za magari" },
@@ -213,27 +214,7 @@ export default function Dashboard({ onLogout }: { onLogout: () => void }) {
           </>
         )}
 
-        {view === "income" && hasVehicle && (
-          <section className="card">
-            <h3>Ongeza mapato</h3>
-            <form className="row wrap-row" onSubmit={addReturn}>
-              <input type="date" value={day} onChange={(e) => setDay(e.target.value)} required />
-              <input type="number" inputMode="numeric" placeholder="Kiasi" value={amount} onChange={(e) => setAmount(e.target.value)} required min={0} />
-              <label className="inline"><input type="checkbox" checked={excess} onChange={(e) => setExcess(e.target.checked)} /> Ziada</label>
-              <button type="submit">Hifadhi</button>
-            </form>
-            <ul className="list">
-              {returns.length === 0 && <li>Hakuna mapato kwa mwezi huu</li>}
-              {returns.map((r) => (
-                <li key={r.id}>
-                  <span>{r.day} {r.is_excess && "(ziada)"}</span>
-                  <b>{tsh(r.amount)}</b>
-                  <button className="danger" onClick={() => removeReturn(r.id)}>Futa</button>
-                </li>
-              ))}
-            </ul>
-          </section>
-        )}
+        {view === "income" && <ExpensesPage month={month} />}
 
         {view === "manage" && (
           <Manage vehicleId={vehicleId} onChanged={refresh} onVehicleCreated={loadVehicles} />
