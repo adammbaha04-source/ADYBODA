@@ -3,9 +3,12 @@ from rest_framework import viewsets, status
 from rest_framework.decorators import action
 from rest_framework.response import Response
 from rest_framework.serializers import ValidationError
-from fleet.models import Vehicle, DriverPeriod, Return, LostDays, ManualLedgerEntry
+from fleet.models import (Vehicle, DriverPeriod, Return, LostDays, ManualLedgerEntry,
+                          PaymentRecord, ServiceRecord, TyreRecord, InsuranceRecord)
 from fleet.serializers import (VehicleSerializer, DriverPeriodSerializer, ReturnSerializer,
-                               LostDaysSerializer, ManualLedgerEntrySerializer)
+                               LostDaysSerializer, ManualLedgerEntrySerializer,
+                               PaymentRecordSerializer, ServiceRecordSerializer,
+                               TyreRecordSerializer, InsuranceRecordSerializer)
 from fleet.services import vehicle_debt, debt_summary, serialize_entries
 
 
@@ -95,3 +98,36 @@ class ManualLedgerViewSet(OwnedVehicleMixin, viewsets.ModelViewSet):
     def perform_create(self, serializer):
         serializer.save(vehicle=self.owned_vehicle(self.request.data.get("vehicle")),
                         created_by=self.request.user)
+
+
+class _VehicleChildViewSet(OwnedVehicleMixin, viewsets.ModelViewSet):
+    """Base for records that belong to a vehicle. Filter with ?vehicle=<id>."""
+    model = None
+
+    def get_queryset(self):
+        qs = self.model.objects.filter(vehicle__owner=self.request.user)
+        v = self.request.query_params.get("vehicle")
+        return qs.filter(vehicle_id=v) if v else qs
+
+    def perform_create(self, serializer):
+        serializer.save(vehicle=self.owned_vehicle(self.request.data.get("vehicle")))
+
+
+class PaymentRecordViewSet(_VehicleChildViewSet):
+    model = PaymentRecord
+    serializer_class = PaymentRecordSerializer
+
+
+class ServiceRecordViewSet(_VehicleChildViewSet):
+    model = ServiceRecord
+    serializer_class = ServiceRecordSerializer
+
+
+class TyreRecordViewSet(_VehicleChildViewSet):
+    model = TyreRecord
+    serializer_class = TyreRecordSerializer
+
+
+class InsuranceRecordViewSet(_VehicleChildViewSet):
+    model = InsuranceRecord
+    serializer_class = InsuranceRecordSerializer
