@@ -115,3 +115,22 @@ export const addMakato = (day: string, makatoType: string, transactionAmount: nu
   request<PersonalExpense>("/personal-expenses/", { method: "POST", body: JSON.stringify({ day, category: "makato", makato_type: makatoType, transaction_amount: transactionAmount, note }) });
 export const deleteExpense = (id: number) => request<void>(`/personal-expenses/${id}/`, { method: "DELETE" });
 export const getExpenseSummary = (month: string) => request<ExpenseSummary>(`/expense-summary/?month=${month}`);
+
+// ----- Ripoti and Grafu -----
+export interface ReportTotals {
+  target: number; collected: number; excess: number; new_debt: number; debt_payments: number;
+  expenses: number; lost_days: number; lost_amount: number; personal: number; outstanding: number; profit: number;
+}
+export interface ReportMonth {
+  month: string; target: number; collected: number; excess: number; new_debt: number; debt_payments: number;
+  outstanding: number; expenses: number; lost_amount: number; lost_days: number; personal: number; profit: number;
+}
+export interface ReportVehicle {
+  id: number; name: string; type: string; driver: string; target: number; collected: number; excess: number;
+  outstanding: number; new_debt: number; debt_payments: number; lost_days: number; lost_amount: number;
+  service: number; expenses: number; profit: number;
+}
+export interface ReportData { from: string; to: string; vehicle_id: number | null; totals: ReportTotals; series: ReportMonth[]; vehicles: ReportVehicle[]; }
+
+export const getReport = (from: string, to: string, vehicleId: string) =>
+  request<ReportData>(`/reports/?from=${from}&to=${to}${vehicleId && vehicleId !== "ALL" ? `&vehicle=${vehicleId}` : ""}`);
