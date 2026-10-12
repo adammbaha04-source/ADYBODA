@@ -115,3 +115,24 @@ class InsuranceRecord(models.Model):
 
     class Meta:
         ordering = ["day", "id"]
+
+
+class PersonalExpense(models.Model):
+    """Owner's personal spending (Matumizi) and deductions (Makato). Owner-level, not per vehicle."""
+    CATEGORIES = [
+        ("binafsi", "Binafsi"), ("chakula", "Chakula"), ("ofisi", "Ofisi"),
+        ("mgonjwa", "Mgonjwa"), ("hospitali", "Hospitali"), ("michango", "Michango"),
+        ("vocha", "Vocha"), ("umeme", "Umeme"), ("maji", "Maji"), ("mavazi", "Mavazi"),
+        ("mengineyo", "Mengineyo"), ("makato", "Makato"),
+    ]
+    MAKATO_TYPES = [("pesafasta", "Pesafasta"), ("atm", "ATM"), ("mitandao", "Mitandao ya Simu")]
+    owner = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name="personal_expenses")
+    day = models.DateField()
+    category = models.CharField(max_length=20, choices=CATEGORIES)
+    amount = models.PositiveIntegerField(default=0)
+    note = models.CharField(max_length=200, blank=True)
+    makato_type = models.CharField(max_length=20, blank=True)
+    transaction_amount = models.PositiveIntegerField(null=True, blank=True)
+
+    class Meta:
+        ordering = ["day", "id"]
