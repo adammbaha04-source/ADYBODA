@@ -55,3 +55,63 @@ class ManualLedgerEntry(models.Model):
     amount = models.PositiveIntegerField()
     note = models.CharField(max_length=200, blank=True)
     created_by = models.ForeignKey(settings.AUTH_USER_MODEL, null=True, on_delete=models.SET_NULL)
+
+
+class PaymentRecord(models.Model):
+    """Payments from the old app's "Add Payment" form. Only debt_payment reduces debt."""
+    TYPES = [
+        ("TRA", "TRA Taxes"),
+        ("maegesho", "Maegesho (Parking)"),
+        ("wrong_parking", "Wrong Parking Fine"),
+        ("police", "Police Fine"),
+        ("debt_payment", "Malipo ya Deni"),
+    ]
+    vehicle = models.ForeignKey(Vehicle, on_delete=models.CASCADE, related_name="payment_records")
+    day = models.DateField()
+    payment_type = models.CharField(max_length=20, choices=TYPES)
+    amount = models.PositiveIntegerField()
+    note = models.CharField(max_length=200, blank=True)
+
+    class Meta:
+        ordering = ["day", "id"]
+
+
+class ServiceRecord(models.Model):
+    """Service / Service ya Pamoja: tool, count, unit price, seller."""
+    vehicle = models.ForeignKey(Vehicle, on_delete=models.CASCADE, related_name="service_records")
+    day = models.DateField()
+    tool = models.CharField(max_length=80, blank=True)
+    count = models.PositiveIntegerField(default=1)
+    unit_price = models.PositiveIntegerField(default=0)
+    seller = models.CharField(max_length=80, blank=True)
+    note = models.CharField(max_length=200, blank=True)
+
+    @property
+    def total(self) -> int:
+        return self.count * self.unit_price
+
+    class Meta:
+        ordering = ["day", "id"]
+
+
+class TyreRecord(models.Model):
+    vehicle = models.ForeignKey(Vehicle, on_delete=models.CASCADE, related_name="tyre_records")
+    day = models.DateField()
+    tyre_number = models.CharField(max_length=40, blank=True)
+    amount = models.PositiveIntegerField(default=0)
+    note = models.CharField(max_length=200, blank=True)
+
+    class Meta:
+        ordering = ["day", "id"]
+
+
+class InsuranceRecord(models.Model):
+    vehicle = models.ForeignKey(Vehicle, on_delete=models.CASCADE, related_name="insurance_records")
+    day = models.DateField()
+    insurance_type = models.CharField(max_length=60, blank=True)
+    amount = models.PositiveIntegerField(default=0)
+    months = models.PositiveSmallIntegerField(default=12)
+    note = models.CharField(max_length=200, blank=True)
+
+    class Meta:
+        ordering = ["day", "id"]
