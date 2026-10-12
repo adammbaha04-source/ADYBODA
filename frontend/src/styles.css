@@ -434,3 +434,28 @@ input.readonly { background: #f1f5f9; color: var(--ink-2); }
 .debt-head { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
 .debt-amount { margin-left: auto; font-size: 18px; font-weight: 900; }
 .orange { color: #ea580c; }
+
+/* ===== Ripoti and Grafu ===== */
+.reports .filter-row { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+.reports label { display: flex; flex-direction: column; gap: 6px; font-size: 13px; font-weight: 700; margin-bottom: 10px; }
+.chip-row { display: flex; flex-wrap: wrap; gap: 8px; margin: 8px 0; }
+.chip { background: #eef2ff; color: #3730a3; box-shadow: none; padding: 8px 12px; font-size: 13px; }
+.btn-add.alt { background: linear-gradient(135deg, #f59e0b, #ea580c); margin-top: 0; }
+.btn-add:disabled { opacity: .5; }
+.note { font-size: 13px; color: var(--ink-3); background: #f8fafc; border-radius: 12px; padding: 10px 12px; }
+.print-head { display: none; }
+.chart { width: 100%; overflow-x: auto; }
+.chart svg { width: 100%; height: auto; min-width: 360px; }
+.chart-legend { display: flex; flex-wrap: wrap; gap: 14px; justify-content: center; margin-top: 6px; }
+.chart-legend li { display: flex; align-items: center; gap: 6px; font-size: 13px; }
+.rtable { width: 100%; border-collapse: collapse; font-size: 13px; }
+.rtable th { background: linear-gradient(135deg, #f59e0b, #ea580c); color: #fff; padding: 8px; text-align: left; white-space: nowrap; }
+.rtable td { padding: 8px; border-bottom: 1px solid var(--line-soft); white-space: nowrap; }
+@media (max-width: 480px) { .reports .filter-row { grid-template-columns: 1fr; } }
+@media print {
+  .no-print, button, select, input, .appbar, .drawer, .backdrop, .tabs { display: none !important; }
+  .print-head { display: block; }
+  body { background: #fff !important; }
+  .card { box-shadow: none !important; border: 1px solid #ddd; break-inside: avoid; }
+  .chart svg { min-width: 0; }
+}
