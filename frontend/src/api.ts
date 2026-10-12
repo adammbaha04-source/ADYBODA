@@ -1,4 +1,4 @@
-import type { DebtResponse, LostDays, ReturnRecord, Vehicle } from "./types";
+import type { DebtResponse, InsuranceRecord, LostDays, PaymentRecord, ReturnRecord, ServiceRecord, TyreRecord, Vehicle } from "./types";
 
 const TOKEN_KEY = "adybajaj_token";
 
@@ -88,3 +88,21 @@ export const addManualEntry = (vehicleId: number, kind: string, day: string, amo
   });
 
 export const deleteVehicle = (id: number) => request<void>(`/vehicles/${id}/`, { method: "DELETE" });
+
+// ----- records from the old app's forms -----
+export const listPayments = (vehicleId: number) => request<PaymentRecord[]>(`/payment-records/?vehicle=${vehicleId}`);
+export const listServices = (vehicleId: number) => request<ServiceRecord[]>(`/service-records/?vehicle=${vehicleId}`);
+export const listTyres = (vehicleId: number) => request<TyreRecord[]>(`/tyre-records/?vehicle=${vehicleId}`);
+export const listInsurances = (vehicleId: number) => request<InsuranceRecord[]>(`/insurance-records/?vehicle=${vehicleId}`);
+
+export const createPayment = (vehicleId: number, day: string, paymentType: string, amount: number, note: string) =>
+  request<PaymentRecord>("/payment-records/", { method: "POST", body: JSON.stringify({ vehicle: vehicleId, day, payment_type: paymentType, amount, note }) });
+export const createService = (vehicleId: number, body: { day: string; tool: string; count: number; unit_price: number; seller: string; note: string }) =>
+  request<ServiceRecord>("/service-records/", { method: "POST", body: JSON.stringify({ vehicle: vehicleId, ...body }) });
+export const createTyre = (vehicleId: number, day: string, tyreNumber: string, amount: number, note: string) =>
+  request<TyreRecord>("/tyre-records/", { method: "POST", body: JSON.stringify({ vehicle: vehicleId, day, tyre_number: tyreNumber, amount, note }) });
+export const createInsurance = (vehicleId: number, day: string, insuranceType: string, amount: number, months: number, note: string) =>
+  request<InsuranceRecord>("/insurance-records/", { method: "POST", body: JSON.stringify({ vehicle: vehicleId, day, insurance_type: insuranceType, amount, months, note }) });
+
+export const deleteRecord = (path: "payment-records" | "service-records" | "tyre-records" | "insurance-records", id: number) =>
+  request<void>(`/${path}/${id}/`, { method: "DELETE" });
