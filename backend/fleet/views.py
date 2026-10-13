@@ -2,7 +2,7 @@ from django.shortcuts import get_object_or_404
 from django.utils import timezone
 from rest_framework.exceptions import PermissionDenied
 from rest_framework.permissions import IsAuthenticated
-from fleet.access import ScopedPermission, vehicles_for, role_of, business_owner
+from fleet.access import ScopedPermission, vehicles_for, role_of, business_owner, membership_of
 from rest_framework import viewsets, status
 from rest_framework.decorators import action
 from rest_framework.response import Response
@@ -315,3 +315,222 @@ class MeView(APIView):
             m.phone = str(request.data.get("phone", ""))[:20]
             m.save(update_fields=["phone"])
         return Response({"phone": m.phone})
+
+
+# ----- Profile and settings -----
+from fleet.models import UserProfile, Challenge
+from fleet.serializers import ChallengeSerializer
+
+MAX_PHOTO_CHARS = 200_000   # about 150 KB as a data URL
+ALLOWED_SETTINGS = {
+    "background": {"adybajaj", "ocean", "emerald", "sunset", "violet"},
+    "accent": {"orange", "violet", "blue", "green"},
+    "dark_mode": {True, False},
+    "remember_theme": {True, False},
+}
+
+
+def _profile_payload(user, m, prof):
+    return {
+        "username": user.username,
+        "first_name": user.first_name,
+        "role": m.role if m else "owner",
+        "business_owner": m.business_owner.username if m else user.username,
+        "phone": prof.phone,
+        "photo": prof.photo,
+        "settings": prof.settings,
+        "vehicles": [{"id": v.id, "name": v.name} for v in vehicles_for(user)],
+    }
+
+
+class MeView(APIView):
+    """Profile of the signed-in user (any role). GET reads, PATCH edits name, phone, photo and settings."""
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request):
+        m = membership_of(request.user)
+        prof, _ = UserProfile.objects.get_or_create(user=request.user)
+        return Response(_profile_payload(request.user, m, prof))
+
+    def patch(self, request):
+        m = membership_of(request.user)
+        prof, _ = UserProfile.objects.get_or_create(user=request.user)
+        data = request.data
+        if "first_name" in data:
+            request.user.first_name = str(data.get("first_name", ""))[:150]
+            request.user.save(update_fields=["first_name"])
+        if "phone" in data:
+            prof.phone = str(data.get("phone", ""))[:20]
+            if m:
+                m.phone = prof.phone
+                m.save(update_fields=["phone"])
+        if "photo" in data:
+            photo = str(data.get("photo") or "")
+            if photo and not photo.startswith("data:image/"):
+                return Response({"photo": "Chagua picha (jpg, png)."}, status=400)
+            if len(photo) > MAX_PHOTO_CHARS:
+                return Response({"photo": "Picha ni kubwa sana. Chagua picha ndogo (chini ya 150 KB)."}, status=400)
+            prof.photo = photo
+        if "settings" in data and isinstance(data.get("settings"), dict):
+            clean = dict(prof.settings or {})
+            for key, value in data["settings"].items():
+                if key in ALLOWED_SETTINGS and value in ALLOWED_SETTINGS[key]:
+                    clean[key] = value
+            prof.settings = clean
+        prof.save()
+        return Response(_profile_payload(request.user, m, prof))
+
+
+class ChallengeViewSet(viewsets.ModelViewSet):
+    """Changamoto. Driver reports on his vehicle; owner and manager see and resolve for their vehicles."""
+    serializer_class = ChallengeSerializer
+    permission_classes = [IsAuthenticated]
+    http_method_names = ["get", "post", "delete", "head", "options"]
+
+    def get_queryset(self):
+        qs = Challenge.objects.filter(vehicle__in=vehicles_for(self.request.user))
+        status_q = self.request.query_params.get("status")
+        vid = self.request.query_params.get("vehicle")
+        if status_q in ("open", "resolved"):
+            qs = qs.filter(status=status_q)
+        if vid and vid.isdigit():
+            qs = qs.filter(vehicle_id=int(vid))
+        return qs
+
+    def perform_create(self, serializer):
+        vehicle = serializer.validated_data["vehicle"]
+        if vehicle not in vehicles_for(self.request.user):
+            raise PermissionDenied("Gari hili si lako.")
+        serializer.save(created_by=self.request.user)
+
+    def perform_destroy(self, instance):
+        if role_of(self.request.user) != "owner" and instance.created_by_id != self.request.user.id:
+            raise PermissionDenied("Huwezi kufuta changamoto hii.")
+        instance.delete()
+
+    @action(detail=True, methods=["post"])
+    def resolve(self, request, pk=None):
+        """Owner or manager marks a challenge as solved. The driver then sees it as Resolved."""
+        if role_of(request.user) not in ("owner", "manager"):
+            raise PermissionDenied("Owner au manager pekee wanaweza kutatua changamoto.")
+        obj = self.get_object()
+        obj.status = "resolved"
+        obj.resolved_by = request.user
+        obj.resolved_at = timezone.now()
+        obj.save(update_fields=["status", "resolved_by", "resolved_at"])
+        return Response(self.get_serializer(obj).data)
+
+    @action(detail=True, methods=["post"])
+    def reopen(self, request, pk=None):
+        if role_of(request.user) not in ("owner", "manager"):
+            raise PermissionDenied("Owner au manager pekee.")
+        obj = self.get_object()
+        obj.status = "open"
+        obj.resolved_by = None
+        obj.resolved_at = None
+        obj.save(update_fields=["status", "resolved_by", "resolved_at"])
+        return Response(self.get_serializer(obj).data)
+
+
+from django.utils import timezone as _tz
+from fleet.models import UserProfile, Challenge
+from fleet.serializers import ChallengeSerializer
+
+MAX_AVATAR_CHARS = 200_000
+THEME_VALUES = {"light", "dark"}
+BG_VALUES = {"adybajaj", "ocean", "emerald", "sunset", "violet"}
+
+
+def _profile(user):
+    prof, _ = UserProfile.objects.get_or_create(user=user)
+    return prof
+
+
+class ChallengeViewSet(viewsets.ModelViewSet):
+    """Challenges (Changamoto). Everyone who can see a vehicle can report on it.
+    Only owner and manager can solve. Driver sees the status change."""
+    serializer_class = ChallengeSerializer
+    permission_classes = [IsAuthenticated]
+    http_method_names = ["get", "post", "head", "options"]
+
+    def get_queryset(self):
+        qs = Challenge.objects.filter(vehicle__in=vehicles_for(self.request.user)).select_related("vehicle", "created_by")
+        status = self.request.query_params.get("status")
+        vehicle = self.request.query_params.get("vehicle")
+        if status in ("open", "resolved"):
+            qs = qs.filter(status=status)
+        if vehicle and vehicle.isdigit():
+            qs = qs.filter(vehicle_id=int(vehicle))
+        return qs
+
+    def perform_create(self, serializer):
+        vehicle = serializer.validated_data["vehicle"]
+        if vehicle not in vehicles_for(self.request.user):
+            raise PermissionDenied("Gari hili si lako.")
+        serializer.save(created_by=self.request.user)
+
+    @action(detail=True, methods=["post"])
+    def solve(self, request, pk=None):
+        if role_of(request.user) not in ("owner", "manager"):
+            raise PermissionDenied("Owner au manager pekee ndiye anaweza kutatua changamoto.")
+        obj = self.get_object()
+        obj.status = "resolved"
+        obj.resolved_at = _tz.now()
+        obj.resolved_by = request.user
+        obj.save(update_fields=["status", "resolved_at", "resolved_by"])
+        return Response(self.get_serializer(obj).data)
+
+
+class MeProfileView(APIView):
+    """Profile and appearance for the signed-in user. Works for owner, manager and driver."""
+    permission_classes = [IsAuthenticated]
+
+    def _payload(self, user):
+        p = _profile(user)
+        m = Membership.objects.filter(user=user).select_related("business_owner").first()
+        return {
+            "username": user.username,
+            "email": user.email,
+            "role": m.role if m else "owner",
+            "business_owner": m.business_owner.username if m else user.username,
+            "full_name": p.full_name,
+            "phone": p.phone or (m.phone if m else ""),
+            "avatar": p.avatar,
+            "theme": p.theme,
+            "background": p.background,
+            "accent": p.accent,
+            "vehicles": [{"id": v.id, "name": v.name} for v in vehicles_for(user)],
+        }
+
+    def get(self, request):
+        return Response(self._payload(request.user))
+
+    def patch(self, request):
+        p = _profile(request.user)
+        d = request.data
+        if "full_name" in d:
+            p.full_name = str(d.get("full_name", ""))[:120]
+        if "phone" in d:
+            p.phone = str(d.get("phone", ""))[:20]
+        if "avatar" in d:
+            avatar = str(d.get("avatar", ""))
+            if avatar and not avatar.startswith("data:image/"):
+                return Response({"avatar": "Picha lazima iwe image."}, status=400)
+            if len(avatar) > MAX_AVATAR_CHARS:
+                return Response({"avatar": "Picha ni kubwa sana. Chagua picha ndogo."}, status=400)
+            p.avatar = avatar
+        if "theme" in d:
+            if d["theme"] not in THEME_VALUES:
+                return Response({"theme": "Chagua light au dark."}, status=400)
+            p.theme = d["theme"]
+        if "background" in d:
+            if d["background"] not in BG_VALUES:
+                return Response({"background": "Mandhari hii haipo."}, status=400)
+            p.background = d["background"]
+        if "accent" in d:
+            import re
+            if not re.fullmatch(r"#[0-9a-fA-F]{6}", str(d["accent"])):
+                return Response({"accent": "Rangi lazima iwe kama #f97316."}, status=400)
+            p.accent = d["accent"]
+        p.save()
+        return Response(self._payload(request.user))
