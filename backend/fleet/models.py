@@ -34,6 +34,7 @@ class Return(models.Model):
     day = models.DateField()
     amount = models.PositiveIntegerField()
     is_excess = models.BooleanField(default=False)
+    confirmed_at = models.DateTimeField(null=True, blank=True)
 
 
 class LostDays(models.Model):
@@ -55,6 +56,7 @@ class ManualLedgerEntry(models.Model):
     amount = models.PositiveIntegerField()
     note = models.CharField(max_length=200, blank=True)
     created_by = models.ForeignKey(settings.AUTH_USER_MODEL, null=True, on_delete=models.SET_NULL)
+    confirmed_at = models.DateTimeField(null=True, blank=True)
 
 
 class PaymentRecord(models.Model):
@@ -74,6 +76,7 @@ class PaymentRecord(models.Model):
 
     class Meta:
         ordering = ["day", "id"]
+    confirmed_at = models.DateTimeField(null=True, blank=True)
 
 
 class ServiceRecord(models.Model):
@@ -136,3 +139,17 @@ class PersonalExpense(models.Model):
 
     class Meta:
         ordering = ["day", "id"]
+
+
+class Membership(models.Model):
+    """A manager or driver who works for one owner (business_owner)."""
+    ROLES = [("manager", "Manager"), ("driver", "Driver")]
+    user = models.OneToOneField(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name="membership")
+    business_owner = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name="team")
+    role = models.CharField(max_length=10, choices=ROLES)
+    phone = models.CharField(max_length=20, blank=True)
+    vehicles = models.ManyToManyField(Vehicle, blank=True, related_name="members")
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    def __str__(self):
+        return f"{self.user.username} ({self.role})"
