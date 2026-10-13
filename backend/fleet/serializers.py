@@ -27,8 +27,8 @@ class VehicleSerializer(serializers.ModelSerializer):
 class ReturnSerializer(serializers.ModelSerializer):
     class Meta:
         model = Return
-        fields = ["id", "vehicle", "day", "amount", "is_excess"]
-        read_only_fields = ["vehicle"]
+        fields = ["id", "vehicle", "day", "amount", "is_excess", "confirmed_at"]
+        read_only_fields = ["vehicle", "confirmed_at"]
 
 
 class LostDaysSerializer(serializers.ModelSerializer):
@@ -48,8 +48,8 @@ class ManualLedgerEntrySerializer(serializers.ModelSerializer):
 class PaymentRecordSerializer(serializers.ModelSerializer):
     class Meta:
         model = PaymentRecord
-        fields = ["id", "vehicle", "day", "payment_type", "amount", "note"]
-        read_only_fields = ["vehicle"]
+        fields = ["id", "vehicle", "day", "payment_type", "amount", "note", "confirmed_at"]
+        read_only_fields = ["vehicle", "confirmed_at"]
 
 
 class ServiceRecordSerializer(serializers.ModelSerializer):
@@ -80,3 +80,11 @@ class PersonalExpenseSerializer(serializers.ModelSerializer):
         from fleet.models import PersonalExpense
         model = PersonalExpense
         fields = ["id", "day", "category", "amount", "note", "makato_type", "transaction_amount"]
+
+
+class TeamMemberSerializer(serializers.Serializer):
+    username = serializers.CharField(max_length=150)
+    password = serializers.CharField(min_length=6, write_only=True)
+    role = serializers.ChoiceField(choices=["manager", "driver"])
+    phone = serializers.CharField(max_length=20, required=False, allow_blank=True)
+    vehicles = serializers.ListField(child=serializers.IntegerField(), allow_empty=True, required=False)
