@@ -13,4 +13,5 @@ router.register("service-records", views.ServiceRecordViewSet, basename="service
 router.register("tyre-records", views.TyreRecordViewSet, basename="tyre-record")
 router.register("insurance-records", views.InsuranceRecordViewSet, basename="insurance-record")
 router.register("personal-expenses", views.PersonalExpenseViewSet, basename="personal-expense")
-urlpatterns = router.urls + [path("expense-summary/", views.ExpenseSummaryView.as_view()), path("reports/", views.ReportView.as_view()), path("me/", views.MeView.as_view()), path("team/", views.TeamViewSet.as_view({"get": "list", "post": "create"})), path("team/<int:pk>/", views.TeamViewSet.as_view({"delete": "destroy"}))]
+router.register("challenges", views.ChallengeViewSet, basename="challenge")
+urlpatterns = router.urls + [path("expense-summary/", views.ExpenseSummaryView.as_view()), path("reports/", views.ReportView.as_view()), path("me/", views.MeProfileView.as_view()), path("challenges/", views.ChallengeViewSet.as_view({"get": "list", "post": "create"})), path("challenges/<int:pk>/solve/", views.ChallengeViewSet.as_view({"post": "solve"})), path("team/", views.TeamViewSet.as_view({"get": "list", "post": "create"})), path("team/<int:pk>/", views.TeamViewSet.as_view({"delete": "destroy"}))]
