@@ -153,3 +153,56 @@ class Membership(models.Model):
 
     def __str__(self):
         return f"{self.user.username} ({self.role})"
+
+
+class UserProfile(models.Model):
+    """Profile and app settings for any signed-in user (owner, manager or driver)."""
+    user = models.OneToOneField(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name="profile")
+    phone = models.CharField(max_length=20, blank=True)
+    photo = models.TextField(blank=True)          # small data URL (max ~150 KB), see views
+    settings = models.JSONField(default=dict, blank=True)
+
+
+class Challenge(models.Model):
+    """Changamoto: a problem reported on a vehicle. Driver reports, owner or manager resolves."""
+    STATUS = [("open", "Open"), ("resolved", "Resolved")]
+    vehicle = models.ForeignKey(Vehicle, on_delete=models.CASCADE, related_name="challenges")
+    title = models.CharField(max_length=120)
+    details = models.TextField(blank=True)
+    status = models.CharField(max_length=10, choices=STATUS, default="open")
+    created_by = models.ForeignKey(settings.AUTH_USER_MODEL, null=True, on_delete=models.SET_NULL, related_name="challenges_made")
+    created_at = models.DateTimeField(auto_now_add=True)
+    resolved_by = models.ForeignKey(settings.AUTH_USER_MODEL, null=True, blank=True, on_delete=models.SET_NULL, related_name="challenges_solved")
+    resolved_at = models.DateTimeField(null=True, blank=True)
+
+    class Meta:
+        ordering = ["-created_at", "-id"]
+
+
+class UserProfile(models.Model):
+    """Profile and appearance settings for any signed-in user (owner, manager or driver)."""
+    THEMES = [("light", "Light"), ("dark", "Dark")]
+    BACKGROUNDS = [("adybajaj", "AdyBajaj"), ("ocean", "Ocean"), ("emerald", "Emerald"), ("sunset", "Sunset"), ("violet", "Violet")]
+    user = models.OneToOneField(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name="profile")
+    full_name = models.CharField(max_length=120, blank=True)
+    phone = models.CharField(max_length=20, blank=True)
+    avatar = models.TextField(blank=True)            # small image as a data URL (max ~200 KB, checked in the API)
+    theme = models.CharField(max_length=10, choices=THEMES, default="light")
+    background = models.CharField(max_length=20, choices=BACKGROUNDS, default="adybajaj")
+    accent = models.CharField(max_length=7, default="#f97316")   # hex colour like #f97316
+
+
+class Challenge(models.Model):
+    """Problem report. Driver/manager/owner create it; owner or manager solves it; driver sees 'resolved'."""
+    STATUS = [("open", "Open"), ("resolved", "Resolved")]
+    vehicle = models.ForeignKey(Vehicle, on_delete=models.CASCADE, related_name="challenges")
+    created_by = models.ForeignKey(settings.AUTH_USER_MODEL, null=True, on_delete=models.SET_NULL, related_name="challenges_made")
+    title = models.CharField(max_length=120)
+    description = models.TextField(blank=True)
+    status = models.CharField(max_length=10, choices=STATUS, default="open")
+    created_at = models.DateTimeField(auto_now_add=True)
+    resolved_at = models.DateTimeField(null=True, blank=True)
+    resolved_by = models.ForeignKey(settings.AUTH_USER_MODEL, null=True, blank=True, on_delete=models.SET_NULL, related_name="challenges_solved")
+
+    class Meta:
+        ordering = ["-created_at", "-id"]
