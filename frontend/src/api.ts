@@ -1,4 +1,4 @@
-import type { DebtResponse, ExpenseSummary, InsuranceRecord, LostDays, PaymentRecord, PersonalExpense, ReturnRecord, ServiceRecord, TyreRecord, Vehicle } from "./types";
+import type { DebtResponse, ExpenseSummary, InsuranceRecord, LostDays, PaymentRecord, PersonalExpense, ReturnRecord, ServiceRecord, TeamMember, TyreRecord, Vehicle } from "./types";
 
 const TOKEN_KEY = "adybajaj_token";
 
@@ -134,3 +134,9 @@ export interface ReportData { from: string; to: string; vehicle_id: number | nul
 
 export const getReport = (from: string, to: string, vehicleId: string) =>
   request<ReportData>(`/reports/?from=${from}&to=${to}${vehicleId && vehicleId !== "ALL" ? `&vehicle=${vehicleId}` : ""}`);
+
+// ----- Users (owner's team) -----
+export const listTeam = () => request<TeamMember[]>("/team/");
+export const createTeamMember = (body: { username: string; password: string; role: "manager" | "driver"; phone: string; vehicles: number[] }) =>
+  request("/team/", { method: "POST", body: JSON.stringify(body) });
+export const deleteTeamMember = (id: number) => request<void>(`/team/${id}/`, { method: "DELETE" });
