@@ -73,3 +73,11 @@ export interface ExpenseSummary {
   vehicle: { service: number; tairi: number; bima: number; deni: number; malipo: number };
   total_personal: number;
 }
+
+export interface TeamMember {
+  id: number;
+  username: string;
+  role: "manager" | "driver";
+  phone: string;
+  vehicles: { id: number; name: string }[];
+}
