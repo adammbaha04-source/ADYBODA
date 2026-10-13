@@ -459,3 +459,15 @@ input.readonly { background: #f1f5f9; color: var(--ink-2); }
   .card { box-shadow: none !important; border: 1px solid #ddd; break-inside: avoid; }
   .chart svg { min-width: 0; }
 }
+
+/* ===== Users (team) ===== */
+.pick-list { display: flex; flex-direction: column; gap: 8px; margin: 6px 0 12px; }
+.pick-item { flex-direction: row !important; align-items: center; gap: 10px; font-weight: 600; padding: 10px 12px; border: 1px solid var(--line); border-radius: var(--r-sm); background: var(--surface-2); }
+.team-list { list-style: none; padding: 0; margin: 0; }
+.team-item { display: grid; grid-template-columns: 1fr auto; gap: 6px 10px; padding: 12px 0; border-bottom: 1px solid var(--line-soft); }
+.team-main { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; font-size: 16px; }
+.team-sub { grid-column: 1 / -1; font-size: 13px; color: var(--ink-3); }
+.team-item .danger { grid-column: 2; grid-row: 1; }
+.role-badge { font-size: 11px; font-weight: 800; padding: 3px 9px; border-radius: 999px; letter-spacing: .5px; }
+.role-badge.manager { background: #d1fae5; color: #065f46; }
+.role-badge.driver { background: #dbeafe; color: #1e40af; }
