@@ -7,6 +7,7 @@ import VehiclesPage from "./VehiclesPage";
 import ExpensesPage from "./ExpensesPage";
 import ServicePage from "./ServicePage";
 import ReportsPage from "./ReportsPage";
+import UsersPage from "./UsersPage";
 import DebtPage from "./DebtPage";
 import type { DebtResponse, ReturnRecord, Vehicle } from "./types";
 
@@ -21,7 +22,7 @@ const MENU: { key: View; label: string; icon: string; note: string }[] = [
   { key: "changamoto", label: "Changamoto", icon: "⚠️", note: "Changamoto za magari" },
   { key: "ripoti", label: "Ripoti", icon: "📊", note: "" },
   { key: "grafu", label: "Grafu", icon: "📈", note: "" },
-  { key: "users", label: "Users", icon: "👥", note: "Watumiaji: owner, manager, driver" },
+  { key: "users", label: "Users", icon: "👥", note: "" },
   { key: "profile", label: "Profile", icon: "👤", note: "Wasifu wako" },
   { key: "settings", label: "Settings", icon: "⚙️", note: "Mipangilio ya app" },
   { key: "manage", label: "Usimamizi", icon: "🛠️", note: "" },
@@ -150,13 +151,6 @@ export default function Dashboard({ onLogout }: { onLogout: () => void }) {
           <label>Mwezi:
             <input type="month" value={month} onChange={(e) => setMonth(e.target.value)} />
           </label>
-          {view !== "vehicles" && vehicles.length > 0 && (
-            <label>Gari:
-              <select value={vehicleId ?? ""} onChange={(e) => setVehicleId(Number(e.target.value))}>
-                {vehicles.map((v) => <option key={v.id} value={v.id}>{v.name}</option>)}
-              </select>
-            </label>
-          )}
         </section>
 
         {view === "vehicles" && detail && (
@@ -187,6 +181,8 @@ export default function Dashboard({ onLogout }: { onLogout: () => void }) {
         {view === "ripoti" && <ReportsPage mode="report" vehicles={vehicles} />}
 
         {view === "grafu" && <ReportsPage mode="graphs" vehicles={vehicles} />}
+
+        {view === "users" && <UsersPage vehicles={vehicles} />}
 
         {view === "income" && <ExpensesPage month={month} />}
 
