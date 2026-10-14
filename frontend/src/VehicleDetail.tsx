@@ -1,13 +1,17 @@
 import { useEffect, useState, type FormEvent } from "react";
 import {
-  addManualEntry, createInsurance, createPayment, createReturn, createService, createTyre,
-  deleteRecord, deleteReturn, deleteVehicle, getDebt, listInsurances, listLostDays, listPayments,
-  listReturns, listServices, listTyres, setCarry, updateVehicle,
+  addManualEntry, createInsurance, createPayment, createService, createTyre,
+  deleteRecord, deleteVehicle, getDebt, listInsurances, listLostDays, listPayments,
+  listServices, listTyres, setCarry, updateVehicle,
 } from "./api";
-import { addDays, monthLabel, shortDate, todayYMD, tsh } from "./format";
+import { deleteIncome, listIncome, type IncomeRow } from "./incomeApi";
+import IncomeForm from "./IncomeForm";
+import WeekTable from "./WeekTable";
+import DebtTable from "./DebtTable";
+import { monthLabel, shortDate, todayYMD, tsh } from "./format";
 import { PRESETS } from "./VehiclesPage";
 import type {
-  DebtEntry, DebtResponse, InsuranceRecord, LostDays, PaymentRecord, ReturnRecord,
+  DebtEntry, DebtResponse, InsuranceRecord, LostDays, PaymentRecord,
   ServiceRecord, TyreRecord, Vehicle,
 } from "./types";
 
@@ -36,8 +40,6 @@ const ACTIONS: { key: Form | "saveMonth" | "delete"; label: string; icon: string
   { key: "delete", label: "Delete Vehicle", icon: "🗑️", tone: "g-red" },
 ];
 
-interface WeekRow { week: number; start: string; end: string; target: number; income: number; remaining: number; }
-
 function parseWeekNote(note: string): { week: number; income: number; target: number } | null {
   const m = note.match(/Week (\d+): Income (\d+) vs Target (\d+)/);
   return m ? { week: Number(m[1]), income: Number(m[2]), target: Number(m[3]) } : null;
@@ -51,7 +53,7 @@ export default function VehicleDetail(props: {
 }) {
   const { vehicle, month, onBack, onChanged, onDeleted } = props;
   const [debt, setDebt] = useState<DebtResponse | null>(null);
-  const [returns, setReturns] = useState<ReturnRecord[]>([]);
+  const [returns, setReturns] = useState<IncomeRow[]>([]);
   const [lost, setLost] = useState<LostDays[]>([]);
   const [payments, setPayments] = useState<PaymentRecord[]>([]);
   const [services, setServices] = useState<ServiceRecord[]>([]);
@@ -66,7 +68,7 @@ export default function VehicleDetail(props: {
   const [fDay, setFDay] = useState(todayYMD());
   const [fAmount, setFAmount] = useState("");
   const [fNote, setFNote] = useState("");
-  const [fExcess, setFExcess] = useState(false);
+  const [editingIncome, setEditingIncome] = useState<IncomeRow | null>(null);
   const [fPayType, setFPayType] = useState("TRA");
   const [fTool, setFTool] = useState("");
   const [fCount, setFCount] = useState("1");
@@ -84,11 +86,11 @@ export default function VehicleDetail(props: {
   async function load() {
     try {
       const [d, r, l, p, s, t, i] = await Promise.all([
-        getDebt(vehicle.id, month), listReturns(vehicle.id), listLostDays(vehicle.id),
+        getDebt(vehicle.id, month), listIncome(vehicle.id), listLostDays(vehicle.id),
         listPayments(vehicle.id), listServices(vehicle.id), listTyres(vehicle.id), listInsurances(vehicle.id),
       ]);
       setDebt(d);
-      setReturns(r.filter((x) => x.day.startsWith(month)).sort((a, b) => b.day.localeCompare(a.day)));
+      setReturns(r.filter((x) => (x.record_month || x.day.slice(0, 7)) === month).sort((a, b) => b.day.localeCompare(a.day)));
       setLost(l.filter((x) => x.month === month));
       setPayments(p.filter((x) => x.day.startsWith(month)));
       setServices(s.filter((x) => x.day.startsWith(month)));
@@ -125,7 +127,7 @@ export default function VehicleDetail(props: {
   }
 
   function clearFields() {
-    setFAmount(""); setFNote(""); setFExcess(false);
+    setFAmount(""); setFNote("");
     setFTool(""); setFCount("1"); setFUnit(""); setFSeller("");
     setFTyre(""); setFInsType(""); setFMonths("12");
   }
@@ -136,6 +138,7 @@ export default function VehicleDetail(props: {
     if (key === "saveMonth") { setNotice(PLACEHOLDER); return; }
     if (key === "delete") { removeVehicle(); return; }
     clearFields();
+    setEditingIncome(null);
     setFDay(todayYMD());
     setForm(key);
   }
@@ -146,25 +149,13 @@ export default function VehicleDetail(props: {
   const s = debt?.summary;
   const entries: DebtEntry[] = debt?.entries ?? [];
 
-  const weekRows: WeekRow[] = entries
-    .filter((e) => e.type.startsWith("WEEKLY_") || e.type === "NO_CHANGE" || e.type === "EXCESS_PAYMENT")
-    .map((e) => {
-      const p = parseWeekNote(e.notes);
-      return p ? { week: p.week, start: e.date, end: addDays(e.date, wd - 1), target: p.target, income: p.income, remaining: e.remaining_debt } : null;
-    })
-    .filter((x): x is WeekRow => x !== null);
-
-  const weeksCount = weekRows.length || 4;
+  const weeksCount = entries.filter((e) => parseWeekNote(e.notes) !== null).length || 4;
   const monthTarget = weekly * weeksCount;
   const totalIncome = returns.filter((r) => !r.is_excess).reduce((a, r) => a + r.amount, 0);
   const daysLost = lost.reduce((a, l) => a + l.days, 0);
   const lossAmount = daysLost * daily;
 
   // ----- submit handlers -----
-  function submitIncome(e: FormEvent) {
-    e.preventDefault();
-    run(() => createReturn(vehicle.id, fDay, Number(fAmount), fExcess), "Mapato yamehifadhiwa.");
-  }
   function submitDebt(e: FormEvent) {
     e.preventDefault();
     run(() => addManualEntry(vehicle.id, "MANUAL_DEBT", fDay, Number(fAmount), fNote.trim()), "Deni limeongezwa.");
@@ -264,14 +255,16 @@ export default function VehicleDetail(props: {
       {form && (
         <section className="card form-card">
           {form === "income" && (
-            <form onSubmit={submitIncome}>
-              <h3>Ongeza Mapato</h3>
-              <label>Tarehe ya Malipo<input type="date" value={fDay} onChange={(e) => setFDay(e.target.value)} required /></label>
-              <label>Kiasi (TSh)<input type="number" inputMode="numeric" value={fAmount} onChange={(e) => setFAmount(e.target.value)} required min={1} /></label>
-              <label className="inline"><input type="checkbox" checked={fExcess} onChange={(e) => setFExcess(e.target.checked)} /> Hii ni Malipo ya Ziada (Excess) - Itapunguza Deni</label>
-              <label>Maelezo<input value={fNote} onChange={(e) => setFNote(e.target.value)} placeholder="Maelezo ya ziada" /></label>
-              <button type="submit">Hifadhi</button>
-            </form>
+            <IncomeForm
+              key={editingIncome?.id ?? "new"}
+              vehicleId={vehicle.id}
+              workingDays={wd}
+              includeWeek5={vehicle.include_week5}
+              defaultMonth={month}
+              editing={editingIncome}
+              onSaved={() => { setForm(null); setEditingIncome(null); setNotice("Mapato yamehifadhiwa."); load(); onChanged(); }}
+              onCancel={() => { setForm(null); setEditingIncome(null); }}
+            />
           )}
           {form === "payment" && (
             <form onSubmit={submitPayment}>
@@ -350,7 +343,7 @@ export default function VehicleDetail(props: {
               <button type="submit">Hifadhi</button>
             </form>
           )}
-          <button className="ghost" onClick={() => setForm(null)}>Sitisha / Cancel</button>
+          {form !== "income" && <button className="ghost" onClick={() => setForm(null)}>Sitisha / Cancel</button>}
         </section>
       )}
 
@@ -377,57 +370,13 @@ export default function VehicleDetail(props: {
 
       <section className="card">
         <h3>Historia ya Deni</h3>
-        <div className="scroll">
-          <table>
-            <thead>
-              <tr><th>Tarehe</th><th>Aina</th><th>Awali</th><th>Mpya</th><th>Imelipwa</th><th>Imefungwa</th><th>Baada</th><th>Maelezo</th></tr>
-            </thead>
-            <tbody>
-              {entries.length === 0 && <tr><td colSpan={8}>No debt records for this month</td></tr>}
-              {entries.map((e) => (
-                <tr key={e.id}>
-                  <td>{e.date}</td><td>{e.type}</td>
-                  <td>{tsh(e.previous_debt)}</td><td>{tsh(e.new_debt)}</td>
-                  <td>{tsh(e.paid_debt)}</td><td>{tsh(e.closed_debt)}</td>
-                  <td>{tsh(e.remaining_debt)}</td><td className="notes">{e.notes}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
+        <DebtTable entries={entries} />
       </section>
 
       <section className="card">
         <h3>Muhtasari wa Wiki za Mwezi</h3>
-        <div className="scroll">
-          <table>
-            <thead>
-              <tr><th>Week</th><th>Date Range</th><th>Working Days</th><th>Target</th><th>Income</th><th>Remaining</th></tr>
-            </thead>
-            <tbody>
-              {weekRows.length === 0 && <tr><td colSpan={6}>No weeks</td></tr>}
-              {weekRows.map((w) => (
-                <tr key={w.week}>
-                  <td><b>Week {w.week}</b></td>
-                  <td>{shortDate(w.start)} – {shortDate(w.end)}</td>
-                  <td className="purple">{wd}/{wd}</td>
-                  <td className="blue">{tsh(w.target)}</td>
-                  <td className="green">{tsh(w.income)}</td>
-                  <td className="red">{tsh(w.remaining)}</td>
-                </tr>
-              ))}
-              {weekRows.length > 0 && (
-                <tr className="total-row">
-                  <td><b>Monthly Total ({weekRows.length} weeks)</b></td>
-                  <td>{wd} days/week</td><td></td>
-                  <td className="blue">{tsh(weekRows.reduce((a, w) => a + w.target, 0))}</td>
-                  <td className="green">{tsh(weekRows.reduce((a, w) => a + w.income, 0))}</td>
-                  <td className="red">{tsh(weekRows[weekRows.length - 1].remaining)}</td>
-                </tr>
-              )}
-            </tbody>
-          </table>
-        </div>
+        <WeekTable entries={entries} returns={returns} month={month} workingDays={wd}
+          lostDays={lost.map((l) => ({ week_number: l.week_number, days: l.days }))} />
       </section>
 
       <section className="card">
@@ -436,9 +385,16 @@ export default function VehicleDetail(props: {
           {returns.length === 0 && <li className="empty">No income records for this month</li>}
           {returns.map((r) => (
             <li key={r.id}>
-              <span>{r.day} {r.is_excess && "(ziada)"}</span>
-              <b>{tsh(r.amount)}</b>
-              <button className="danger" onClick={() => { if (confirm("Futa mapato haya?")) run(() => deleteReturn(r.id), "Mapato yamefutwa."); }}>Futa</button>
+              <span>
+                {shortDate(r.day)} · {r.is_excess ? "Malipo ya Ziada" : "Income"}
+                {r.week_number ? ` · Wiki ${r.week_number}` : ""}
+                {r.period_start && r.period_end ? ` (${shortDate(r.period_start)} - ${shortDate(r.period_end)})` : ""}
+                {r.note ? ` · ${r.note}` : ""}
+                {r.confirmed_at ? " · Confirmed" : " · Pending"}
+              </span>
+              <b className="green">{r.is_excess ? "-" : "+"}{tsh(r.amount)}</b>
+              <button className="edit-btn" onClick={() => { setEditingIncome(r); setForm("income"); setNotice(""); window.scrollTo({ top: 0, behavior: "smooth" }); }}>Edit</button>
+              <button className="danger" onClick={() => { if (confirm("Futa mapato haya?")) run(() => deleteIncome(r.id), "Mapato yamefutwa."); }}>Del</button>
             </li>
           ))}
         </ul>
