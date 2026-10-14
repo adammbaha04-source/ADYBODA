@@ -185,6 +185,7 @@ class UserProfile(models.Model):
     BACKGROUNDS = [("adybajaj", "AdyBajaj"), ("ocean", "Ocean"), ("emerald", "Emerald"), ("sunset", "Sunset"), ("violet", "Violet")]
     user = models.OneToOneField(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name="profile")
     full_name = models.CharField(max_length=120, blank=True)
+    business_name = models.CharField(max_length=120, blank=True)
     phone = models.CharField(max_length=20, blank=True)
     avatar = models.TextField(blank=True)            # small image as a data URL (max ~200 KB, checked in the API)
     theme = models.CharField(max_length=10, choices=THEMES, default="light")
