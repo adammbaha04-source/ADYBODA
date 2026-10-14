@@ -24,6 +24,9 @@ class ReturnRecord:          # money paid in by the driver on a given day
     day: date
     amount: int
     is_excess: bool = False
+    record_month: str = ""               # month chosen on the form ("2026-10"); "" = old record
+    week_number: Optional[int] = None    # week chosen on the form; None = old record
+    confirmed: bool = False
 
 
 @dataclass
@@ -55,6 +58,15 @@ class DebtEntry:
     week_surplus: Optional[int] = None
     sub: int = 0                          # -1 handover, 0 normal, +1 month close
     week_number: Optional[int] = None
+    confirmed: Optional[bool] = None     # week rows: True when every income record of the week is signed
+
+
+def _in_week(r, m, w):
+    """A record belongs to the week chosen on the form (month + week number).
+    Old records without a chosen week fall back to their payment date."""
+    if r.week_number is not None:
+        return r.record_month == m and r.week_number == w.number
+    return w.start <= r.day <= w.end
 
 
 def month_weeks(year: int, month: int, working_days_count: int, include_week5: bool = False) -> List[Week]:
@@ -119,8 +131,9 @@ def generate_entries(cfg: VehicleConfig, returns: Sequence[ReturnRecord],
             first = False
             prev_name = name
 
-            income = sum(r.amount for r in returns if not r.is_excess and w.start <= r.day <= w.end)
-            excess_in = sum(r.amount for r in returns if r.is_excess and w.start <= r.day <= w.end)
+            in_week = [r for r in returns if _in_week(r, m, w)]
+            income = sum(r.amount for r in in_week if not r.is_excess)
+            excess_in = sum(r.amount for r in in_week if r.is_excess)
             lost = lost_days.get((m, w.number), 0)
             target = cfg.daily_target * max(0, cfg.working_days_count - lost)
             deficit = max(0, target - income)
@@ -135,6 +148,7 @@ def generate_entries(cfg: VehicleConfig, returns: Sequence[ReturnRecord],
                 kind = "NO_CHANGE"
             out.append(DebtEntry(month=m, day=w.start, type=kind, week_number=w.number,
                                  new_debt=deficit, week_surplus=surplus, sub=0,
+                                 confirmed=(all(r.confirmed for r in in_week) if in_week else None),
                                  notes=(f"Dereva: {name} - " if name else "") +
                                        f"Week {w.number}: Income {income} vs Target {target}"))
         if m in cfg.no_carry_months and weeks:
