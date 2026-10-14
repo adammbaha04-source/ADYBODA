@@ -494,6 +494,7 @@ class MeProfileView(APIView):
             "role": m.role if m else "owner",
             "business_owner": m.business_owner.username if m else user.username,
             "full_name": p.full_name,
+            "business_name": p.business_name,
             "phone": p.phone or (m.phone if m else ""),
             "avatar": p.avatar,
             "theme": p.theme,
@@ -512,6 +513,8 @@ class MeProfileView(APIView):
             p.full_name = str(d.get("full_name", ""))[:120]
         if "phone" in d:
             p.phone = str(d.get("phone", ""))[:20]
+        if "business_name" in d:
+            p.business_name = str(d.get("business_name", ""))[:120]
         if "avatar" in d:
             avatar = str(d.get("avatar", ""))
             if avatar and not avatar.startswith("data:image/"):
@@ -534,3 +537,29 @@ class MeProfileView(APIView):
             p.accent = d["accent"]
         p.save()
         return Response(self._payload(request.user))
+
+
+from rest_framework.authtoken.models import Token
+from rest_framework.permissions import AllowAny
+from rest_framework.decorators import api_view, permission_classes as _pc
+
+
+@api_view(["POST"])
+@_pc([AllowAny])
+def register_owner(request):
+    """Owner self-registration: creates the owner account and returns a login token."""
+    d = request.data
+    required = ["full_name", "business_name", "phone", "email", "password"]
+    missing = [k for k in required if not str(d.get(k, "")).strip()]
+    if missing:
+        return Response({"detail": "Jaza sehemu zote zilizo na *."}, status=400)
+    email = str(d["email"]).strip().lower()
+    if len(str(d["password"])) < 6:
+        return Response({"detail": "Nenosiri lazima liwe na herufi 6 au zaidi."}, status=400)
+    if get_user_model().objects.filter(username=email).exists():
+        return Response({"detail": "Email hii imeshasajiliwa."}, status=400)
+    user = get_user_model().objects.create_user(username=email, email=email, password=str(d["password"]))
+    UserProfile.objects.create(user=user, full_name=str(d["full_name"])[:120],
+                               business_name=str(d["business_name"])[:120], phone=str(d["phone"])[:20])
+    token, _ = Token.objects.get_or_create(user=user)
+    return Response({"token": token.key, "username": user.username}, status=201)
