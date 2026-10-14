@@ -1,10 +1,10 @@
 import { useCallback, useEffect, useState } from "react";
-import { deleteVehicle, getMe, listVehicles } from "./api";
+import { deleteVehicle, getMe, listVehicles, type MeProfile } from "./api";
 import { currentMonth } from "./format";
 import { applyAppearance } from "./theme";
 import Manage from "./Manage";
 import VehicleDetail from "./VehicleDetail";
-import VehiclesPage from "./VehiclesPage";
+import VehiclesPage, { type PeriodSel } from "./VehiclesPage";
 import ExpensesPage from "./ExpensesPage";
 import ServicePage from "./ServicePage";
 import DebtPage from "./DebtPage";
@@ -33,6 +33,7 @@ const MENU: { key: View; label: string; icon: string }[] = [
 
 // Pages that do not use the month/period card.
 const NO_PERIOD: View[] = ["profile", "settings", "changamoto", "users"];
+const ROLE_NAME: Record<string, string> = { owner: "OWNER", manager: "MANAGER", driver: "DRIVER" };
 
 export default function Dashboard({ onLogout }: { onLogout: () => void }) {
   const [vehicles, setVehicles] = useState<Vehicle[]>([]);
@@ -43,6 +44,10 @@ export default function Dashboard({ onLogout }: { onLogout: () => void }) {
   const [menuOpen, setMenuOpen] = useState(false);
   const [tick, setTick] = useState(0);
   const [error, setError] = useState("");
+  const [me, setMe] = useState<MeProfile | null>(null);
+  const [avatarOpen, setAvatarOpen] = useState(false);
+  const [periodMode, setPeriodMode] = useState<"month" | "week">("month");
+  const [week, setWeek] = useState(1);
 
   const detail = vehicles.find((v) => v.id === detailId) ?? null;
 
@@ -56,7 +61,7 @@ export default function Dashboard({ onLogout }: { onLogout: () => void }) {
 
   // Apply the user's saved appearance (background, dark mode, accent) as soon as the app opens.
   useEffect(() => {
-    getMe().then(applyAppearance).catch(() => { /* keep defaults if offline */ });
+    getMe().then((p) => { setMe(p); applyAppearance(p); }).catch(() => { /* keep defaults if offline */ });
   }, []);
 
   const bump = useCallback(() => setTick((t) => t + 1), []);
@@ -64,6 +69,7 @@ export default function Dashboard({ onLogout }: { onLogout: () => void }) {
   function go(v: View) {
     setView(v);
     setMenuOpen(false);
+    setAvatarOpen(false);
     if (v !== "vehicles") setDetailId(null);
   }
 
@@ -78,6 +84,16 @@ export default function Dashboard({ onLogout }: { onLogout: () => void }) {
     } catch (err) {
       setError((err as Error).message);
     }
+  }
+
+  const hasWeek5 = vehicles.some((v) => v.include_week5);
+  const weeks = hasWeek5 ? [1, 2, 3, 4, 5] : [1, 2, 3, 4];
+  const period: PeriodSel = { mode: periodMode, week };
+  const initial = (me?.full_name || me?.username || "A").charAt(0).toUpperCase();
+  const avatarSrc = me?.avatar || "";
+
+  function logout() {
+    onLogout();
   }
 
   return (
@@ -104,7 +120,20 @@ export default function Dashboard({ onLogout }: { onLogout: () => void }) {
       <header className="appbar">
         <button className="hamburger" aria-label="Menyu" onClick={() => setMenuOpen(true)}>☰</button>
         <div className="app-title">{MENU.find((m) => m.key === view)?.label}</div>
-        <div className="avatar small">A</div>
+        <div className="avatar-wrap">
+          <button className="avatar-btn" aria-label="Akaunti yangu" onClick={() => setAvatarOpen((v) => !v)}>
+            <span className="avatar small">{avatarSrc ? <img src={avatarSrc} alt="" className="avatar-img" /> : initial}</span>
+          </button>
+          {avatarOpen && (
+            <div className="avatar-menu">
+              <div className="am-name">{me?.full_name || me?.username || "Mtumiaji"}</div>
+              <div className="am-mail">{me?.email || me?.username}</div>
+              <span className="am-role">{ROLE_NAME[me?.role ?? "owner"] ?? "OWNER"}</span>
+              <button className="am-item" onClick={() => go("profile")}>👤 My Profile</button>
+              <button className="am-item red" onClick={logout}>🚪 Logout</button>
+            </div>
+          )}
+        </div>
       </header>
 
       <div className="wrap">
@@ -113,13 +142,19 @@ export default function Dashboard({ onLogout }: { onLogout: () => void }) {
         {!NO_PERIOD.includes(view) && (
           <section className="card period">
             <div className="seg">
-              <button className="seg-btn active">Mwezi</button>
-              <button className="seg-btn" disabled title="Inakuja">Wiki</button>
-              <button className="seg-btn" disabled title="Inakuja">Siku</button>
+              <button className={"seg-btn" + (periodMode === "month" ? " active" : "")} onClick={() => setPeriodMode("month")}>Mwezi</button>
+              <button className={"seg-btn" + (periodMode === "week" ? " active" : "")} onClick={() => setPeriodMode("week")}>Wiki</button>
             </div>
             <label>Mwezi:
               <input type="month" value={month} onChange={(e) => setMonth(e.target.value)} />
             </label>
+            {periodMode === "week" && (
+              <div className="week-chips">
+                {weeks.map((w) => (
+                  <button key={w} className={"chip" + (week === w ? " on" : "")} onClick={() => setWeek(w)}>Week {w}</button>
+                ))}
+              </div>
+            )}
           </section>
         )}
 
@@ -137,6 +172,8 @@ export default function Dashboard({ onLogout }: { onLogout: () => void }) {
             vehicles={vehicles}
             month={month}
             tick={tick}
+            period={period}
+            onUpdated={() => { loadVehicles(); bump(); }}
             onOpen={(v) => setDetailId(v.id)}
             onDelete={(v) => removeVehicle(v)}
             onAdded={() => { loadVehicles(); bump(); }}
