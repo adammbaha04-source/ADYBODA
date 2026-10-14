@@ -16,13 +16,14 @@ def vehicle_debt(vehicle, end_month: str):
                         include_week5=vehicle.include_week5,
                         driver_periods=periods,
                         no_carry_months=set(vehicle.no_carry_months))
-    returns = [ReturnRecord(r.day, r.amount, r.is_excess) for r in vehicle.returns.all()]
+    returns = [ReturnRecord(r.day, r.amount, r.is_excess, r.record_month, r.week_number,
+                            r.confirmed_at is not None) for r in vehicle.returns.all()]
     lost = {(l.month, l.week_number): l.days for l in vehicle.lost_days.all()}
     manual = list(vehicle.manual_entries.all())
     # Only "Malipo ya Deni" payments reduce debt. TRA, parking and fines are expenses only.
     debt_payments = list(vehicle.payment_records.filter(payment_type="debt_payment"))
 
-    earliest = [_month_of(r.day) for r in vehicle.returns.all()] + \
+    earliest = [(r.record_month or _month_of(r.day)) for r in vehicle.returns.all()] + \
                [_month_of(m.day) for m in manual] + \
                [_month_of(p.day) for p in debt_payments] + [end_month]
     entries = generate_entries(cfg, returns, lost, min(earliest), end_month)
@@ -62,4 +63,5 @@ def serialize_entries(entries):
         "month": e.month, "date": e.day.isoformat(), "type": e.type, "notes": e.notes,
         "previous_debt": e.previous_debt, "new_debt": e.new_debt, "paid_debt": e.paid_debt,
         "closed_debt": e.closed_debt, "remaining_debt": e.remaining_debt,
+        "week_number": e.week_number, "confirmed": e.confirmed,
     } for e in entries]
