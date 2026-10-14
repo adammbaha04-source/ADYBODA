@@ -612,3 +612,51 @@ body.theme-dark input, body.theme-dark select, body.theme-dark textarea { backgr
 body.theme-dark .ch-item.resolved { background: #052e1f; }
 body.theme-dark .info-list div, body.theme-dark .list li { border-color: #1f2937; }
 body.theme-dark .hint, body.theme-dark .ch-meta, body.theme-dark .ch-desc { color: #9ca3af; }
+
+/* ===== Login / register page ===== */
+.auth-page { min-height: 100vh; background-color: #0b1020; background-repeat: no-repeat; background-size: 520px auto; background-position: center 18%; padding: 28px 16px 40px; display: flex; flex-direction: column; align-items: center; gap: 18px; color: #fff; }
+.auth-hero { text-align: center; max-width: 440px; }
+.auth-logo { width: 72px; height: 72px; margin: 0 auto 10px; border-radius: 22px; background: linear-gradient(135deg, #f97316, #f59e0b); display: flex; align-items: center; justify-content: center; font-weight: 900; font-size: 26px; box-shadow: 0 14px 40px -10px rgba(249,115,22,.7); }
+.auth-hero h1 { margin: 0 0 8px; font-size: 28px; font-weight: 900; -webkit-text-fill-color: #fff; background: none; }
+.auth-hero p { margin: 0; color: #cbd5e1; font-size: 15px; }
+.auth-card { width: 100%; max-width: 440px; background: rgba(255,255,255,.96); color: var(--ink-1); border-radius: 26px; padding: 18px; box-shadow: 0 24px 60px -20px rgba(0,0,0,.5); }
+.auth-tabs { display: grid; grid-template-columns: 1fr 1fr; background: #f1f5f9; border-radius: 999px; padding: 5px; margin-bottom: 16px; }
+.auth-tabs button { background: transparent; color: var(--ink-3); box-shadow: none; border-radius: 999px; padding: 11px; }
+.auth-tabs button.on { background: linear-gradient(135deg, #f97316, #f59e0b); color: #fff; box-shadow: 0 8px 20px -8px rgba(249,115,22,.7); }
+.auth-form { display: flex; flex-direction: column; gap: 4px; }
+.auth-form label { margin-bottom: 8px; }
+.auth-note { font-size: 14px; color: #0c4a6e; background: #e0f2fe; border-left: 4px solid #2563eb; padding: 10px 12px; border-radius: 10px; margin: 0 0 6px; }
+.auth-switch { text-align: center; font-size: 14px; color: var(--ink-3); margin: 10px 0 0; }
+button.link { background: none; color: #ea580c; box-shadow: none; padding: 0; font-weight: 800; display: inline; }
+button.link:hover { transform: none; }
+
+/* ===== Avatar menu (top right) ===== */
+.avatar-wrap { position: relative; }
+.avatar-btn { background: none; padding: 0; box-shadow: none; border: none; }
+.avatar-btn:hover { transform: none; }
+.avatar-menu { position: absolute; right: 0; top: 52px; width: 260px; background: #fff; color: var(--ink-1); border-radius: 20px; box-shadow: 0 20px 50px -12px rgba(15,23,42,.45); padding: 16px; z-index: 700; }
+.avatar-menu .am-name { font-weight: 900; font-size: 16px; }
+.avatar-menu .am-mail { font-size: 13px; color: var(--ink-3); word-break: break-all; }
+.avatar-menu .am-role { display: inline-block; margin-top: 8px; font-size: 11px; font-weight: 900; letter-spacing: .6px; padding: 4px 10px; border-radius: 999px; background: #e0e7ff; color: #3730a3; }
+.avatar-menu .am-item { display: flex; align-items: center; gap: 10px; width: 100%; background: transparent; color: var(--ink-1); box-shadow: none; text-align: left; padding: 12px 6px; font-size: 15px; font-weight: 700; border-top: 1px solid var(--line-soft); margin-top: 6px; }
+.avatar-menu .am-item:hover { transform: none; background: var(--surface-2); }
+.avatar-menu .am-item.red { color: #dc2626; }
+
+/* ===== Week chips in the period card ===== */
+.week-chips { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 4px; }
+.week-chips .chip { background: #eef2ff; color: #3730a3; box-shadow: none; padding: 9px 14px; font-size: 13px; }
+.week-chips .chip.on { background: linear-gradient(135deg, #f97316, #f59e0b); color: #fff; }
+.week-block { background: linear-gradient(135deg, #fff7ed, #fffbeb); border: 1px solid #fed7aa; border-radius: var(--r-md); padding: 14px 16px; margin-bottom: 8px; }
+.week-block .wb-title { font-size: 13px; font-weight: 900; letter-spacing: .8px; color: #9a3412; margin-bottom: 4px; }
+.week-block .wb-range { font-size: 13px; color: var(--ink-3); margin-bottom: 6px; }
+
+/* ===== Vehicle type picker and edit form ===== */
+.type-pick { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 12px; }
+.type-pick label { flex-direction: column; align-items: flex-start; border: 2px solid var(--line); border-radius: var(--r-md); padding: 12px; margin: 0; cursor: pointer; font-weight: 800; }
+.type-pick label.on { border-color: #f97316; background: #fff7ed; }
+.type-pick input { width: 18px; height: 18px; accent-color: #f97316; }
+.type-pick small { font-weight: 500; color: var(--ink-3); }
+.inline-edit { margin-top: 12px; border-top: 1px dashed var(--line); padding-top: 12px; }
+.inline-edit form { display: flex; flex-direction: column; gap: 4px; }
+.week-preview { font-size: 14px; font-weight: 700; color: #0369a1; margin: 4px 0 10px; }
+.avatar-img { width: 100%; height: 100%; object-fit: cover; border-radius: 50%; }
