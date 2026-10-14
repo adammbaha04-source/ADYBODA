@@ -27,8 +27,21 @@ class VehicleSerializer(serializers.ModelSerializer):
 class ReturnSerializer(serializers.ModelSerializer):
     class Meta:
         model = Return
-        fields = ["id", "vehicle", "day", "amount", "is_excess", "confirmed_at"]
+        fields = ["id", "vehicle", "day", "amount", "is_excess", "confirmed_at",
+                  "record_month", "week_number", "period_start", "period_end", "note"]
         read_only_fields = ["vehicle", "confirmed_at"]
+
+    def validate(self, data):
+        week = data.get("week_number")
+        month = data.get("record_month", "")
+        if week is not None and not (1 <= week <= 5):
+            raise serializers.ValidationError({"week_number": "Wiki iwe kati ya 1 na 5."})
+        if week is not None and len(month) != 7:
+            raise serializers.ValidationError({"record_month": "Chagua mwezi wa record."})
+        start, end = data.get("period_start"), data.get("period_end")
+        if start and end and start > end:
+            raise serializers.ValidationError({"period_end": "Tarehe ya mwisho iwe baada ya ya kuanzia."})
+        return data
 
 
 class LostDaysSerializer(serializers.ModelSerializer):
