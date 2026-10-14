@@ -144,7 +144,7 @@ export const deleteTeamMember = (id: number) => request<void>(`/team/${id}/`, { 
 // ----- Profile, settings and changamoto (clean block) -----
 export interface MeProfile {
   username: string; email: string; role: string; business_owner: string;
-  full_name: string; phone: string; avatar: string;
+  full_name: string; business_name: string; phone: string; avatar: string;
   theme: "light" | "dark"; background: string; accent: string;
   vehicles: { id: number; name: string }[];
 }
@@ -163,3 +163,8 @@ export const listChallenges = (status: string, vehicle: string) => {
 export const createChallenge = (vehicle: number, title: string, description: string) =>
   request<Challenge>("/challenges/", { method: "POST", body: JSON.stringify({ vehicle, title, description }) });
 export const solveChallenge = (id: number) => request<Challenge>(`/challenges/${id}/solve/`, { method: "POST" });
+
+export async function registerOwner(body: { full_name: string; business_name: string; phone: string; email: string; password: string }): Promise<void> {
+  const data = await request<{ token: string }>("/auth/register/", { method: "POST", body: JSON.stringify(body) });
+  localStorage.setItem(TOKEN_KEY, data.token);
+}
