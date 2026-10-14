@@ -1,49 +1,50 @@
-import { useCallback, useEffect, useState, type FormEvent } from "react";
-import { createReturn, deleteReturn, deleteVehicle, getDebt, listReturns, listVehicles, setCarry } from "./api";
-import { currentMonth, monthLabel, todayYMD, tsh } from "./format";
+import { useCallback, useEffect, useState } from "react";
+import { deleteVehicle, getMe, listVehicles } from "./api";
+import { currentMonth } from "./format";
+import { applyAppearance } from "./theme";
 import Manage from "./Manage";
 import VehicleDetail from "./VehicleDetail";
 import VehiclesPage from "./VehiclesPage";
 import ExpensesPage from "./ExpensesPage";
 import ServicePage from "./ServicePage";
+import DebtPage from "./DebtPage";
+import ChallengesPage from "./ChallengesPage";
 import ReportsPage from "./ReportsPage";
 import UsersPage from "./UsersPage";
-import DebtPage from "./DebtPage";
-import type { DebtResponse, ReturnRecord, Vehicle } from "./types";
+import ProfilePage from "./ProfilePage";
+import SettingsPage from "./SettingsPage";
+import type { Vehicle } from "./types";
 
 type View = "vehicles" | "income" | "service" | "debt" | "changamoto" | "ripoti" | "grafu" | "users" | "profile" | "settings" | "manage";
 
-// Same order as the old app's menu. Usimamizi (our vehicle setup screen) is kept at the end.
-const MENU: { key: View; label: string; icon: string; note: string }[] = [
-  { key: "vehicles", label: "Vehicles", icon: "🚗", note: "" },
-  { key: "income", label: "Matumizi", icon: "💵", note: "" },
-  { key: "service", label: "Service", icon: "🔧", note: "" },
-  { key: "debt", label: "Deni", icon: "📉", note: "" },
-  { key: "changamoto", label: "Changamoto", icon: "⚠️", note: "Changamoto za magari" },
-  { key: "ripoti", label: "Ripoti", icon: "📊", note: "" },
-  { key: "grafu", label: "Grafu", icon: "📈", note: "" },
-  { key: "users", label: "Users", icon: "👥", note: "" },
-  { key: "profile", label: "Profile", icon: "👤", note: "Wasifu wako" },
-  { key: "settings", label: "Settings", icon: "⚙️", note: "Mipangilio ya app" },
-  { key: "manage", label: "Usimamizi", icon: "🛠️", note: "" },
+const MENU: { key: View; label: string; icon: string }[] = [
+  { key: "vehicles", label: "Vehicles", icon: "🚗" },
+  { key: "income", label: "Matumizi", icon: "💵" },
+  { key: "service", label: "Service", icon: "🔧" },
+  { key: "debt", label: "Deni", icon: "📉" },
+  { key: "changamoto", label: "Changamoto", icon: "⚠️" },
+  { key: "ripoti", label: "Ripoti", icon: "📊" },
+  { key: "grafu", label: "Grafu", icon: "📈" },
+  { key: "users", label: "Users", icon: "👥" },
+  { key: "profile", label: "Profile", icon: "👤" },
+  { key: "settings", label: "Settings", icon: "⚙️" },
+  { key: "manage", label: "Usimamizi", icon: "🛠️" },
 ];
+
+// Pages that do not use the month/period card.
+const NO_PERIOD: View[] = ["profile", "settings", "changamoto", "users"];
 
 export default function Dashboard({ onLogout }: { onLogout: () => void }) {
   const [vehicles, setVehicles] = useState<Vehicle[]>([]);
   const [vehicleId, setVehicleId] = useState<number | null>(null);
+  const [detailId, setDetailId] = useState<number | null>(null);
   const [month, setMonth] = useState(currentMonth());
   const [view, setView] = useState<View>("vehicles");
   const [menuOpen, setMenuOpen] = useState(false);
   const [tick, setTick] = useState(0);
-  const [detailId, setDetailId] = useState<number | null>(null);
-  const detail = vehicles.find((v) => v.id === detailId) ?? null;
-  const [debt, setDebt] = useState<DebtResponse | null>(null);
-  const [returns, setReturns] = useState<ReturnRecord[]>([]);
   const [error, setError] = useState("");
 
-  const [day, setDay] = useState(`${todayYMD().slice(0, 7)}-01`);
-  const [amount, setAmount] = useState("");
-  const [excess, setExcess] = useState(false);
+  const detail = vehicles.find((v) => v.id === detailId) ?? null;
 
   const loadVehicles = useCallback(() => {
     listVehicles()
@@ -53,49 +54,17 @@ export default function Dashboard({ onLogout }: { onLogout: () => void }) {
 
   useEffect(() => { loadVehicles(); }, [loadVehicles]);
 
-  const refresh = useCallback(async () => {
-    setTick((t) => t + 1);
-    if (vehicleId === null) return;
-    try {
-      const [d, r] = await Promise.all([getDebt(vehicleId, month), listReturns(vehicleId)]);
-      setDebt(d);
-      setReturns(r.filter((x) => x.day.startsWith(month)).sort((a, b) => b.day.localeCompare(a.day)));
-      setError("");
-    } catch (e) {
-      setError((e as Error).message);
-    }
-  }, [vehicleId, month]);
+  // Apply the user's saved appearance (background, dark mode, accent) as soon as the app opens.
+  useEffect(() => {
+    getMe().then(applyAppearance).catch(() => { /* keep defaults if offline */ });
+  }, []);
 
-  useEffect(() => { refresh(); }, [refresh]);
+  const bump = useCallback(() => setTick((t) => t + 1), []);
 
   function go(v: View) {
     setView(v);
     setMenuOpen(false);
-  }
-
-  async function addReturn(e: FormEvent) {
-    e.preventDefault();
-    if (vehicleId === null || !amount) return;
-    try {
-      await createReturn(vehicleId, day, Number(amount), excess);
-      setAmount("");
-      setExcess(false);
-      refresh();
-    } catch (err) {
-      setError((err as Error).message);
-    }
-  }
-
-  async function toggleCarry(on: boolean) {
-    if (vehicleId === null) return;
-    await setCarry(vehicleId, month, on);
-    refresh();
-  }
-
-  async function removeReturn(id: number) {
-    if (!confirm("Futa mapato haya?")) return;
-    await deleteReturn(id);
-    refresh();
+    if (v !== "vehicles") setDetailId(null);
   }
 
   async function removeVehicle(v: Vehicle) {
@@ -103,14 +72,13 @@ export default function Dashboard({ onLogout }: { onLogout: () => void }) {
     try {
       await deleteVehicle(v.id);
       if (vehicleId === v.id) setVehicleId(null);
+      if (detailId === v.id) setDetailId(null);
       loadVehicles();
+      bump();
     } catch (err) {
       setError((err as Error).message);
     }
   }
-
-  const s = debt?.summary;
-  const hasVehicle = vehicleId !== null;
 
   return (
     <div className="app">
@@ -142,27 +110,28 @@ export default function Dashboard({ onLogout }: { onLogout: () => void }) {
       <div className="wrap">
         {error && <p className="error">{error}</p>}
 
-        <section className="card period">
-          <div className="seg">
-            <button className="seg-btn active">Mwezi</button>
-            <button className="seg-btn" disabled title="Inakuja">Wiki</button>
-            <button className="seg-btn" disabled title="Inakuja">Siku</button>
-          </div>
-          <label>Mwezi:
-            <input type="month" value={month} onChange={(e) => setMonth(e.target.value)} />
-          </label>
-        </section>
+        {!NO_PERIOD.includes(view) && (
+          <section className="card period">
+            <div className="seg">
+              <button className="seg-btn active">Mwezi</button>
+              <button className="seg-btn" disabled title="Inakuja">Wiki</button>
+              <button className="seg-btn" disabled title="Inakuja">Siku</button>
+            </div>
+            <label>Mwezi:
+              <input type="month" value={month} onChange={(e) => setMonth(e.target.value)} />
+            </label>
+          </section>
+        )}
 
         {view === "vehicles" && detail && (
           <VehicleDetail
             vehicle={detail}
             month={month}
             onBack={() => setDetailId(null)}
-            onChanged={() => { loadVehicles(); setTick((t) => t + 1); }}
-            onDeleted={() => { setDetailId(null); loadVehicles(); setTick((t) => t + 1); }}
+            onChanged={() => { loadVehicles(); bump(); }}
+            onDeleted={() => { setDetailId(null); loadVehicles(); bump(); }}
           />
         )}
-
         {view === "vehicles" && !detail && (
           <VehiclesPage
             vehicles={vehicles}
@@ -170,36 +139,21 @@ export default function Dashboard({ onLogout }: { onLogout: () => void }) {
             tick={tick}
             onOpen={(v) => setDetailId(v.id)}
             onDelete={(v) => removeVehicle(v)}
-            onAdded={() => { loadVehicles(); setTick((t) => t + 1); }}
+            onAdded={() => { loadVehicles(); bump(); }}
           />
         )}
 
-        {view === "service" && <ServicePage vehicles={vehicles} month={month} />}
-
-        {view === "debt" && <DebtPage vehicles={vehicles} month={month} />}
-
-        {view === "ripoti" && <ReportsPage mode="report" vehicles={vehicles} />}
-
-        {view === "grafu" && <ReportsPage mode="graphs" vehicles={vehicles} />}
-
-        {view === "users" && <UsersPage vehicles={vehicles} />}
-
         {view === "income" && <ExpensesPage month={month} />}
-
+        {view === "service" && <ServicePage vehicles={vehicles} month={month} />}
+        {view === "debt" && <DebtPage vehicles={vehicles} month={month} />}
+        {view === "changamoto" && <ChallengesPage vehicles={vehicles} />}
+        {view === "ripoti" && <ReportsPage mode="report" vehicles={vehicles} />}
+        {view === "grafu" && <ReportsPage mode="graphs" vehicles={vehicles} />}
+        {view === "users" && <UsersPage vehicles={vehicles} />}
+        {view === "profile" && <ProfilePage onChanged={(p) => applyAppearance(p)} />}
+        {view === "settings" && <SettingsPage />}
         {view === "manage" && (
-          <Manage vehicleId={vehicleId} onChanged={refresh} onVehicleCreated={loadVehicles} />
-        )}
-
-        {MENU.find((m) => m.key === view && m.note) && (
-          <section className="card placeholder">
-            <h3>{MENU.find((m) => m.key === view)?.label}</h3>
-            <p>{MENU.find((m) => m.key === view)?.note}</p>
-            <p className="soon-note">Sehemu hii inajengwa. Itaonekana na kufanya kazi kama app ya zamani katika hatua inayofuata.</p>
-          </section>
-        )}
-
-        {(view === "debt" || view === "income") && !hasVehicle && (
-          <p className="card">Ongeza gari kwanza kwenye Usimamizi.</p>
+          <Manage vehicleId={vehicleId} onChanged={bump} onVehicleCreated={() => { loadVehicles(); bump(); }} />
         )}
       </div>
     </div>
