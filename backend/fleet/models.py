@@ -35,6 +35,12 @@ class Return(models.Model):
     amount = models.PositiveIntegerField()
     is_excess = models.BooleanField(default=False)
     confirmed_at = models.DateTimeField(null=True, blank=True)
+    # Which week this money belongs to (chosen on the form). Empty = old records: week is found from `day`.
+    record_month = models.CharField(max_length=7, blank=True)   # "2026-10"
+    week_number = models.PositiveSmallIntegerField(null=True, blank=True)
+    period_start = models.DateField(null=True, blank=True)
+    period_end = models.DateField(null=True, blank=True)
+    note = models.CharField(max_length=200, blank=True)
 
 
 class LostDays(models.Model):
