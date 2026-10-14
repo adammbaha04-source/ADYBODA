@@ -13,3 +13,4 @@
 .pill.ok { background: #d1fae5; color: #065f46; }
 .pill.wait { background: #fde68a; color: #78350f; }
 .pill.none { background: #e5e7eb; color: #6b7280; }
+.edit-btn { background: linear-gradient(135deg, #3b82f6, #1d4ed8); color: #fff; border: 0; border-radius: 12px; padding: 8px 14px; font-weight: 700; }
