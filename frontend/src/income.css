@@ -1,0 +1,15 @@
+.income-form label { display: block; margin-top: 12px; font-weight: 600; }
+.income-form input:not([type="checkbox"]), .income-form select { display: block; width: 100%; margin-top: 6px; }
+.income-form .inline { display: flex; gap: 10px; align-items: center; }
+.income-form .inline input { width: auto; margin: 0; }
+.income-form .rec-month { background: #e8ecff; border-left: 5px solid #ea580c; border-radius: 14px; padding: 14px; }
+.income-form .rec-month small { display: block; margin-top: 8px; color: #4338ca; }
+.income-form .hint { color: #4338ca; margin: 6px 0 0; }
+.income-form .amount-preview { margin: 6px 0 0; font-weight: 700; color: #059669; }
+.tbl-nw th, .tbl-nw td { white-space: nowrap; }
+.tbl-nw td.notes-wrap { white-space: normal; min-width: 220px; }
+.tbl-nw .row-close { background: #fff7ed; }
+.pill { display: inline-block; padding: 4px 12px; border-radius: 999px; font-size: 12px; font-weight: 700; }
+.pill.ok { background: #d1fae5; color: #065f46; }
+.pill.wait { background: #fde68a; color: #78350f; }
+.pill.none { background: #e5e7eb; color: #6b7280; }
