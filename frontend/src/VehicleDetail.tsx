@@ -4,15 +4,16 @@ import {
   deleteRecord, deleteVehicle, getDebt, listInsurances, listLostDays, listPayments,
   listServices, listTyres, setCarry, updateVehicle,
 } from "./api";
-import { deleteIncome, listIncome, type IncomeRow } from "./incomeApi";
+import { confirmIncome, deleteIncome, listIncome, type IncomeRow } from "./incomeApi";
+import { confirmManualEntry, confirmPayment, listManualEntries, type ManualEntry, type PaymentRow } from "./roleApi";
 import IncomeForm from "./IncomeForm";
 import WeekTable from "./WeekTable";
 import DebtTable from "./DebtTable";
 import { monthLabel, shortDate, todayYMD, tsh } from "./format";
 import { PRESETS } from "./VehiclesPage";
+import type { Role } from "./roles";
 import type {
-  DebtEntry, DebtResponse, InsuranceRecord, LostDays, PaymentRecord,
-  ServiceRecord, TyreRecord, Vehicle,
+  DebtEntry, DebtResponse, InsuranceRecord, LostDays, ServiceRecord, TyreRecord, Vehicle,
 } from "./types";
 
 type Form = null | "income" | "service" | "servicePack" | "payment" | "debt" | "tyre" | "insurance" | "edit";
@@ -25,7 +26,7 @@ const PAYMENT_TYPES = [
   { key: "debt_payment", label: "Malipo ya Deni" },
 ];
 
-// The action list shown when the ⋮ button is tapped (same actions as the old app's buttons).
+// The action list shown when the ⋮ button is tapped. Each role sees only its own part (see visibleActions below).
 const ACTIONS: { key: Form | "saveMonth" | "delete"; label: string; icon: string; tone: string }[] = [
   { key: "income", label: "Income", icon: "💵", tone: "g-green" },
   { key: "service", label: "Service", icon: "🔧", tone: "g-blue" },
@@ -40,6 +41,9 @@ const ACTIONS: { key: Form | "saveMonth" | "delete"; label: string; icon: string
   { key: "delete", label: "Delete Vehicle", icon: "🗑️", tone: "g-red" },
 ];
 
+// Manager may only add income and payments. Driver may add nothing.
+const MANAGER_ACTIONS = ["income", "payment"];
+
 function parseWeekNote(note: string): { week: number; income: number; target: number } | null {
   const m = note.match(/Week (\d+): Income (\d+) vs Target (\d+)/);
   return m ? { week: Number(m[1]), income: Number(m[2]), target: Number(m[3]) } : null;
@@ -48,14 +52,25 @@ function parseWeekNote(note: string): { week: number; income: number; target: nu
 const PLACEHOLDER = "Save Month inajengwa katika hatua inayofuata.";
 
 export default function VehicleDetail(props: {
-  vehicle: Vehicle; month: string;
+  vehicle: Vehicle; role: Role; month: string;
   onBack: () => void; onChanged: () => void; onDeleted: () => void;
 }) {
-  const { vehicle, month, onBack, onChanged, onDeleted } = props;
+  const { vehicle, role, month, onBack, onChanged, onDeleted } = props;
+  const isOwner = role === "owner";
+  const isManager = role === "manager";
+  const isDriver = role === "driver";
+  const canEditMoney = isOwner || isManager;      // income and payments: edit and delete
+  const showOtherRecords = isOwner;               // service, tyre and insurance history: owner only
+
+  const visibleActions = ACTIONS.filter((a) =>
+    isOwner || (isManager && typeof a.key === "string" && MANAGER_ACTIONS.includes(a.key)),
+  );
+
   const [debt, setDebt] = useState<DebtResponse | null>(null);
   const [returns, setReturns] = useState<IncomeRow[]>([]);
   const [lost, setLost] = useState<LostDays[]>([]);
-  const [payments, setPayments] = useState<PaymentRecord[]>([]);
+  const [payments, setPayments] = useState<PaymentRow[]>([]);
+  const [manual, setManual] = useState<ManualEntry[]>([]);
   const [services, setServices] = useState<ServiceRecord[]>([]);
   const [tyres, setTyres] = useState<TyreRecord[]>([]);
   const [insurances, setInsurances] = useState<InsuranceRecord[]>([]);
@@ -85,17 +100,19 @@ export default function VehicleDetail(props: {
 
   async function load() {
     try {
-      const [d, r, l, p, s, t, i] = await Promise.all([
+      const [d, r, l, p, s, t, i, m] = await Promise.all([
         getDebt(vehicle.id, month), listIncome(vehicle.id), listLostDays(vehicle.id),
         listPayments(vehicle.id), listServices(vehicle.id), listTyres(vehicle.id), listInsurances(vehicle.id),
+        listManualEntries(vehicle.id),
       ]);
       setDebt(d);
       setReturns(r.filter((x) => (x.record_month || x.day.slice(0, 7)) === month).sort((a, b) => b.day.localeCompare(a.day)));
       setLost(l.filter((x) => x.month === month));
-      setPayments(p.filter((x) => x.day.startsWith(month)));
+      setPayments((p as PaymentRow[]).filter((x) => x.day.startsWith(month)));
       setServices(s.filter((x) => x.day.startsWith(month)));
       setTyres(t.filter((x) => x.day.startsWith(month)));
       setInsurances(i.filter((x) => x.day.startsWith(month)));
+      setManual(m.filter((x) => x.day.startsWith(month)));
       setError("");
     } catch (e) {
       setError((e as Error).message);
@@ -197,22 +214,30 @@ export default function VehicleDetail(props: {
     run(() => deleteRecord(path, id), "Rekodi imefutwa.");
   }
 
+  // Driver confirms (signs) his own records.
+  function signIncome(id: number) { run(() => confirmIncome(id), "Mapato yamethibitishwa."); }
+  function signPayment(id: number) { run(() => confirmPayment(id), "Malipo yamethibitishwa."); }
+  function signManual(id: number) { run(() => confirmManualEntry(id), "Deni limethibitishwa."); }
+
   const paymentLabel = (k: string) => PAYMENT_TYPES.find((p) => p.key === k)?.label ?? k;
+  const manualLabel = (k: string) => (k === "MANUAL_PAYMENT" ? "Malipo ya deni" : k === "CARRY_OVER" ? "Deni lililobaki" : "Deni");
 
   return (
     <div className="detail">
       <div className="detail-top">
         <button className="back" onClick={onBack}>← Rudi Nyuma</button>
-        <button className="dots" aria-label="Vitendo" onClick={() => setSheet(true)}>⋮</button>
+        {visibleActions.length > 0 && (
+          <button className="dots" aria-label="Vitendo" onClick={() => setSheet(true)}>⋮</button>
+        )}
       </div>
 
-      {sheet && (
+      {sheet && visibleActions.length > 0 && (
         <>
           <div className="backdrop" onClick={() => setSheet(false)} />
           <div className="sheet" role="menu">
             <div className="sheet-handle" />
             <div className="sheet-title">{vehicle.name} · Vitendo</div>
-            {ACTIONS.map((a) => (
+            {visibleActions.map((a) => (
               <button key={a.label} className="sheet-item" onClick={() => pick(a.key)}>
                 <span className={"sheet-ico " + a.tone}>{a.icon}</span>
                 <span>{a.label}</span>
@@ -231,14 +256,16 @@ export default function VehicleDetail(props: {
       {error && <p className="error">{error}</p>}
       {notice && <p className="notice">{notice}</p>}
 
-      <section className="card week5">
-        <label className="toggle">
-          <span>Week 5:</span>
-          <input type="checkbox" checked={vehicle.include_week5}
-            onChange={(e) => run(() => updateVehicle(vehicle.id, { include_week5: e.target.checked }), "Week 5 imebadilishwa.")} />
-          <b>{vehicle.include_week5 ? "ON (5 weeks)" : "OFF (4 weeks)"}</b>
-        </label>
-      </section>
+      {isOwner && (
+        <section className="card week5">
+          <label className="toggle">
+            <span>Week 5:</span>
+            <input type="checkbox" checked={vehicle.include_week5}
+              onChange={(e) => run(() => updateVehicle(vehicle.id, { include_week5: e.target.checked }), "Week 5 imebadilishwa.")} />
+            <b>{vehicle.include_week5 ? "ON (5 weeks)" : "OFF (4 weeks)"}</b>
+          </label>
+        </section>
+      )}
 
       <section className="card summary-block">
         <h4 className="sum-title">Mwezi wa {monthLabel(month)}</h4>
@@ -360,7 +387,7 @@ export default function VehicleDetail(props: {
               <div className="card"><h4>Ending Debt</h4><b className="red">{tsh(s.ending_debt)}</b></div>
             </div>
             <label className="toggle carry">
-              <input type="checkbox" checked={s.carry_over_on}
+              <input type="checkbox" checked={s.carry_over_on} disabled={!isOwner}
                 onChange={(e) => run(() => setCarry(vehicle.id, month, e.target.checked), "Carry over imebadilishwa.")} />
               <span>Deni la mwezi huu lipelekwe mwezi unaofuata (Carry over)</span>
             </label>
@@ -372,6 +399,23 @@ export default function VehicleDetail(props: {
         <h3>Historia ya Deni</h3>
         <DebtTable entries={entries} />
       </section>
+
+      {isDriver && (
+        <section className="card">
+          <h3>Thibitisha Deni Lako</h3>
+          <ul className="list">
+            {manual.length === 0 && <li className="empty">Hakuna deni la mkono mwezi huu</li>}
+            {manual.map((m) => (
+              <li key={m.id}>
+                <span>{shortDate(m.day)} · {manualLabel(m.kind)}{m.note ? ` · ${m.note}` : ""}
+                  {m.confirmed_at ? " · Confirmed" : " · Pending"}</span>
+                <b className="orange">{tsh(m.amount)}</b>
+                {!m.confirmed_at && <button className="confirm-btn" onClick={() => signManual(m.id)}>Thibitisha</button>}
+              </li>
+            ))}
+          </ul>
+        </section>
+      )}
 
       <section className="card">
         <h3>Muhtasari wa Wiki za Mwezi</h3>
@@ -393,8 +437,15 @@ export default function VehicleDetail(props: {
                 {r.confirmed_at ? " · Confirmed" : " · Pending"}
               </span>
               <b className="green">{r.is_excess ? "-" : "+"}{tsh(r.amount)}</b>
-              <button className="edit-btn" onClick={() => { setEditingIncome(r); setForm("income"); setNotice(""); window.scrollTo({ top: 0, behavior: "smooth" }); }}>Edit</button>
-              <button className="danger" onClick={() => { if (confirm("Futa mapato haya?")) run(() => deleteIncome(r.id), "Mapato yamefutwa."); }}>Del</button>
+              {canEditMoney && (
+                <button className="edit-btn" onClick={() => { setEditingIncome(r); setForm("income"); setNotice(""); window.scrollTo({ top: 0, behavior: "smooth" }); }}>Edit</button>
+              )}
+              {canEditMoney && (
+                <button className="danger" onClick={() => { if (confirm("Futa mapato haya?")) run(() => deleteIncome(r.id), "Mapato yamefutwa."); }}>Del</button>
+              )}
+              {isDriver && !r.confirmed_at && (
+                <button className="confirm-btn" onClick={() => signIncome(r.id)}>Thibitisha</button>
+              )}
             </li>
           ))}
         </ul>
@@ -406,55 +457,65 @@ export default function VehicleDetail(props: {
           {payments.length === 0 && <li className="empty">No payment records for this month</li>}
           {payments.map((p) => (
             <li key={p.id}>
-              <span>{p.day} · {paymentLabel(p.payment_type)}{p.note ? ` · ${p.note}` : ""}</span>
+              <span>{p.day} · {paymentLabel(p.payment_type)}{p.note ? ` · ${p.note}` : ""}
+                {p.confirmed_at ? " · Confirmed" : " · Pending"}</span>
               <b className="green">{tsh(p.amount)}</b>
-              <button className="danger" onClick={() => removeRecord("payment-records", p.id)}>Futa</button>
+              {canEditMoney && (
+                <button className="danger" onClick={() => removeRecord("payment-records", p.id)}>Futa</button>
+              )}
+              {isDriver && !p.confirmed_at && (
+                <button className="confirm-btn" onClick={() => signPayment(p.id)}>Thibitisha</button>
+              )}
             </li>
           ))}
         </ul>
       </section>
 
-      <section className="card">
-        <h3>Historia ya Service</h3>
-        <ul className="list">
-          {services.length === 0 && <li className="empty">No service records for this month</li>}
-          {services.map((x) => (
-            <li key={x.id}>
-              <span>{x.day} · {x.tool} × {x.count}{x.seller ? ` · ${x.seller}` : ""}</span>
-              <b className="blue">{tsh(x.total)}</b>
-              <button className="danger" onClick={() => removeRecord("service-records", x.id)}>Futa</button>
-            </li>
-          ))}
-        </ul>
-      </section>
+      {showOtherRecords && (
+        <>
+          <section className="card">
+            <h3>Historia ya Service</h3>
+            <ul className="list">
+              {services.length === 0 && <li className="empty">No service records for this month</li>}
+              {services.map((x) => (
+                <li key={x.id}>
+                  <span>{x.day} · {x.tool} × {x.count}{x.seller ? ` · ${x.seller}` : ""}</span>
+                  <b className="blue">{tsh(x.total)}</b>
+                  <button className="danger" onClick={() => removeRecord("service-records", x.id)}>Futa</button>
+                </li>
+              ))}
+            </ul>
+          </section>
 
-      <section className="card">
-        <h3>Historia ya Tairi</h3>
-        <ul className="list">
-          {tyres.length === 0 && <li className="empty">No tyre records for this month</li>}
-          {tyres.map((x) => (
-            <li key={x.id}>
-              <span>{x.day} · {x.tyre_number || "Tairi"}</span>
-              <b className="blue">{tsh(x.amount)}</b>
-              <button className="danger" onClick={() => removeRecord("tyre-records", x.id)}>Futa</button>
-            </li>
-          ))}
-        </ul>
-      </section>
+          <section className="card">
+            <h3>Historia ya Tairi</h3>
+            <ul className="list">
+              {tyres.length === 0 && <li className="empty">No tyre records for this month</li>}
+              {tyres.map((x) => (
+                <li key={x.id}>
+                  <span>{x.day} · {x.tyre_number || "Tairi"}</span>
+                  <b className="blue">{tsh(x.amount)}</b>
+                  <button className="danger" onClick={() => removeRecord("tyre-records", x.id)}>Futa</button>
+                </li>
+              ))}
+            </ul>
+          </section>
 
-      <section className="card">
-        <h3>Historia ya Bima</h3>
-        <ul className="list">
-          {insurances.length === 0 && <li className="empty">No insurance records for this month</li>}
-          {insurances.map((x) => (
-            <li key={x.id}>
-              <span>{x.day} · {x.insurance_type || "Bima"} · miezi {x.months}</span>
-              <b className="blue">{tsh(x.amount)}</b>
-              <button className="danger" onClick={() => removeRecord("insurance-records", x.id)}>Futa</button>
-            </li>
-          ))}
-        </ul>
-      </section>
+          <section className="card">
+            <h3>Historia ya Bima</h3>
+            <ul className="list">
+              {insurances.length === 0 && <li className="empty">No insurance records for this month</li>}
+              {insurances.map((x) => (
+                <li key={x.id}>
+                  <span>{x.day} · {x.insurance_type || "Bima"} · miezi {x.months}</span>
+                  <b className="blue">{tsh(x.amount)}</b>
+                  <button className="danger" onClick={() => removeRecord("insurance-records", x.id)}>Futa</button>
+                </li>
+              ))}
+            </ul>
+          </section>
+        </>
+      )}
     </div>
   );
 }
