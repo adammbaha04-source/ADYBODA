@@ -159,6 +159,7 @@ export default function Dashboard({ onLogout }: { onLogout: () => void }) {
             role={role}
             month={month}
             onBack={() => setDetailId(null)}
+            onMonthChange={setMonth}
             onChanged={() => { loadVehicles(); bump(); }}
             onDeleted={() => { setDetailId(null); loadVehicles(); bump(); }}
           />
