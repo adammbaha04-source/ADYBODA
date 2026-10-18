@@ -132,9 +132,9 @@ function EditVehicleInline({ vehicle, onSaved, onClose }: { vehicle: Vehicle; on
 // ---------- Vehicle card ----------
 export function VehicleCard(props: {
   vehicle: Vehicle; month: string; tick: number; period: PeriodSel;
-  onOpen: () => void; onDelete: () => void; onUpdated: () => void;
+  onOpen: () => void; onDelete: () => void; onUpdated: () => void; canManage: boolean;
 }) {
-  const { vehicle, month, tick, period, onOpen, onDelete, onUpdated } = props;
+  const { vehicle, month, tick, period, onOpen, onDelete, onUpdated, canManage } = props;
   const [s, setS] = useState<DebtSummary | null>(null);
   const [entries, setEntries] = useState<DebtEntry[]>([]);
   const [editing, setEditing] = useState(false);
@@ -162,14 +162,16 @@ export function VehicleCard(props: {
           <span className="badge type">{vehicle.vehicle_type.toUpperCase()}</span>
           <span className="badge month">{monthLabel(month)}</span>
         </div>
-        <div className="vactions">
-          <button className="icon" aria-label="Hariri" title="Hariri" onClick={(e) => { e.stopPropagation(); setEditing((v) => !v); }}>✏️</button>
-          <button className="icon" aria-label="Futa" title="Futa" onClick={(e) => { e.stopPropagation(); onDelete(); }}>🗑️</button>
-        </div>
+        {canManage && (
+          <div className="vactions">
+            <button className="icon" aria-label="Hariri" title="Hariri" onClick={(e) => { e.stopPropagation(); setEditing((v) => !v); }}>✏️</button>
+            <button className="icon" aria-label="Futa" title="Futa" onClick={(e) => { e.stopPropagation(); onDelete(); }}>🗑️</button>
+          </div>
+        )}
       </div>
       <p className="driver">{driverText}</p>
 
-      {editing && <EditVehicleInline vehicle={vehicle} onSaved={() => { setEditing(false); onUpdated(); }} onClose={() => setEditing(false)} />}
+      {canManage && editing && <EditVehicleInline vehicle={vehicle} onSaved={() => { setEditing(false); onUpdated(); }} onClose={() => setEditing(false)} />}
 
       {!s && <p className="driver">Inapakia...</p>}
 
@@ -213,17 +215,17 @@ function addDaysLocal(ymd: string, n: number): string {
 
 // ---------- List ----------
 export default function VehiclesPage(props: {
-  vehicles: Vehicle[]; month: string; tick: number; period: PeriodSel;
+  vehicles: Vehicle[]; canManage: boolean; month: string; tick: number; period: PeriodSel;
   onOpen: (v: Vehicle) => void; onDelete: (v: Vehicle) => void; onAdded: () => void; onUpdated: () => void;
 }) {
   const [adding, setAdding] = useState(false);
   return (
     <>
-      {adding ? (
+      {props.canManage && (adding ? (
         <AddVehicleForm onSaved={() => { setAdding(false); props.onAdded(); }} onCancel={() => setAdding(false)} />
       ) : (
         <button className="btn-add" onClick={() => setAdding(true)}>+ Ongeza Gari</button>
-      )}
+      ))}
       {props.vehicles.length === 0 && !adding && <p className="card">Hakuna gari bado. Bonyeza + Ongeza Gari.</p>}
       {props.vehicles.map((v) => (
         <VehicleCard
@@ -235,6 +237,7 @@ export default function VehiclesPage(props: {
           onOpen={() => props.onOpen(v)}
           onDelete={() => props.onDelete(v)}
           onUpdated={props.onUpdated}
+          canManage={props.canManage}
         />
       ))}
     </>
