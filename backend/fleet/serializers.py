@@ -54,8 +54,8 @@ class LostDaysSerializer(serializers.ModelSerializer):
 class ManualLedgerEntrySerializer(serializers.ModelSerializer):
     class Meta:
         model = ManualLedgerEntry
-        fields = ["id", "vehicle", "kind", "day", "amount", "note"]
-        read_only_fields = ["vehicle"]
+        fields = ["id", "vehicle", "kind", "day", "amount", "note", "confirmed_at"]
+        read_only_fields = ["vehicle", "confirmed_at"]
 
 
 class PaymentRecordSerializer(serializers.ModelSerializer):
