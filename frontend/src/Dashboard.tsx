@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState } from "react";
 import { deleteVehicle, getMe, listVehicles, type MeProfile } from "./api";
 import { currentMonth } from "./format";
 import { applyAppearance } from "./theme";
+import { asRole, canOpen, menuFor, ROLE_NAME, type View } from "./roles";
 import Manage from "./Manage";
 import VehicleDetail from "./VehicleDetail";
 import VehiclesPage, { type PeriodSel } from "./VehiclesPage";
@@ -15,25 +16,8 @@ import ProfilePage from "./ProfilePage";
 import SettingsPage from "./SettingsPage";
 import type { Vehicle } from "./types";
 
-type View = "vehicles" | "income" | "service" | "debt" | "changamoto" | "ripoti" | "grafu" | "users" | "profile" | "settings" | "manage";
-
-const MENU: { key: View; label: string; icon: string }[] = [
-  { key: "vehicles", label: "Vehicles", icon: "🚗" },
-  { key: "income", label: "Matumizi", icon: "💵" },
-  { key: "service", label: "Service", icon: "🔧" },
-  { key: "debt", label: "Deni", icon: "📉" },
-  { key: "changamoto", label: "Changamoto", icon: "⚠️" },
-  { key: "ripoti", label: "Ripoti", icon: "📊" },
-  { key: "grafu", label: "Grafu", icon: "📈" },
-  { key: "users", label: "Users", icon: "👥" },
-  { key: "profile", label: "Profile", icon: "👤" },
-  { key: "settings", label: "Settings", icon: "⚙️" },
-  { key: "manage", label: "Usimamizi", icon: "🛠️" },
-];
-
 // Pages that do not use the month/period card.
 const NO_PERIOD: View[] = ["profile", "settings", "changamoto", "users"];
-const ROLE_NAME: Record<string, string> = { owner: "OWNER", manager: "MANAGER", driver: "DRIVER" };
 
 export default function Dashboard({ onLogout }: { onLogout: () => void }) {
   const [vehicles, setVehicles] = useState<Vehicle[]>([]);
@@ -49,6 +33,11 @@ export default function Dashboard({ onLogout }: { onLogout: () => void }) {
   const [periodMode, setPeriodMode] = useState<"month" | "week">("month");
   const [week, setWeek] = useState(1);
 
+  const role = asRole(me?.role);
+  // Until the profile is loaded we show no menu items, so nobody sees the wrong menu for a moment.
+  const menu = me ? menuFor(role) : [];
+  const canManageVehicles = role === "owner";
+
   const detail = vehicles.find((v) => v.id === detailId) ?? null;
 
   const loadVehicles = useCallback(() => {
@@ -59,10 +48,15 @@ export default function Dashboard({ onLogout }: { onLogout: () => void }) {
 
   useEffect(() => { loadVehicles(); }, [loadVehicles]);
 
-  // Apply the user's saved appearance (background, dark mode, accent) as soon as the app opens.
+  // Apply the user's saved appearance and learn the role as soon as the app opens.
   useEffect(() => {
     getMe().then((p) => { setMe(p); applyAppearance(p); }).catch(() => { /* keep defaults if offline */ });
   }, []);
+
+  // If the open page is not allowed for this role, go back to Vehicles.
+  useEffect(() => {
+    if (me && !canOpen(role, view)) setView("vehicles");
+  }, [me, role, view]);
 
   const bump = useCallback(() => setTick((t) => t + 1), []);
 
@@ -91,6 +85,7 @@ export default function Dashboard({ onLogout }: { onLogout: () => void }) {
   const period: PeriodSel = { mode: periodMode, week };
   const initial = (me?.full_name || me?.username || "A").charAt(0).toUpperCase();
   const avatarSrc = me?.avatar || "";
+  const drawerName = me?.full_name || me?.business_name || "AdyBajaj";
 
   function logout() {
     onLogout();
@@ -103,12 +98,12 @@ export default function Dashboard({ onLogout }: { onLogout: () => void }) {
         <div className="drawer-head">
           <div className="avatar">A</div>
           <div>
-            <div className="dname">AdyBajaj</div>
-            <div className="drole">OWNER</div>
+            <div className="dname">{drawerName}</div>
+            <div className="drole">{ROLE_NAME[role]}</div>
           </div>
         </div>
         <nav>
-          {MENU.map((m) => (
+          {menu.map((m) => (
             <button key={m.key} className={"item" + (view === m.key ? " active" : "")} onClick={() => go(m.key)}>
               <span className="ico">{m.icon}</span>{m.label}
             </button>
@@ -119,7 +114,7 @@ export default function Dashboard({ onLogout }: { onLogout: () => void }) {
 
       <header className="appbar">
         <button className="hamburger" aria-label="Menyu" onClick={() => setMenuOpen(true)}>☰</button>
-        <div className="app-title">{MENU.find((m) => m.key === view)?.label}</div>
+        <div className="app-title">{menu.find((m) => m.key === view)?.label ?? ""}</div>
         <div className="avatar-wrap">
           <button className="avatar-btn" aria-label="Akaunti yangu" onClick={() => setAvatarOpen((v) => !v)}>
             <span className="avatar small">{avatarSrc ? <img src={avatarSrc} alt="" className="avatar-img" /> : initial}</span>
@@ -128,7 +123,7 @@ export default function Dashboard({ onLogout }: { onLogout: () => void }) {
             <div className="avatar-menu">
               <div className="am-name">{me?.full_name || me?.username || "Mtumiaji"}</div>
               <div className="am-mail">{me?.email || me?.username}</div>
-              <span className="am-role">{ROLE_NAME[me?.role ?? "owner"] ?? "OWNER"}</span>
+              <span className="am-role">{ROLE_NAME[role]}</span>
               <button className="am-item" onClick={() => go("profile")}>👤 My Profile</button>
               <button className="am-item red" onClick={logout}>🚪 Logout</button>
             </div>
@@ -161,6 +156,7 @@ export default function Dashboard({ onLogout }: { onLogout: () => void }) {
         {view === "vehicles" && detail && (
           <VehicleDetail
             vehicle={detail}
+            role={role}
             month={month}
             onBack={() => setDetailId(null)}
             onChanged={() => { loadVehicles(); bump(); }}
@@ -170,6 +166,7 @@ export default function Dashboard({ onLogout }: { onLogout: () => void }) {
         {view === "vehicles" && !detail && (
           <VehiclesPage
             vehicles={vehicles}
+            canManage={canManageVehicles}
             month={month}
             tick={tick}
             period={period}
@@ -183,7 +180,7 @@ export default function Dashboard({ onLogout }: { onLogout: () => void }) {
         {view === "income" && <ExpensesPage month={month} />}
         {view === "service" && <ServicePage vehicles={vehicles} month={month} />}
         {view === "debt" && <DebtPage vehicles={vehicles} month={month} />}
-        {view === "changamoto" && <ChallengesPage vehicles={vehicles} />}
+        {view === "changamoto" && <ChallengesPage vehicles={vehicles} role={role} />}
         {view === "ripoti" && <ReportsPage mode="report" vehicles={vehicles} />}
         {view === "grafu" && <ReportsPage mode="graphs" vehicles={vehicles} />}
         {view === "users" && <UsersPage vehicles={vehicles} />}
