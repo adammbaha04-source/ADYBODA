@@ -1,6 +1,7 @@
 from django.urls import path
 from rest_framework.routers import DefaultRouter
 from fleet import views
+from fleet.report_pdf_views import ReportPdfView
 
 router = DefaultRouter()
 router.register("vehicles", views.VehicleViewSet, basename="vehicle")
@@ -14,4 +15,4 @@ router.register("tyre-records", views.TyreRecordViewSet, basename="tyre-record")
 router.register("insurance-records", views.InsuranceRecordViewSet, basename="insurance-record")
 router.register("personal-expenses", views.PersonalExpenseViewSet, basename="personal-expense")
 router.register("challenges", views.ChallengeViewSet, basename="challenge")
-urlpatterns = router.urls + [path("expense-summary/", views.ExpenseSummaryView.as_view()), path("reports/", views.ReportView.as_view()), path("me/", views.MeProfileView.as_view()), path("auth/register/", views.register_owner), path("challenges/", views.ChallengeViewSet.as_view({"get": "list", "post": "create"})), path("challenges/<int:pk>/solve/", views.ChallengeViewSet.as_view({"post": "solve"})), path("team/", views.TeamViewSet.as_view({"get": "list", "post": "create"})), path("team/<int:pk>/", views.TeamViewSet.as_view({"delete": "destroy"}))]
+urlpatterns = router.urls + [path("expense-summary/", views.ExpenseSummaryView.as_view()), path("reports/", views.ReportView.as_view()), path("reports/pdf/", ReportPdfView.as_view()), path("me/", views.MeProfileView.as_view()), path("auth/register/", views.register_owner), path("challenges/", views.ChallengeViewSet.as_view({"get": "list", "post": "create"})), path("challenges/<int:pk>/solve/", views.ChallengeViewSet.as_view({"post": "solve"})), path("team/", views.TeamViewSet.as_view({"get": "list", "post": "create"})), path("team/<int:pk>/", views.TeamViewSet.as_view({"delete": "destroy"}))]
