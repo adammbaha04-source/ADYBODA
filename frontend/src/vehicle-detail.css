@@ -1,0 +1,58 @@
+/* Vehicle detail: month navigation, fixed bottom action bar, popup dialogs. Uses the app's own theme variables. */
+.vd-root { padding-bottom: 120px; }
+
+.vd-mnav-row { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin: 12px 0 4px; }
+.vd-mnav { display: inline-flex; align-items: center; gap: 6px; min-height: 44px; padding: 10px 14px;
+  border: 1px solid var(--line); border-radius: 999px; background: var(--surface); color: var(--ink-1);
+  font-weight: 800; font-size: 13px; box-shadow: var(--sh-sm); cursor: pointer; max-width: 42%; }
+.vd-mnav span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.vd-mnav:disabled { opacity: .4; cursor: not-allowed; }
+.vd-mnav-cur { font-weight: 900; font-size: 17px; color: #fff; text-align: center; }
+
+.vd-nav { position: fixed; left: 50%; transform: translateX(-50%); z-index: 60;
+  bottom: calc(env(safe-area-inset-bottom, 0px) + 10px); width: min(560px, calc(100% - 20px));
+  display: grid; gap: 6px; padding: 8px; border-radius: 24px; border: 1px solid rgba(15,23,42,.08);
+  background: rgba(255,255,255,.94); backdrop-filter: blur(14px); box-shadow: 0 14px 40px -10px rgba(15,23,42,.45); }
+.vd-tile { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 3px;
+  min-height: 58px; min-width: 0; padding: 6px 2px; border: 0; border-radius: 16px; background: transparent;
+  color: var(--ink-1); box-shadow: none; cursor: pointer; }
+.vd-tile:hover { background: var(--surface-2); }
+.vd-tile:active { transform: scale(.96); }
+.vd-ico { font-size: 20px; line-height: 1; }
+.vd-lbl { font-size: 10.5px; font-weight: 800; max-width: 100%; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.vd-plus { background: var(--brand-grad); color: #fff; }
+.vd-plus:hover { background: var(--brand-grad); }
+.vd-plus .vd-ico { font-size: 22px; font-weight: 900; }
+
+.vd-overlay { position: fixed; inset: 0; z-index: 200; display: grid; place-items: center; padding: 16px;
+  background: rgba(15,23,42,.55); backdrop-filter: blur(3px); animation: vdFade .15s ease-out; }
+.vd-modal { width: min(560px, 100%); max-height: 88vh; display: flex; flex-direction: column; overflow: hidden;
+  background: var(--surface); color: var(--ink-1); border-radius: 24px;
+  box-shadow: 0 30px 60px -20px rgba(0,0,0,.5); animation: vdPop .2s ease-out; }
+.vd-modal-head { display: flex; justify-content: space-between; align-items: center; gap: 12px;
+  padding: 16px 18px; border-bottom: 1px solid var(--line); }
+.vd-modal-head h3 { margin: 0; font-size: 17px; font-weight: 900; }
+.vd-x { width: 36px; height: 36px; padding: 0; border: 0; border-radius: 50%; background: var(--surface-2);
+  color: var(--ink-1); font-size: 15px; box-shadow: none; cursor: pointer; }
+.vd-modal-body { padding: 16px 18px 20px; overflow-y: auto; }
+.vd-modal-body > form > h3, .vd-modal-body > h3 { display: none; }
+
+.vd-sheet { position: fixed; left: 0; right: 0; bottom: 0; z-index: 210; padding: 10px 14px calc(env(safe-area-inset-bottom, 0px) + 18px);
+  background: var(--surface); border-radius: 26px 26px 0 0; box-shadow: 0 -12px 40px rgba(0,0,0,.3); animation: vdUp .22s ease-out; }
+.vd-sheet-handle { width: 44px; height: 5px; margin: 4px auto 10px; border-radius: 3px; background: #cbd5e1; }
+.vd-sheet-title { padding: 4px 6px 10px; font-weight: 800; font-size: 14px; color: var(--ink-3); }
+.vd-sheet-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
+.vd-sheet-item { display: flex; flex-direction: column; align-items: center; gap: 6px; padding: 14px 6px; border-radius: 16px;
+  border: 1px solid var(--line); background: var(--surface-2); color: var(--ink-1); font-weight: 800; font-size: 12px; box-shadow: none; cursor: pointer; }
+.vd-sheet-item .vd-ico { font-size: 24px; }
+.vd-sheet-item.red { color: #dc2626; }
+
+@keyframes vdFade { from { opacity: 0; } to { opacity: 1; } }
+@keyframes vdPop { from { opacity: 0; transform: translateY(12px) scale(.97); } to { opacity: 1; transform: none; } }
+@keyframes vdUp { from { transform: translateY(100%); } to { transform: none; } }
+
+html[data-theme="dark"] .vd-nav { background: rgba(22,31,53,.94); border-color: #24304d; }
+html[data-theme="dark"] .vd-modal, html[data-theme="dark"] .vd-sheet { background: #161f35; color: #e2e8f0; }
+html[data-theme="dark"] .vd-sheet-item { background: #0f172a; border-color: #24304d; color: #e2e8f0; }
+html[data-theme="dark"] .vd-mnav { background: #161f35; color: #e2e8f0; border-color: #24304d; }
+html[data-theme="dark"] .vd-x { background: #0f172a; color: #e2e8f0; }
