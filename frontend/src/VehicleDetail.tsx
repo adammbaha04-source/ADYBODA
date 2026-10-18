@@ -1,4 +1,4 @@
-import { useEffect, useState, type FormEvent } from "react";
+import { useEffect, useState, type FormEvent, type ReactNode } from "react";
 import {
   addManualEntry, createInsurance, createPayment, createService, createTyre,
   deleteRecord, deleteVehicle, getDebt, listInsurances, listLostDays, listPayments,
@@ -12,11 +12,10 @@ import DebtTable from "./DebtTable";
 import { monthLabel, shortDate, todayYMD, tsh } from "./format";
 import { PRESETS } from "./VehiclesPage";
 import type { Role } from "./roles";
-import type {
-  DebtEntry, DebtResponse, InsuranceRecord, LostDays, ServiceRecord, TyreRecord, Vehicle,
-} from "./types";
+import type { DebtEntry, DebtResponse, InsuranceRecord, LostDays, ServiceRecord, TyreRecord, Vehicle } from "./types";
+import "./vehicle-detail.css";
 
-type Form = null | "income" | "service" | "servicePack" | "payment" | "debt" | "tyre" | "insurance" | "edit";
+type Form = "income" | "service" | "servicePack" | "payment" | "debt" | "tyre" | "insurance" | "edit";
 
 const PAYMENT_TYPES = [
   { key: "TRA", label: "TRA Taxes" },
@@ -26,45 +25,80 @@ const PAYMENT_TYPES = [
   { key: "debt_payment", label: "Malipo ya Deni" },
 ];
 
-// The action list shown when the ⋮ button is tapped. Each role sees only its own part (see visibleActions below).
-const ACTIONS: { key: Form | "saveMonth" | "delete"; label: string; icon: string; tone: string }[] = [
-  { key: "income", label: "Income", icon: "💵", tone: "g-green" },
-  { key: "service", label: "Service", icon: "🔧", tone: "g-blue" },
-  { key: "payment", label: "Payment", icon: "🧾", tone: "g-purple" },
-  { key: "debt", label: "Add Debt", icon: "📝", tone: "g-orange" },
-  { key: "tyre", label: "Tyre", icon: "🛞", tone: "g-pink" },
-  { key: "insurance", label: "Insurance", icon: "🛡️", tone: "g-teal" },
-  { key: "servicePack", label: "Service ya Pamoja", icon: "🧰", tone: "g-indigo" },
-  { key: "edit", label: "Set Targets & Days", icon: "🎯", tone: "g-yellow" },
-  { key: "saveMonth", label: "Save Month", icon: "💾", tone: "g-emerald" },
-  { key: "edit", label: "Edit Vehicle", icon: "✏️", tone: "g-yellow" },
-  { key: "delete", label: "Delete Vehicle", icon: "🗑️", tone: "g-red" },
+const FORM_TITLE: Record<Form, string> = {
+  income: "Ingiza Mapato",
+  payment: "Add Payment",
+  service: "Add Service",
+  servicePack: "Service ya Pamoja",
+  tyre: "Add Tyre",
+  insurance: "Add Insurance",
+  debt: "Add Debt",
+  edit: "Set Targets & Edit Vehicle",
+};
+
+// Bottom bar tiles (owner sees all five; manager sees income and payment; driver sees none).
+const BAR: { key: Form; label: string; icon: string }[] = [
+  { key: "income", label: "Income", icon: "💵" },
+  { key: "service", label: "Service", icon: "🔧" },
+  { key: "payment", label: "Payment", icon: "🧾" },
+  { key: "servicePack", label: "Pamoja", icon: "🧰" },
+  { key: "tyre", label: "Tyre", icon: "🛞" },
 ];
+// Opened from the + tile (owner only).
+const MORE: { key: Form | "saveMonth" | "delete"; label: string; icon: string; red?: boolean }[] = [
+  { key: "debt", label: "Add Debt", icon: "📝" },
+  { key: "insurance", label: "Insurance", icon: "🛡️" },
+  { key: "edit", label: "Set Targets & Edit", icon: "🎯" },
+  { key: "saveMonth", label: "Save Month", icon: "💾" },
+  { key: "delete", label: "Delete Vehicle", icon: "🗑️", red: true },
+];
+const MANAGER_TILES = ["income", "payment"];
+const PLACEHOLDER = "Save Month inajengwa katika hatua inayofuata.";
 
-// Manager may only add income and payments. Driver may add nothing.
-const MANAGER_ACTIONS = ["income", "payment"];
-
-function parseWeekNote(note: string): { week: number; income: number; target: number } | null {
+function parseWeekNote(note: string): { week: number } | null {
   const m = note.match(/Week (\d+): Income (\d+) vs Target (\d+)/);
-  return m ? { week: Number(m[1]), income: Number(m[2]), target: Number(m[3]) } : null;
+  return m ? { week: Number(m[1]) } : null;
+}
+function shiftMonth(m: string, d: number): string {
+  const dt = new Date(Number(m.slice(0, 4)), Number(m.slice(5, 7)) - 1 + d, 1);
+  return `${dt.getFullYear()}-${String(dt.getMonth() + 1).padStart(2, "0")}`;
 }
 
-const PLACEHOLDER = "Save Month inajengwa katika hatua inayofuata.";
+// A popup dialog. Closes on Escape, on the X button, or on a tap outside the box.
+function Dialog({ title, onClose, children }: { title: string; onClose: () => void; children: ReactNode }) {
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => { if (e.key === "Escape") onClose(); };
+    window.addEventListener("keydown", onKey);
+    const prev = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    return () => { window.removeEventListener("keydown", onKey); document.body.style.overflow = prev; };
+  }, [onClose]);
+  return (
+    <div className="vd-overlay" onMouseDown={(e) => { if (e.target === e.currentTarget) onClose(); }}>
+      <div className="vd-modal" role="dialog" aria-modal="true" aria-label={title}>
+        <div className="vd-modal-head">
+          <h3>{title}</h3>
+          <button className="vd-x" aria-label="Funga" onClick={onClose}>✕</button>
+        </div>
+        <div className="vd-modal-body">{children}</div>
+      </div>
+    </div>
+  );
+}
 
 export default function VehicleDetail(props: {
   vehicle: Vehicle; role: Role; month: string;
-  onBack: () => void; onChanged: () => void; onDeleted: () => void;
+  onBack: () => void; onChanged: () => void; onDeleted: () => void; onMonthChange: (m: string) => void;
 }) {
-  const { vehicle, role, month, onBack, onChanged, onDeleted } = props;
+  const { vehicle, role, month, onBack, onChanged, onDeleted, onMonthChange } = props;
   const isOwner = role === "owner";
   const isManager = role === "manager";
   const isDriver = role === "driver";
-  const canEditMoney = isOwner || isManager;      // income and payments: edit and delete
-  const showOtherRecords = isOwner;               // service, tyre and insurance history: owner only
+  const canEditMoney = isOwner || isManager;
+  const showOtherRecords = isOwner;
 
-  const visibleActions = ACTIONS.filter((a) =>
-    isOwner || (isManager && typeof a.key === "string" && MANAGER_ACTIONS.includes(a.key)),
-  );
+  const barTiles = isOwner ? BAR : isManager ? BAR.filter((t) => MANAGER_TILES.includes(t.key)) : [];
+  const cols = barTiles.length + (isOwner ? 1 : 0);
 
   const [debt, setDebt] = useState<DebtResponse | null>(null);
   const [returns, setReturns] = useState<IncomeRow[]>([]);
@@ -74,12 +108,11 @@ export default function VehicleDetail(props: {
   const [services, setServices] = useState<ServiceRecord[]>([]);
   const [tyres, setTyres] = useState<TyreRecord[]>([]);
   const [insurances, setInsurances] = useState<InsuranceRecord[]>([]);
-  const [sheet, setSheet] = useState(false);
-  const [form, setForm] = useState<Form>(null);
+  const [more, setMore] = useState(false);
+  const [form, setForm] = useState<Form | null>(null);
   const [error, setError] = useState("");
   const [notice, setNotice] = useState("");
 
-  // shared form fields
   const [fDay, setFDay] = useState(todayYMD());
   const [fAmount, setFAmount] = useState("");
   const [fNote, setFNote] = useState("");
@@ -92,11 +125,14 @@ export default function VehicleDetail(props: {
   const [fTyre, setFTyre] = useState("");
   const [fInsType, setFInsType] = useState("");
   const [fMonths, setFMonths] = useState("12");
-  // edit vehicle / set targets
   const [eName, setEName] = useState(vehicle.name);
   const [eType, setEType] = useState(vehicle.vehicle_type);
   const [eDaily, setEDaily] = useState(String(vehicle.daily_target));
   const [eDays, setEDays] = useState(String(vehicle.working_days_count));
+
+  const currentYM = todayYMD().slice(0, 7);
+  const prevMonth = shiftMonth(month, -1);
+  const nextMonth = shiftMonth(month, 1);
 
   async function load() {
     try {
@@ -126,6 +162,7 @@ export default function VehicleDetail(props: {
     setEDaily(String(vehicle.daily_target));
     setEDays(String(vehicle.working_days_count));
     setForm(null);
+    setMore(false);
     setNotice("");
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [vehicle.id, month]);
@@ -144,13 +181,12 @@ export default function VehicleDetail(props: {
   }
 
   function clearFields() {
-    setFAmount(""); setFNote("");
-    setFTool(""); setFCount("1"); setFUnit(""); setFSeller("");
-    setFTyre(""); setFInsType(""); setFMonths("12");
+    setFAmount(""); setFNote(""); setFTool(""); setFCount("1"); setFUnit("");
+    setFSeller(""); setFTyre(""); setFInsType(""); setFMonths("12");
   }
 
-  function pick(key: Form | "saveMonth" | "delete") {
-    setSheet(false);
+  function open(key: Form | "saveMonth" | "delete") {
+    setMore(false);
     setNotice("");
     if (key === "saveMonth") { setNotice(PLACEHOLDER); return; }
     if (key === "delete") { removeVehicle(); return; }
@@ -159,20 +195,19 @@ export default function VehicleDetail(props: {
     setFDay(todayYMD());
     setForm(key);
   }
+  const closeForm = () => { setForm(null); setEditingIncome(null); };
 
   const wd = vehicle.working_days_count;
   const daily = vehicle.daily_target;
   const weekly = daily * wd;
   const s = debt?.summary;
   const entries: DebtEntry[] = debt?.entries ?? [];
-
   const weeksCount = entries.filter((e) => parseWeekNote(e.notes) !== null).length || 4;
   const monthTarget = weekly * weeksCount;
   const totalIncome = returns.filter((r) => !r.is_excess).reduce((a, r) => a + r.amount, 0);
   const daysLost = lost.reduce((a, l) => a + l.days, 0);
   const lossAmount = daysLost * daily;
 
-  // ----- submit handlers -----
   function submitDebt(e: FormEvent) {
     e.preventDefault();
     run(() => addManualEntry(vehicle.id, "MANUAL_DEBT", fDay, Number(fAmount), fNote.trim()), "Deni limeongezwa.");
@@ -213,8 +248,6 @@ export default function VehicleDetail(props: {
     if (!confirm("Futa rekodi hii?")) return;
     run(() => deleteRecord(path, id), "Rekodi imefutwa.");
   }
-
-  // Driver confirms (signs) his own records.
   function signIncome(id: number) { run(() => confirmIncome(id), "Mapato yamethibitishwa."); }
   function signPayment(id: number) { run(() => confirmPayment(id), "Malipo yamethibitishwa."); }
   function signManual(id: number) { run(() => confirmManualEntry(id), "Deni limethibitishwa."); }
@@ -223,30 +256,21 @@ export default function VehicleDetail(props: {
   const manualLabel = (k: string) => (k === "MANUAL_PAYMENT" ? "Malipo ya deni" : k === "CARRY_OVER" ? "Deni lililobaki" : "Deni");
 
   return (
-    <div className="detail">
+    <div className="detail vd-root">
       <div className="detail-top">
         <button className="back" onClick={onBack}>← Rudi Nyuma</button>
-        {visibleActions.length > 0 && (
-          <button className="dots" aria-label="Vitendo" onClick={() => setSheet(true)}>⋮</button>
-        )}
       </div>
 
-      {sheet && visibleActions.length > 0 && (
-        <>
-          <div className="backdrop" onClick={() => setSheet(false)} />
-          <div className="sheet" role="menu">
-            <div className="sheet-handle" />
-            <div className="sheet-title">{vehicle.name} · Vitendo</div>
-            {visibleActions.map((a) => (
-              <button key={a.label} className="sheet-item" onClick={() => pick(a.key)}>
-                <span className={"sheet-ico " + a.tone}>{a.icon}</span>
-                <span>{a.label}</span>
-                <span className="chev">›</span>
-              </button>
-            ))}
-          </div>
-        </>
-      )}
+      <div className="vd-mnav-row">
+        <button className="vd-mnav" onClick={() => onMonthChange(prevMonth)} aria-label={`Mwezi uliopita: ${monthLabel(prevMonth)}`}>
+          ‹ <span>{monthLabel(prevMonth)}</span>
+        </button>
+        <div className="vd-mnav-cur">{monthLabel(month)}</div>
+        <button className="vd-mnav" disabled={month >= currentYM}
+          onClick={() => onMonthChange(nextMonth)} aria-label={`Mwezi unaofuata: ${monthLabel(nextMonth)}`}>
+          <span>{monthLabel(nextMonth)}</span> ›
+        </button>
+      </div>
 
       <section className="card title-card">
         <h3>{vehicle.name} <span className="badge type">{vehicle.vehicle_type.toUpperCase()}</span></h3>
@@ -278,101 +302,6 @@ export default function VehicleDetail(props: {
           <div><span>LOSS AMOUNT</span><b className="red">{tsh(lossAmount)}</b></div>
         </div>
       </section>
-
-      {form && (
-        <section className="card form-card">
-          {form === "income" && (
-            <IncomeForm
-              key={editingIncome?.id ?? "new"}
-              vehicleId={vehicle.id}
-              workingDays={wd}
-              includeWeek5={vehicle.include_week5}
-              defaultMonth={month}
-              editing={editingIncome}
-              onSaved={() => { setForm(null); setEditingIncome(null); setNotice("Mapato yamehifadhiwa."); load(); onChanged(); }}
-              onCancel={() => { setForm(null); setEditingIncome(null); }}
-            />
-          )}
-          {form === "payment" && (
-            <form onSubmit={submitPayment}>
-              <h3>Add Payment</h3>
-              <label>Aina ya Malipo
-                <select value={fPayType} onChange={(e) => setFPayType(e.target.value)}>
-                  {PAYMENT_TYPES.map((p) => <option key={p.key} value={p.key}>{p.label}</option>)}
-                </select>
-              </label>
-              <label>Tarehe ya Malipo<input type="date" value={fDay} onChange={(e) => setFDay(e.target.value)} required /></label>
-              <label>Kiasi (TSh)<input type="number" inputMode="numeric" value={fAmount} onChange={(e) => setFAmount(e.target.value)} required min={1} /></label>
-              <label>Maelezo<input value={fNote} onChange={(e) => setFNote(e.target.value)} placeholder="Maelezo ya ziada" /></label>
-              {fPayType !== "debt_payment" && <p className="hint">Aina hii ni gharama tu. Haipunguzi deni.</p>}
-              <button type="submit">Hifadhi</button>
-            </form>
-          )}
-          {form === "debt" && (
-            <form onSubmit={submitDebt}>
-              <h3>Add Debt</h3>
-              <label>Tarehe ya Record<input type="date" value={fDay} onChange={(e) => setFDay(e.target.value)} required /></label>
-              <label>Kiasi (TSh)<input type="number" inputMode="numeric" value={fAmount} onChange={(e) => setFAmount(e.target.value)} required min={1} /></label>
-              <label>Maelezo<input value={fNote} onChange={(e) => setFNote(e.target.value)} placeholder="Maelezo ya ziada" /></label>
-              <button type="submit">Hifadhi</button>
-            </form>
-          )}
-          {(form === "service" || form === "servicePack") && (
-            <form onSubmit={(e) => submitService(e, form === "servicePack")}>
-              <h3>{form === "servicePack" ? "Ongeza Service ya Pamoja" : "Add Service"}</h3>
-              <label>Tarehe ya Malipo<input type="date" value={fDay} onChange={(e) => setFDay(e.target.value)} required /></label>
-              <label>Kifaa (Tool)<input value={fTool} onChange={(e) => setFTool(e.target.value)} placeholder="Mafuta, Filter, nk" required /></label>
-              <label>Idadi<input type="number" inputMode="numeric" value={fCount} onChange={(e) => setFCount(e.target.value)} min={1} required /></label>
-              <label>Bei ya Kimoja (TSh)<input type="number" inputMode="numeric" value={fUnit} onChange={(e) => setFUnit(e.target.value)} min={0} /></label>
-              <label>Muuzaji<input value={fSeller} onChange={(e) => setFSeller(e.target.value)} placeholder="Jina la muuzaji" /></label>
-              <label>Maelezo<input value={fNote} onChange={(e) => setFNote(e.target.value)} placeholder="Maelezo ya ziada" /></label>
-              <p className="hint">Jumla: {tsh((Number(fCount) || 0) * (Number(fUnit) || 0))}</p>
-              <button type="submit">{form === "servicePack" ? "Hifadhi kwa Vyombo Vyote" : "Hifadhi"}</button>
-            </form>
-          )}
-          {form === "tyre" && (
-            <form onSubmit={submitTyre}>
-              <h3>Add Tyre</h3>
-              <label>Tarehe ya Malipo<input type="date" value={fDay} onChange={(e) => setFDay(e.target.value)} required /></label>
-              <label>Namba ya Tairi<input value={fTyre} onChange={(e) => setFTyre(e.target.value)} placeholder="TYRE001" /></label>
-              <label>Kiasi (TSh)<input type="number" inputMode="numeric" value={fAmount} onChange={(e) => setFAmount(e.target.value)} min={0} /></label>
-              <label>Maelezo<input value={fNote} onChange={(e) => setFNote(e.target.value)} placeholder="Maelezo ya ziada" /></label>
-              <button type="submit">Hifadhi</button>
-            </form>
-          )}
-          {form === "insurance" && (
-            <form onSubmit={submitInsurance}>
-              <h3>Add Insurance</h3>
-              <label>Tarehe ya Malipo<input type="date" value={fDay} onChange={(e) => setFDay(e.target.value)} required /></label>
-              <label>Kiasi (TSh)<input type="number" inputMode="numeric" value={fAmount} onChange={(e) => setFAmount(e.target.value)} min={0} /></label>
-              <label>Aina ya Bima<input value={fInsType} onChange={(e) => setFInsType(e.target.value)} placeholder="Comprehensive, Third Party" /></label>
-              <label>Muda (Miezi)<input type="number" inputMode="numeric" value={fMonths} onChange={(e) => setFMonths(e.target.value)} min={1} /></label>
-              <label>Maelezo<input value={fNote} onChange={(e) => setFNote(e.target.value)} placeholder="Maelezo ya ziada" /></label>
-              <button type="submit">Hifadhi</button>
-            </form>
-          )}
-          {form === "edit" && (
-            <form onSubmit={submitEdit}>
-              <h3>Set Targets &amp; Days / Edit Vehicle</h3>
-              <label>Vehicle Number / Name<input value={eName} onChange={(e) => setEName(e.target.value)} required /></label>
-              <label>Vehicle Type
-                <select value={eType} onChange={(e) => {
-                  setEType(e.target.value);
-                  const p = PRESETS.find((x) => x.key === e.target.value);
-                  if (p) { setEDays(String(p.days)); setEDaily(String(p.daily)); }
-                }}>
-                  {PRESETS.map((p) => <option key={p.key} value={p.key}>{p.label}</option>)}
-                </select>
-              </label>
-              <label>Day Target (TSh)<input type="number" inputMode="numeric" value={eDaily} onChange={(e) => setEDaily(e.target.value)} required min={1} /></label>
-              <label>Siku za Kufanya Kazi kwa Wiki<input type="number" inputMode="numeric" value={eDays} onChange={(e) => setEDays(e.target.value)} required min={1} max={7} /></label>
-              <p className="hint">Week Target: {tsh((Number(eDaily) || 0) * (Number(eDays) || 0))}</p>
-              <button type="submit">Hifadhi</button>
-            </form>
-          )}
-          {form !== "income" && <button className="ghost" onClick={() => setForm(null)}>Sitisha / Cancel</button>}
-        </section>
-      )}
 
       <section className="card">
         <h3>Dashibodi ya Deni</h3>
@@ -438,7 +367,7 @@ export default function VehicleDetail(props: {
               </span>
               <b className="green">{r.is_excess ? "-" : "+"}{tsh(r.amount)}</b>
               {canEditMoney && (
-                <button className="edit-btn" onClick={() => { setEditingIncome(r); setForm("income"); setNotice(""); window.scrollTo({ top: 0, behavior: "smooth" }); }}>Edit</button>
+                <button className="edit-btn" onClick={() => { setEditingIncome(r); setForm("income"); setNotice(""); }}>Edit</button>
               )}
               {canEditMoney && (
                 <button className="danger" onClick={() => { if (confirm("Futa mapato haya?")) run(() => deleteIncome(r.id), "Mapato yamefutwa."); }}>Del</button>
@@ -460,12 +389,8 @@ export default function VehicleDetail(props: {
               <span>{p.day} · {paymentLabel(p.payment_type)}{p.note ? ` · ${p.note}` : ""}
                 {p.confirmed_at ? " · Confirmed" : " · Pending"}</span>
               <b className="green">{tsh(p.amount)}</b>
-              {canEditMoney && (
-                <button className="danger" onClick={() => removeRecord("payment-records", p.id)}>Futa</button>
-              )}
-              {isDriver && !p.confirmed_at && (
-                <button className="confirm-btn" onClick={() => signPayment(p.id)}>Thibitisha</button>
-              )}
+              {canEditMoney && <button className="danger" onClick={() => removeRecord("payment-records", p.id)}>Futa</button>}
+              {isDriver && !p.confirmed_at && <button className="confirm-btn" onClick={() => signPayment(p.id)}>Thibitisha</button>}
             </li>
           ))}
         </ul>
@@ -486,7 +411,6 @@ export default function VehicleDetail(props: {
               ))}
             </ul>
           </section>
-
           <section className="card">
             <h3>Historia ya Tairi</h3>
             <ul className="list">
@@ -500,7 +424,6 @@ export default function VehicleDetail(props: {
               ))}
             </ul>
           </section>
-
           <section className="card">
             <h3>Historia ya Bima</h3>
             <ul className="list">
@@ -515,6 +438,139 @@ export default function VehicleDetail(props: {
             </ul>
           </section>
         </>
+      )}
+
+      {/* Fixed bottom action bar (owner and manager only). */}
+      {cols > 0 && (
+        <nav className="vd-nav" aria-label="Vitendo vya gari" style={{ gridTemplateColumns: `repeat(${cols}, 1fr)` }}>
+          {barTiles.map((t) => (
+            <button key={t.key} className="vd-tile" onClick={() => open(t.key)} aria-label={FORM_TITLE[t.key]}>
+              <span className="vd-ico">{t.icon}</span>
+              <span className="vd-lbl">{t.label}</span>
+            </button>
+          ))}
+          {isOwner && (
+            <button className="vd-tile vd-plus" onClick={() => setMore(true)} aria-label="Vitendo zaidi">
+              <span className="vd-ico">＋</span>
+              <span className="vd-lbl">Zaidi</span>
+            </button>
+          )}
+        </nav>
+      )}
+
+      {/* "+" sheet with the rest of the actions. */}
+      {more && isOwner && (
+        <>
+          <div className="vd-overlay" style={{ background: "rgba(15,23,42,.4)" }} onMouseDown={() => setMore(false)} />
+          <div className="vd-sheet" role="menu">
+            <div className="vd-sheet-handle" />
+            <div className="vd-sheet-title">{vehicle.name} · Vitendo zaidi</div>
+            <div className="vd-sheet-grid">
+              {MORE.map((a) => (
+                <button key={a.label} className={"vd-sheet-item" + (a.red ? " red" : "")} onClick={() => open(a.key)}>
+                  <span className="vd-ico">{a.icon}</span>
+                  <span>{a.label}</span>
+                </button>
+              ))}
+            </div>
+          </div>
+        </>
+      )}
+
+      {/* Forms open as popup dialogs. */}
+      {form && (
+        <Dialog title={FORM_TITLE[form]} onClose={closeForm}>
+          {form === "income" && (
+            <IncomeForm
+              key={editingIncome?.id ?? "new"}
+              vehicleId={vehicle.id}
+              workingDays={wd}
+              includeWeek5={vehicle.include_week5}
+              defaultMonth={month}
+              editing={editingIncome}
+              onSaved={() => { closeForm(); setNotice("Mapato yamehifadhiwa."); load(); onChanged(); }}
+              onCancel={closeForm}
+            />
+          )}
+          {form === "payment" && (
+            <form onSubmit={submitPayment}>
+              <h3>Add Payment</h3>
+              <label>Aina ya Malipo
+                <select value={fPayType} onChange={(e) => setFPayType(e.target.value)}>
+                  {PAYMENT_TYPES.map((p) => <option key={p.key} value={p.key}>{p.label}</option>)}
+                </select>
+              </label>
+              <label>Tarehe ya Malipo<input type="date" value={fDay} onChange={(e) => setFDay(e.target.value)} required /></label>
+              <label>Kiasi (TSh)<input type="number" inputMode="numeric" value={fAmount} onChange={(e) => setFAmount(e.target.value)} required min={1} /></label>
+              <label>Maelezo<input value={fNote} onChange={(e) => setFNote(e.target.value)} placeholder="Maelezo ya ziada" /></label>
+              {fPayType !== "debt_payment" && <p className="hint">Aina hii ni gharama tu. Haipunguzi deni.</p>}
+              <button type="submit">Hifadhi</button>
+            </form>
+          )}
+          {form === "debt" && (
+            <form onSubmit={submitDebt}>
+              <h3>Add Debt</h3>
+              <label>Tarehe ya Record<input type="date" value={fDay} onChange={(e) => setFDay(e.target.value)} required /></label>
+              <label>Kiasi (TSh)<input type="number" inputMode="numeric" value={fAmount} onChange={(e) => setFAmount(e.target.value)} required min={1} /></label>
+              <label>Maelezo<input value={fNote} onChange={(e) => setFNote(e.target.value)} placeholder="Maelezo ya ziada" /></label>
+              <button type="submit">Hifadhi</button>
+            </form>
+          )}
+          {(form === "service" || form === "servicePack") && (
+            <form onSubmit={(e) => submitService(e, form === "servicePack")}>
+              <h3>{form === "servicePack" ? "Ongeza Service ya Pamoja" : "Add Service"}</h3>
+              <label>Tarehe ya Malipo<input type="date" value={fDay} onChange={(e) => setFDay(e.target.value)} required /></label>
+              <label>Kifaa (Tool)<input value={fTool} onChange={(e) => setFTool(e.target.value)} placeholder="Mafuta, Filter, nk" required /></label>
+              <label>Idadi<input type="number" inputMode="numeric" value={fCount} onChange={(e) => setFCount(e.target.value)} min={1} required /></label>
+              <label>Bei ya Kimoja (TSh)<input type="number" inputMode="numeric" value={fUnit} onChange={(e) => setFUnit(e.target.value)} min={0} /></label>
+              <label>Muuzaji<input value={fSeller} onChange={(e) => setFSeller(e.target.value)} placeholder="Jina la muuzaji" /></label>
+              <label>Maelezo<input value={fNote} onChange={(e) => setFNote(e.target.value)} placeholder="Maelezo ya ziada" /></label>
+              <p className="hint">Jumla: {tsh((Number(fCount) || 0) * (Number(fUnit) || 0))}</p>
+              <button type="submit">{form === "servicePack" ? "Hifadhi kwa Vyombo Vyote" : "Hifadhi"}</button>
+            </form>
+          )}
+          {form === "tyre" && (
+            <form onSubmit={submitTyre}>
+              <h3>Add Tyre</h3>
+              <label>Tarehe ya Malipo<input type="date" value={fDay} onChange={(e) => setFDay(e.target.value)} required /></label>
+              <label>Namba ya Tairi<input value={fTyre} onChange={(e) => setFTyre(e.target.value)} placeholder="TYRE001" /></label>
+              <label>Kiasi (TSh)<input type="number" inputMode="numeric" value={fAmount} onChange={(e) => setFAmount(e.target.value)} min={0} /></label>
+              <label>Maelezo<input value={fNote} onChange={(e) => setFNote(e.target.value)} placeholder="Maelezo ya ziada" /></label>
+              <button type="submit">Hifadhi</button>
+            </form>
+          )}
+          {form === "insurance" && (
+            <form onSubmit={submitInsurance}>
+              <h3>Add Insurance</h3>
+              <label>Tarehe ya Malipo<input type="date" value={fDay} onChange={(e) => setFDay(e.target.value)} required /></label>
+              <label>Kiasi (TSh)<input type="number" inputMode="numeric" value={fAmount} onChange={(e) => setFAmount(e.target.value)} min={0} /></label>
+              <label>Aina ya Bima<input value={fInsType} onChange={(e) => setFInsType(e.target.value)} placeholder="Comprehensive, Third Party" /></label>
+              <label>Muda (Miezi)<input type="number" inputMode="numeric" value={fMonths} onChange={(e) => setFMonths(e.target.value)} min={1} /></label>
+              <label>Maelezo<input value={fNote} onChange={(e) => setFNote(e.target.value)} placeholder="Maelezo ya ziada" /></label>
+              <button type="submit">Hifadhi</button>
+            </form>
+          )}
+          {form === "edit" && (
+            <form onSubmit={submitEdit}>
+              <h3>Set Targets &amp; Edit Vehicle</h3>
+              <label>Vehicle Number / Name<input value={eName} onChange={(e) => setEName(e.target.value)} required /></label>
+              <label>Vehicle Type
+                <select value={eType} onChange={(e) => {
+                  setEType(e.target.value);
+                  const p = PRESETS.find((x) => x.key === e.target.value);
+                  if (p) { setEDays(String(p.days)); setEDaily(String(p.daily)); }
+                }}>
+                  {PRESETS.map((p) => <option key={p.key} value={p.key}>{p.label}</option>)}
+                </select>
+              </label>
+              <label>Day Target (TSh)<input type="number" inputMode="numeric" value={eDaily} onChange={(e) => setEDaily(e.target.value)} required min={1} /></label>
+              <label>Siku za Kufanya Kazi kwa Wiki<input type="number" inputMode="numeric" value={eDays} onChange={(e) => setEDays(e.target.value)} required min={1} max={7} /></label>
+              <p className="hint">Week Target: {tsh((Number(eDaily) || 0) * (Number(eDays) || 0))}</p>
+              <button type="submit">Hifadhi</button>
+            </form>
+          )}
+          {form !== "income" && <button className="ghost" onClick={closeForm}>Sitisha / Cancel</button>}
+        </Dialog>
       )}
     </div>
   );
