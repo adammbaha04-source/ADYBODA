@@ -8,9 +8,10 @@ import { confirmIncome, deleteIncome, listIncome, type IncomeRow } from "./incom
 import { confirmManualEntry, confirmPayment, listManualEntries, type ManualEntry, type PaymentRow } from "./roleApi";
 import IncomeForm from "./IncomeForm";
 import WeekTable from "./WeekTable";
+import TargetPanel from "./TargetPanel";
+import IncomePeriod from "./IncomePeriod";
 import DebtTable from "./DebtTable";
 import { monthLabel, shortDate, todayYMD, tsh } from "./format";
-import { PRESETS } from "./VehiclesPage";
 import type { Role } from "./roles";
 import type { DebtEntry, DebtResponse, InsuranceRecord, LostDays, ServiceRecord, TyreRecord, Vehicle } from "./types";
 import "./vehicle-detail.css";
@@ -125,10 +126,6 @@ export default function VehicleDetail(props: {
   const [fTyre, setFTyre] = useState("");
   const [fInsType, setFInsType] = useState("");
   const [fMonths, setFMonths] = useState("12");
-  const [eName, setEName] = useState(vehicle.name);
-  const [eType, setEType] = useState(vehicle.vehicle_type);
-  const [eDaily, setEDaily] = useState(String(vehicle.daily_target));
-  const [eDays, setEDays] = useState(String(vehicle.working_days_count));
 
   const currentYM = todayYMD().slice(0, 7);
   const prevMonth = shiftMonth(month, -1);
@@ -157,10 +154,6 @@ export default function VehicleDetail(props: {
 
   useEffect(() => {
     load();
-    setEName(vehicle.name);
-    setEType(vehicle.vehicle_type);
-    setEDaily(String(vehicle.daily_target));
-    setEDays(String(vehicle.working_days_count));
     setForm(null);
     setMore(false);
     setNotice("");
@@ -203,7 +196,11 @@ export default function VehicleDetail(props: {
   const s = debt?.summary;
   const entries: DebtEntry[] = debt?.entries ?? [];
   const weeksCount = entries.filter((e) => parseWeekNote(e.notes) !== null).length || 4;
-  const monthTarget = weekly * weeksCount;
+  const monthTarget = entries.reduce((a, e) => {
+    if (!parseWeekNote(e.notes)) return a;
+    const t = e.notes.match(/Target (\d+)/);
+    return a + (t ? Number(t[1]) : 0);
+  }, 0);
   const totalIncome = returns.filter((r) => !r.is_excess).reduce((a, r) => a + r.amount, 0);
   const daysLost = lost.reduce((a, l) => a + l.days, 0);
   const lossAmount = daysLost * daily;
@@ -230,14 +227,6 @@ export default function VehicleDetail(props: {
   function submitInsurance(e: FormEvent) {
     e.preventDefault();
     run(() => createInsurance(vehicle.id, fDay, fInsType.trim(), Number(fAmount) || 0, Number(fMonths) || 12, fNote.trim()), "Bima imehifadhiwa.");
-  }
-  function submitEdit(e: FormEvent) {
-    e.preventDefault();
-    const preset = PRESETS.find((p) => p.key === eType);
-    run(() => updateVehicle(vehicle.id, {
-      name: eName.trim().toUpperCase(), vehicle_type: eType,
-      daily_target: Number(eDaily), working_days_count: Number(eDays) || preset?.days || wd,
-    }), "Gari limebadilishwa.");
   }
   async function removeVehicle() {
     if (!confirm(`Futa gari ${vehicle.name}? Historia yake yote itafutwa.`)) return;
@@ -345,6 +334,8 @@ export default function VehicleDetail(props: {
           </ul>
         </section>
       )}
+
+      <IncomePeriod vehicle={vehicle} onChanged={onChanged} />
 
       <section className="card">
         <h3>Muhtasari wa Wiki za Mwezi</h3>
@@ -551,23 +542,7 @@ export default function VehicleDetail(props: {
             </form>
           )}
           {form === "edit" && (
-            <form onSubmit={submitEdit}>
-              <h3>Set Targets &amp; Edit Vehicle</h3>
-              <label>Vehicle Number / Name<input value={eName} onChange={(e) => setEName(e.target.value)} required /></label>
-              <label>Vehicle Type
-                <select value={eType} onChange={(e) => {
-                  setEType(e.target.value);
-                  const p = PRESETS.find((x) => x.key === e.target.value);
-                  if (p) { setEDays(String(p.days)); setEDaily(String(p.daily)); }
-                }}>
-                  {PRESETS.map((p) => <option key={p.key} value={p.key}>{p.label}</option>)}
-                </select>
-              </label>
-              <label>Day Target (TSh)<input type="number" inputMode="numeric" value={eDaily} onChange={(e) => setEDaily(e.target.value)} required min={1} /></label>
-              <label>Siku za Kufanya Kazi kwa Wiki<input type="number" inputMode="numeric" value={eDays} onChange={(e) => setEDays(e.target.value)} required min={1} max={7} /></label>
-              <p className="hint">Week Target: {tsh((Number(eDaily) || 0) * (Number(eDays) || 0))}</p>
-              <button type="submit">Hifadhi</button>
-            </form>
+            <TargetPanel vehicle={vehicle} month={month} onSaved={() => { load(); onChanged(); }} />
           )}
           {form !== "income" && <button className="ghost" onClick={closeForm}>Sitisha / Cancel</button>}
         </Dialog>
