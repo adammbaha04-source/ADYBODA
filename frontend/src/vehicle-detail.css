@@ -56,3 +56,18 @@ html[data-theme="dark"] .vd-modal, html[data-theme="dark"] .vd-sheet { backgroun
 html[data-theme="dark"] .vd-sheet-item { background: #0f172a; border-color: #24304d; color: #e2e8f0; }
 html[data-theme="dark"] .vd-mnav { background: #161f35; color: #e2e8f0; border-color: #24304d; }
 html[data-theme="dark"] .vd-x { background: #0f172a; color: #e2e8f0; }
+
+.target-panel h4 { margin: 14px 0 6px; }
+.target-panel label { display: block; margin: 8px 0; }
+.target-panel input, .target-panel select { width: 100%; padding: 8px; box-sizing: border-box; }
+.day-toggles { display: flex; gap: 6px; flex-wrap: wrap; }
+.day-toggles button { flex: 1 0 40px; padding: 8px 4px; border-radius: 8px; border: 1px solid #94a3b8; }
+.day-toggles button.on { background: #2563eb; color: #fff; border-color: #2563eb; }
+.day-toggles button.off { background: transparent; color: #94a3b8; text-decoration: line-through; }
+.week-tabs { display: flex; gap: 6px; flex-wrap: wrap; }
+.week-tabs button { padding: 6px 10px; border-radius: 8px; border: 1px solid #94a3b8; background: transparent; }
+.week-tabs button.active { background: #2563eb; color: #fff; border-color: #2563eb; }
+.target-panel .btn-row { display: flex; gap: 8px; margin-top: 10px; }
+.target-panel table { width: 100%; border-collapse: collapse; margin-top: 6px; font-size: 14px; }
+.target-panel td, .target-panel th { padding: 6px 4px; border-bottom: 1px solid #e2e8f0; text-align: left; }
+.target-panel .muted { color: #94a3b8; }
