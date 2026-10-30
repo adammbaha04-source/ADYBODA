@@ -1,3 +1,6 @@
+from fleet.models import WeekSetting
+from fleet.services import build_config
+from fleet.engine import plan_month
 from django.shortcuts import get_object_or_404
 from django.utils import timezone
 from rest_framework.exceptions import PermissionDenied
@@ -46,6 +49,60 @@ class VehicleViewSet(viewsets.ModelViewSet):
         month_entries = [e for e in entries if e.month == month]
         return Response({"summary": debt_summary(entries, month, vehicle),
                          "entries": serialize_entries(month_entries)})
+
+    @action(detail=True, methods=["get", "post"], url_path="week-plan")
+    def week_plan(self, request, pk=None):
+        """GET ?month=YYYY-MM  -> wiki 1..5 za mwezi huo na target zake.
+        POST {month, week_number, active_days?, target?} -> hifadhi mipangilio ya wiki moja.
+           active_days: null = rudi kwenye siku za gari; target: null/"" = kiotomatiki."""
+        vehicle = self.get_object()
+        if request.method == "GET":
+            month = request.query_params.get("month", "")
+            if len(month) != 7:
+                raise ValidationError({"month": "Use YYYY-MM."})
+        else:
+            month = str(request.data.get("month", ""))
+            if len(month) != 7:
+                raise ValidationError({"month": "Use YYYY-MM."})
+            try:
+                week = int(request.data.get("week_number"))
+            except (TypeError, ValueError):
+                raise ValidationError({"week_number": "Namba ya wiki si sahihi."})
+            if not 1 <= week <= 5:
+                raise ValidationError({"week_number": "Wiki ni 1 hadi 5."})
+            ws, _ = WeekSetting.objects.get_or_create(vehicle=vehicle, month=month, week_number=week)
+
+            if "active_days" in request.data:
+                days = request.data.get("active_days")
+                if days is None:
+                    ws.active_days = None
+                else:
+                    if (not isinstance(days, list) or not days or len(set(days)) != len(days)
+                            or any(not isinstance(d, int) or not 0 <= d <= 6 for d in days)):
+                        raise ValidationError({"active_days": "Siku ziwe 0 hadi 6, bila kurudia, angalau moja."})
+                    ws.active_days = sorted(days)
+
+            if "target" in request.data:
+                t = request.data.get("target")
+                if t in (None, ""):
+                    ws.target = None
+                else:
+                    try:
+                        t = int(t)
+                    except (TypeError, ValueError):
+                        raise ValidationError({"target": "Target si namba sahihi."})
+                    if t <= 0:
+                        raise ValidationError({"target": "Target lazima iwe kubwa kuliko 0."})
+                    ws.target = t
+
+            if ws.active_days is None and ws.target is None:
+                ws.delete()
+            else:
+                ws.save()
+
+        cfg = build_config(vehicle)
+        lost = {(l.month, l.week_number): l.days for l in vehicle.lost_days.all()}
+        return Response({"month": month, "weeks": plan_month(cfg, month, lost)})
 
     @action(detail=True, methods=["post"])
     def carry(self, request, pk=None):
