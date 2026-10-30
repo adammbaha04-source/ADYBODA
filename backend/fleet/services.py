@@ -1,3 +1,4 @@
+from fleet.engine import DriverPeriod, VehicleConfig, WeekOverride, plan_month
 """Glue between Django models and the pure debt engine."""
 from fleet.engine import (VehicleConfig, DriverPeriod, ReturnRecord, DebtEntry,
                           generate_entries, rebuild_chain)
@@ -10,12 +11,7 @@ def _month_of(d) -> str:
 def vehicle_debt(vehicle, end_month: str):
     """Full debt chain up to end_month. Nothing is stored as history;
     it is always derived from current returns, lost days, driver periods and carry-over."""
-    periods = [DriverPeriod(p.driver_name, p.from_date) for p in vehicle.driver_periods.all()]
-    cfg = VehicleConfig(daily_target=vehicle.daily_target,
-                        working_days_count=vehicle.working_days_count,
-                        include_week5=vehicle.include_week5,
-                        driver_periods=periods,
-                        no_carry_months=set(vehicle.no_carry_months))
+    cfg = build_config(vehicle)
     returns = [ReturnRecord(r.day, r.amount, r.is_excess, r.record_month, r.week_number,
                             r.confirmed_at is not None) for r in vehicle.returns.all()]
     lost = {(l.month, l.week_number): l.days for l in vehicle.lost_days.all()}
@@ -65,3 +61,22 @@ def serialize_entries(entries):
         "closed_debt": e.closed_debt, "remaining_debt": e.remaining_debt,
         "week_number": e.week_number, "confirmed": e.confirmed,
     } for e in entries]
+
+
+def build_config(vehicle) -> VehicleConfig:
+    """Builds the engine config from the database. Used by debt, reports and the Set Targets screen."""
+    periods = [DriverPeriod(p.driver_name, p.from_date) for p in vehicle.driver_periods.all()]
+    days = sorted(vehicle.active_days) if vehicle.active_days else list(range(vehicle.working_days_count))
+    overrides = {(ws.month, ws.week_number): WeekOverride(active=ws.active_days, target=ws.target)
+                 for ws in vehicle.week_settings.all()}
+    return VehicleConfig(
+        daily_target=vehicle.daily_target,
+        working_days_count=len(days),
+        include_week5=vehicle.include_week5,
+        driver_periods=periods,
+        no_carry_months=set(vehicle.no_carry_months),
+        active_days=days,
+        income_start=vehicle.income_start,
+        income_end=vehicle.income_end,
+        week_overrides=overrides,
+    )
