@@ -14,6 +14,9 @@ export interface Vehicle {
   include_week5: boolean;
   no_carry_months: string[];
   driver_periods: DriverPeriod[];
+  active_days: number[] | null;
+  income_start: string | null;
+  income_end: string | null;
 }
 
 export interface DebtSummary {
