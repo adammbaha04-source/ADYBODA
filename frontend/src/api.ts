@@ -168,3 +168,27 @@ export async function registerOwner(body: { full_name: string; business_name: st
   const data = await request<{ token: string }>("/auth/register/", { method: "POST", body: JSON.stringify(body) });
   localStorage.setItem(TOKEN_KEY, data.token);
 }
+
+
+export interface WeekPlan {
+  week_number: number;
+  start: string;
+  end: string;
+  active_days: number[];
+  manual_target: number | null;
+  auto_target: number;
+  target: number;
+  lost_days: number;
+  in_income_period: boolean;
+}
+
+export const getWeekPlan = (vehicleId: number, month: string) =>
+  request<{ month: string; weeks: WeekPlan[] }>(`/vehicles/${vehicleId}/week-plan/?month=${month}`);
+
+export const saveWeekPlan = (
+  vehicleId: number,
+  body: { month: string; week_number: number; active_days?: number[] | null; target?: number | null },
+) => request<{ month: string; weeks: WeekPlan[] }>(`/vehicles/${vehicleId}/week-plan/`, {
+  method: "POST",
+  body: JSON.stringify(body),
+});
