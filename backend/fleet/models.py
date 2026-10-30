@@ -11,6 +11,11 @@ class Vehicle(models.Model):
     working_days_count = models.PositiveSmallIntegerField(default=6)
     include_week5 = models.BooleanField(default=False)
     no_carry_months = models.JSONField(default=list)          # ["2026-03", ...]
+    # NEW: siku za kazi za kawaida, 0=Jumatatu ... 6=Jumapili. None = siku za mwanzo (working_days_count).
+    active_days = models.JSONField(null=True, blank=True)
+    # NEW: kipindi cha mapato (tarehe ya kuanza na ya mwisho). None = hakuna kikomo.
+    income_start = models.DateField(null=True, blank=True)
+    income_end = models.DateField(null=True, blank=True)
 
     class Meta:
         unique_together = [("owner", "name")]
@@ -18,6 +23,17 @@ class Vehicle(models.Model):
     def __str__(self):
         return self.name
 
+
+# NEW MODEL: mipangilio ya wiki moja mahususi (mwezi + namba ya wiki)
+class WeekSetting(models.Model):
+    vehicle = models.ForeignKey(Vehicle, on_delete=models.CASCADE, related_name="week_settings")
+    month = models.CharField(max_length=7)                      # "2026-10"
+    week_number = models.PositiveSmallIntegerField()            # 1..5
+    active_days = models.JSONField(null=True, blank=True)       # None = tumia siku za gari
+    target = models.PositiveIntegerField(null=True, blank=True) # None = kiotomatiki
+
+    class Meta:
+        unique_together = [("vehicle", "month", "week_number")]
 
 class DriverPeriod(models.Model):
     vehicle = models.ForeignKey(Vehicle, on_delete=models.CASCADE, related_name="driver_periods")
