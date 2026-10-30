@@ -2,8 +2,10 @@
 
 Pure Python (no Django imports) so the rules can be tested in isolation.
 All money is integer TZS. Debt history is COMPUTED from returns, lost days,
-driver periods and carry-over settings. It is never trusted from a stored
+driver periods, week settings and carry-over. It is never trusted from a stored
 copy, so editing or deleting income always changes the history.
+
+Weekday numbers: 0 = Monday ... 6 = Sunday.
 """
 from dataclasses import dataclass, field
 from datetime import date, timedelta
@@ -36,12 +38,22 @@ class DriverPeriod:          # who was driving from this date onward
 
 
 @dataclass
+class WeekOverride:          # one week's own settings (set by the user)
+    active: Optional[List[int]] = None   # None = use the vehicle's working days
+    target: Optional[int] = None         # None = automatic (daily target x working days)
+
+
+@dataclass
 class VehicleConfig:
     daily_target: int
-    working_days_count: int = 6          # e.g. 6 for Bajaj (Mon-Sat)
+    working_days_count: int = 6          # used when active_days is not given (6 = Mon-Sat)
     include_week5: bool = False
     driver_periods: List[DriverPeriod] = field(default_factory=list)
     no_carry_months: set = field(default_factory=set)   # {"2026-03", ...}
+    active_days: Optional[List[int]] = None              # vehicle default, e.g. [0,1,2,3,4,5]
+    income_start: Optional[date] = None                  # income period start (inclusive)
+    income_end: Optional[date] = None                    # income period end (inclusive)
+    week_overrides: Dict[Tuple[str, int], WeekOverride] = field(default_factory=dict)
 
 
 @dataclass
@@ -59,6 +71,7 @@ class DebtEntry:
     sub: int = 0                          # -1 handover, 0 normal, +1 month close
     week_number: Optional[int] = None
     confirmed: Optional[bool] = None     # week rows: True when every income record of the week is signed
+    week_target: Optional[int] = None    # week rows: the target used for this week
 
 
 def _in_week(r, m, w):
@@ -110,11 +123,60 @@ def months_between(start: str, end: str) -> List[str]:
     return out
 
 
+def base_days(cfg: VehicleConfig) -> List[int]:
+    """The vehicle's default working weekdays. Old vehicles without a list use Mon..(count)."""
+    if cfg.active_days:
+        return sorted(cfg.active_days)
+    return list(range(cfg.working_days_count))
+
+
+def resolve_week(cfg: VehicleConfig, month: str, week_number: int, lost: int):
+    """Returns (active_days, automatic_target, target_used, override).
+    Manual target (if the user typed one) is final: lost days are not deducted again.
+    Automatic target = daily target x (active working days - lost days)."""
+    ov = cfg.week_overrides.get((month, week_number))
+    active = ov.active if (ov is not None and ov.active is not None) else base_days(cfg)
+    auto = cfg.daily_target * max(0, len(active) - lost)
+    target = ov.target if (ov is not None and ov.target is not None) else auto
+    return active, auto, target, ov
+
+
+def in_income_window(cfg: VehicleConfig, w: Week) -> bool:
+    """A week counts only if it overlaps the income start/end dates (when they are set)."""
+    last = w.start + timedelta(days=6)
+    if cfg.income_start and last < cfg.income_start:
+        return False
+    if cfg.income_end and w.start > cfg.income_end:
+        return False
+    return True
+
+
+def plan_month(cfg: VehicleConfig, month: str, lost_days: Dict[Tuple[str, int], int]) -> List[dict]:
+    """Per-week plan for one month, used by the Set Targets screen."""
+    y, mo = int(month[:4]), int(month[5:7])
+    rows = []
+    for w in month_weeks(y, mo, cfg.working_days_count, cfg.include_week5):
+        lost = lost_days.get((month, w.number), 0)
+        active, auto, target, ov = resolve_week(cfg, month, w.number, lost)
+        rows.append({
+            "week_number": w.number,
+            "start": w.start.isoformat(),
+            "end": w.end.isoformat(),
+            "active_days": active,
+            "manual_target": ov.target if ov is not None else None,
+            "auto_target": auto,
+            "target": target,
+            "lost_days": lost,
+            "in_income_period": in_income_window(cfg, w),
+        })
+    return rows
+
+
 def generate_entries(cfg: VehicleConfig, returns: Sequence[ReturnRecord],
                      lost_days: Dict[Tuple[str, int], int],
                      start_month: str, end_month: str) -> List[DebtEntry]:
     """One weekly deficit entry per week from start_month to end_month.
-    Months with no income count as a full deficit, as agreed."""
+    Weeks outside the income period are skipped. Months with no income count as a full deficit."""
     out: List[DebtEntry] = []
     prev_name: Optional[str] = None
     first = True
@@ -122,6 +184,8 @@ def generate_entries(cfg: VehicleConfig, returns: Sequence[ReturnRecord],
         y, mo = int(m[:4]), int(m[5:7])
         weeks = month_weeks(y, mo, cfg.working_days_count, cfg.include_week5)
         for w in weeks:
+            if not in_income_window(cfg, w):
+                continue
             period = driver_for(cfg.driver_periods, w.start)
             name = period.name if period else ""
             if not first and name != prev_name:
@@ -135,7 +199,7 @@ def generate_entries(cfg: VehicleConfig, returns: Sequence[ReturnRecord],
             income = sum(r.amount for r in in_week if not r.is_excess)
             excess_in = sum(r.amount for r in in_week if r.is_excess)
             lost = lost_days.get((m, w.number), 0)
-            target = cfg.daily_target * max(0, cfg.working_days_count - lost)
+            _, _, target, _ = resolve_week(cfg, m, w.number, lost)
             deficit = max(0, target - income)
             surplus = max(0, income - target) + excess_in
             if income < target:
@@ -147,7 +211,7 @@ def generate_entries(cfg: VehicleConfig, returns: Sequence[ReturnRecord],
             else:
                 kind = "NO_CHANGE"
             out.append(DebtEntry(month=m, day=w.start, type=kind, week_number=w.number,
-                                 new_debt=deficit, week_surplus=surplus, sub=0,
+                                 new_debt=deficit, week_surplus=surplus, sub=0, week_target=target,
                                  confirmed=(all(r.confirmed for r in in_week) if in_week else None),
                                  notes=(f"Dereva: {name} - " if name else "") +
                                        f"Week {w.number}: Income {income} vs Target {target}"))
