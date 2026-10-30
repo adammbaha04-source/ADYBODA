@@ -34,8 +34,8 @@ def _in_month(qs, field, m):
 
 def vehicle_month(v, m, entries):
     s = debt_summary(entries, m, v)
-    weeks = sum(1 for e in entries if e.month == m and e.type in WEEK_TYPES) or 4
-    target = s["weekly_target"] * weeks
+    weeks = sum(1 for e in entries if e.month == m and e.type in WEEK_TYPES)
+    target = sum((e.week_target or 0) for e in entries if e.month == m and e.type in WEEK_TYPES)
     collected = _in_month(Return.objects.filter(vehicle=v), "day", m).aggregate(t=Sum("amount"))["t"] or 0
     excess = _in_month(Return.objects.filter(vehicle=v, is_excess=True), "day", m).aggregate(t=Sum("amount"))["t"] or 0
     lost_days = sum(l.days for l in LostDays.objects.filter(vehicle=v, month=m))
