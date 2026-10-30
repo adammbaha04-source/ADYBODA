@@ -15,7 +15,8 @@ class VehicleSerializer(serializers.ModelSerializer):
     class Meta:
         model = Vehicle
         fields = ["id", "name", "vehicle_type", "daily_target", "working_days_count",
-                  "include_week5", "no_carry_months", "driver_periods"]
+                  "include_week5", "no_carry_months", "driver_periods",
+                  "active_days", "income_start", "income_end"]
         read_only_fields = ["no_carry_months"]
 
     def validate_daily_target(self, value):
@@ -23,6 +24,27 @@ class VehicleSerializer(serializers.ModelSerializer):
             raise serializers.ValidationError("Daily target must be greater than 0.")
         return value
 
+    def validate_active_days(self, value):
+        if value is None:               # null = rudi kwenye siku za kawaida za gari
+            return None
+        if not value or len(set(value)) != len(value) or any(not (0 <= d <= 6) for d in value):
+            raise serializers.ValidationError(
+                "Siku ziwe namba 0 (Jumatatu) hadi 6 (Jumapili), bila kurudia, na angalau moja.")
+        return sorted(value)
+
+    def validate(self, attrs):
+        # Idadi ya siku za kazi inafuata siku zilizowashwa.
+        if attrs.get("active_days"):
+            attrs["working_days_count"] = len(attrs["active_days"])
+        elif "active_days" in attrs or "working_days_count" in attrs:
+            wd = attrs.get("working_days_count", getattr(self.instance, "working_days_count", 6))
+            attrs["working_days_count"] = wd
+            attrs["active_days"] = list(range(min(7, wd)))
+        start = attrs.get("income_start", getattr(self.instance, "income_start", None))
+        end = attrs.get("income_end", getattr(self.instance, "income_end", None))
+        if start and end and start > end:
+            raise serializers.ValidationError("Tarehe ya kuanza haiwezi kuwa baada ya tarehe ya mwisho.")
+        return attrs
 
 class ReturnSerializer(serializers.ModelSerializer):
     class Meta:
