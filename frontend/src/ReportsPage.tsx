@@ -15,6 +15,13 @@ const isoToDmy = (iso: string) => iso.split("-").reverse().join("/");
 const thisYear = () => new Date().getFullYear();
 const thisMonth = () => { const d = new Date(); return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`; };
 
+const reportTitleFor = (kind: Kind) => {
+  if (kind === "month") return "Monthly Report";
+  if (kind === "year") return "Yearly Report";
+  if (kind === "custom") return "Custom Report";
+  return "Quarterly Report";
+};
+
 // Turns the chosen period into the from/to months the API expects.
 function rangeFor(kind: Kind, month: string, year: number, cFrom: string, cTo: string): [string, string] {
   if (kind === "month") return [month, month];
@@ -56,7 +63,7 @@ export default function ReportsPage({ mode, vehicles }: { mode: "report" | "grap
   const [from, to] = rangeFor(kind, month, year, cFrom, cTo);
 
   useEffect(() => {
-    if (from > to) { setError("Mwezi wa kuanzia lazima uwe kabla ya mwezi wa mwisho."); return; }
+    if (from > to) { setError("The start date must be before the end date."); return; }
     setLoading(true);
     getReportV3(from, to, vehicle)
       .then((d) => { setData(d); setError(""); })
@@ -73,68 +80,88 @@ export default function ReportsPage({ mode, vehicles }: { mode: "report" | "grap
 
   function downloadCsv() {
     if (!data) return;
-    const head = ["Mwezi", "Target", "Imekusanywa", "Ziada", "Deni jipya", "Malipo ya deni", "Deni lililobaki",
-      "Siku zilizopotea", "Hasara ya target", "Service", "Matairi", "Bima", "Malipo mengine", "Matumizi ya magari",
-      "Matumizi binafsi", "Faida"];
+    const head = ["Month", "Target", "Collected", "Excess", "New Debt", "Debt Payments", "Outstanding Debt",
+      "Days Lost", "Loss Amount", "Service", "Tyres", "Insurance", "Other Payments", "Vehicle Expenses",
+      "Personal Expenses", "Profit"];
     const rows = data.series.map((r) => [r.month, r.target, r.collected, r.excess, r.new_debt, r.debt_payments,
       r.outstanding, r.lost_days, r.lost_amount, r.service, r.tyres, r.insurance, r.other_payments, r.expenses,
       r.personal, r.profit]);
     const csv = [head, ...rows].map((r) => r.join(",")).join("\n");
     const url = URL.createObjectURL(new Blob([csv], { type: "text/csv;charset=utf-8;" }));
     const a = document.createElement("a");
-    a.href = url; a.download = `ripoti_${from}_${to}.csv`;
+    a.href = url; a.download = `report_${from}_${to}.csv`;
     document.body.appendChild(a); a.click(); a.remove(); URL.revokeObjectURL(url);
   }
 
   const t = data?.totals;
   const labels = data ? data.series.map((r) => monthLabel(r.month)) : [];
-  const scope = vehicle === "ALL" ? "Magari yote" : vehicles.find((v) => String(v.id) === vehicle)?.name ?? "Gari moja";
+  const scope = vehicle === "ALL" ? "All vehicles" : vehicles.find((v) => String(v.id) === vehicle)?.name ?? "Single vehicle";
   const expCats = t ? [
     { label: "Service", amount: t.service },
-    { label: "Tairi (Tyres)", amount: t.tyres },
-    { label: "Bima (Insurance)", amount: t.insurance },
-    { label: "Malipo mengine ya gari (TRA, maegesho, faini)", amount: t.other_payments },
-    ...(data?.personal_categories ?? []).map((c) => ({ label: `Matumizi binafsi: ${c.label}`, amount: c.amount })),
+    { label: "Tyres", amount: t.tyres },
+    { label: "Insurance", amount: t.insurance },
+    { label: "Other vehicle expenses", amount: t.other_payments },
+    ...(data?.personal_categories ?? []).map((c) => ({ label: `Personal expense: ${c.label}`, amount: c.amount })),
   ].filter((c) => c.amount > 0) : [];
   const expTotal = expCats.reduce((a, c) => a + c.amount, 0);
   const maxWeek = data ? Math.max(4, ...data.vehicles.map((v) => v.week_count)) : 4;
+  const isMonthly = kind === "month";
+  const isQuarterly = kind === "q1" || kind === "q2" || kind === "q3" || kind === "q4";
+  const isYearly = kind === "year";
+
+  const kpis = t ? [
+    ...(isMonthly ? [
+      { label: "Monthly Target", value: tsh(t.target), sub: "Total expected income", tone: "blue" },
+      { label: "Monthly Income", value: tsh(t.collected), sub: `${pct(share(t.collected, t.target))} of target`, tone: "green", bar: share(t.collected, t.target) },
+      { label: "Days Lost", value: String(t.lost_days), sub: "Working days lost", tone: "orange" },
+      { label: "Loss Amount", value: tsh(t.lost_amount), sub: "Financial value of lost days", tone: "red", bar: share(t.lost_amount, t.target) },
+    ] : [
+      { label: "Total Income", value: tsh(t.collected), sub: "Actual collection", tone: "green", bar: share(t.collected, t.target) },
+      { label: "Total Expenses", value: tsh(t.expenses + t.personal), sub: "Operating costs", tone: "orange" },
+      { label: "Days Lost", value: String(t.lost_days), sub: "Working days lost", tone: "orange" },
+      { label: "Loss Amount", value: tsh(t.lost_amount), sub: "Financial impact of lost days", tone: "red", bar: share(t.lost_amount, t.target) },
+    ]),
+    { label: isMonthly ? "Total Expenses" : "Total Profit", value: tsh(isMonthly ? t.expenses + t.personal : t.profit), sub: isMonthly ? "All business expenses" : "Income − expenses − loss", tone: isMonthly ? "orange" : (t.profit >= 0 ? "green" : "red") },
+    { label: isMonthly ? "Profit" : "Profit Margin", value: tsh(isMonthly ? t.profit : t.profit), sub: isMonthly ? "Income − expenses − loss" : `${pct(share(t.profit, t.collected))} of income`, tone: isMonthly ? (t.profit >= 0 ? "green" : "red") : (share(t.profit, t.collected) >= 0 ? "green" : "red"), bar: isMonthly ? undefined : share(t.profit, t.collected) },
+    { label: isMonthly ? "Profit Percentage" : "Annual Profit", value: isMonthly ? pct(share(t.profit, t.collected)) : tsh(t.profit), sub: isMonthly ? "Profit / income" : "Net profit for the selected period", tone: isMonthly ? (share(t.profit, t.collected) >= 0 ? "green" : "red") : (t.profit >= 0 ? "green" : "red") },
+  ] : [];
 
   return (
     <div className="reports">
       <section className="card no-print">
         <div className="chip-row">
-          <button className={"chip" + (kind === "month" ? " on" : "")} onClick={() => setKind("month")}>Ripoti ya Mwezi</button>
-          <button className={"chip" + (kind === "q1" ? " on" : "")} onClick={() => setKind("q1")}>Robo 1 (Q1)</button>
-          <button className={"chip" + (kind === "q2" ? " on" : "")} onClick={() => setKind("q2")}>Robo 2 (Q2)</button>
-          <button className={"chip" + (kind === "q3" ? " on" : "")} onClick={() => setKind("q3")}>Robo 3 (Q3)</button>
-          <button className={"chip" + (kind === "q4" ? " on" : "")} onClick={() => setKind("q4")}>Robo 4 (Q4)</button>
-          <button className={"chip" + (kind === "year" ? " on" : "")} onClick={() => setKind("year")}>Ripoti ya Mwaka</button>
-          <button className={"chip" + (kind === "custom" ? " on" : "")} onClick={() => setKind("custom")}>Kipindi maalum</button>
+          <button className={"chip" + (kind === "month" ? " on" : "")} onClick={() => setKind("month")}>Monthly Report</button>
+          <button className={"chip" + (kind === "q1" ? " on" : "")} onClick={() => setKind("q1")}>Quarterly Report</button>
+          <button className={"chip" + (kind === "q2" ? " on" : "")} onClick={() => setKind("q2")}>Quarterly Report</button>
+          <button className={"chip" + (kind === "q3" ? " on" : "")} onClick={() => setKind("q3")}>Quarterly Report</button>
+          <button className={"chip" + (kind === "q4" ? " on" : "")} onClick={() => setKind("q4")}>Quarterly Report</button>
+          <button className={"chip" + (kind === "year" ? " on" : "")} onClick={() => setKind("year")}>Yearly Report</button>
+          <button className={"chip" + (kind === "custom" ? " on" : "")} onClick={() => setKind("custom")}>Custom Range</button>
         </div>
         <div className="filter-row">
-          {kind === "month" && <label>Mwezi<input type="month" value={month} onChange={(e) => setMonth(e.target.value)} /></label>}
+          {kind === "month" && <label>Month<input type="month" value={month} onChange={(e) => setMonth(e.target.value)} /></label>}
           {kind !== "month" && kind !== "custom" && (
-            <label>Mwaka<input type="number" value={year} min={2020} max={2100} onChange={(e) => setYear(Number(e.target.value) || thisYear())} /></label>
+            <label>Year<input type="number" value={year} min={2020} max={2100} onChange={(e) => setYear(Number(e.target.value) || thisYear())} /></label>
           )}
           {kind === "custom" && <>
-            <label>Kuanzia mwezi<input type="month" value={cFrom} onChange={(e) => setCFrom(e.target.value)} /></label>
-            <label>Hadi mwezi<input type="month" value={cTo} onChange={(e) => setCTo(e.target.value)} /></label>
+            <label>From month<input type="month" value={cFrom} onChange={(e) => setCFrom(e.target.value)} /></label>
+            <label>To month<input type="month" value={cTo} onChange={(e) => setCTo(e.target.value)} /></label>
           </>}
         </div>
-        <label>Gari
+        <label>Vehicle
           <select value={vehicle} onChange={(e) => setVehicle(e.target.value)}>
-            <option value="ALL">Magari yote</option>
+            <option value="ALL">All vehicles</option>
             {vehicles.map((v) => <option key={v.id} value={String(v.id)}>{v.name}</option>)}
           </select>
         </label>
         {mode === "report" && (
           <div className="chip-row">
-            <button className="btn-add" onClick={pdf} disabled={!data || pdfBusy}>{pdfBusy ? "Inaandaa PDF..." : "Pakua PDF"}</button>
-            <button className="btn-add alt" onClick={downloadCsv} disabled={!data}>Pakua CSV</button>
-            <button className="btn-add alt" onClick={() => window.print()} disabled={!data}>Chapisha</button>
+            <button className="btn-add" onClick={pdf} disabled={!data || pdfBusy}>{pdfBusy ? "Preparing PDF..." : "Download PDF"}</button>
+            <button className="btn-add alt" onClick={downloadCsv} disabled={!data}>Download CSV</button>
+            <button className="btn-add alt" onClick={() => window.print()} disabled={!data}>Print</button>
           </div>
         )}
-        {loading && <p className="hint">Inapakia...</p>}
+        {loading && <p className="hint">Loading...</p>}
         {error && <p className="error">{error}</p>}
       </section>
 
@@ -145,29 +172,22 @@ export default function ReportsPage({ mode, vehicles }: { mode: "report" | "grap
               <span className="rpt-logo">{(data.business_name || "A").charAt(0).toUpperCase()}</span>
               <div>
                 <div className="rpt-biz">{data.business_name}</div>
-                <div className="rpt-doc">{data.title}</div>
+                <div className="rpt-doc">{reportTitleFor(kind)}</div>
               </div>
             </div>
             <div className="rpt-meta">
-              <div>Kipindi<b>{from === to ? monthLabel(from) : `${from} hadi ${to}`}</b></div>
-              <div>Wigo<b>{scope}</b></div>
-              <div>Imetolewa<b>{isoToDmy(data.generated)}</b></div>
+              <div>Period<b>{from === to ? monthLabel(from) : `${from} to ${to}`}</b></div>
+              <div>Scope<b>{scope}</b></div>
+              <div>Generated<b>{isoToDmy(data.generated)}</b></div>
             </div>
           </header>
 
-          <h1 className="rpt-title">{data.title}: {data.subtitle}</h1>
+          <h1 className="rpt-title">{reportTitleFor(kind)}: {data.subtitle}</h1>
 
           <div className="rpt-kpis">
-            <Kpi label="Income vs Target" value={tsh(t.collected)} sub={`${pct(share(t.collected, t.target))} ya target ${tsh(t.target)}`} tone="green" bar={share(t.collected, t.target)} />
-            <Kpi label="Expenditure of Income" value={tsh(t.expenses + t.personal)} sub={`${pct(share(t.expenses + t.personal, t.collected))} ya mapato`} tone="orange" bar={share(t.expenses + t.personal, t.collected)} />
-            <Kpi label="Loss of Target" value={tsh(t.lost_amount)} sub={`${pct(share(t.lost_amount, t.target))} ya target · siku ${t.lost_days}`} tone="red" bar={share(t.lost_amount, t.target)} />
-            <Kpi label="Profit Margin" value={tsh(t.profit)} sub={`${pct(share(t.profit, t.collected))} ya mapato`} tone={t.profit >= 0 ? "green" : "red"} bar={share(t.profit, t.collected)} />
-          </div>
-          <div className="rpt-kpis rpt-kpis-2">
-            <Kpi label="Gross margin (kabla ya hasara)" value={pct(share(t.collected - t.expenses - t.personal, t.collected))} sub="(mapato − matumizi − binafsi) / mapato" tone={TONE(share(t.collected - t.expenses - t.personal, t.collected))} bar={share(t.collected - t.expenses - t.personal, t.collected)} />
-            <Kpi label="Net profit margin" value={pct(share(t.profit, t.collected))} sub="faida / mapato" tone={TONE(share(t.profit, t.collected))} bar={share(t.profit, t.collected)} />
-            <Kpi label="Collection rate" value={pct(share(t.collected, t.target))} sub="imekusanywa / target" tone={TONE(share(t.collected, t.target))} bar={share(t.collected, t.target)} />
-            <Kpi label="Debt ratio" value={pct(share(t.outstanding, t.target))} sub="deni / target" tone="red" bar={share(t.outstanding, t.target)} />
+            {kpis.map((card) => (
+              <Kpi key={card.label} label={card.label} value={card.value} sub={card.sub} tone={card.tone} bar={card.bar} />
+            ))}
           </div>
 
           <Section title="Monthly Expenses by Category">
@@ -175,7 +195,7 @@ export default function ReportsPage({ mode, vehicles }: { mode: "report" | "grap
               <table className="rpt-table">
                 <thead><tr><th>Expense Category</th><th className="num">Amount</th><th className="num">Percentage</th></tr></thead>
                 <tbody>
-                  {expCats.length === 0 && <tr><td colSpan={3}>Hakuna matumizi kwa kipindi hiki</td></tr>}
+                  {expCats.length === 0 && <tr><td colSpan={3}>No expenses recorded for this period</td></tr>}
                   {expCats.map((c) => (
                     <tr key={c.label}>
                       <td>{c.label}<div className="rpt-bar"><i style={{ width: `${clamp(share(c.amount, expTotal))}%` }} /></div></td>
@@ -192,8 +212,8 @@ export default function ReportsPage({ mode, vehicles }: { mode: "report" | "grap
           <Section title="Vehicle Performance">
             <p className="rpt-insights">
               {data.single_month
-                ? "Week dates: Weekly income is the income recorded for each week of the month (excess is not counted). % Achieved = total income / monthly target."
-                : "Period: income, debt and losses are summed across the whole period. % Achieved = total income / target of the period."}
+                ? "Weekly income is the amount recorded in each week of the selected month. Percentage achieved = total income / monthly target."
+                : "For the selected range, income, debt and losses are aggregated. Percentage achieved = total income / target for the period."}
             </p>
             <div className="rpt-scroll">
               <table className="rpt-table rpt-mtable">
@@ -208,7 +228,7 @@ export default function ReportsPage({ mode, vehicles }: { mode: "report" | "grap
                   <th className="num">Excess</th><th className="num">{data.single_month ? "Running Debt" : "Ending Debt"}</th>
                 </tr></thead>
                 <tbody>
-                  {data.vehicles.length === 0 && <tr><td colSpan={12}>Hakuna gari kwa kipindi hiki</td></tr>}
+                  {data.vehicles.length === 0 && <tr><td colSpan={12}>No vehicles recorded for this period</td></tr>}
                   {data.vehicles.map((v) => {
                     const p = share(v.collected, v.target);
                     const byNum = new Map(v.weeks.map((w) => [w.number, w.amount]));
@@ -257,7 +277,7 @@ export default function ReportsPage({ mode, vehicles }: { mode: "report" | "grap
             <Section title="Monthly Breakdown">
               <div className="rpt-scroll">
                 <table className="rpt-table rpt-mtable">
-                  <thead><tr><th>Mwezi</th><th className="num">Target</th><th className="num">Collected</th><th className="num">% Achieved</th><th className="num">Expenses</th><th className="num">Personal</th><th className="num">Profit</th><th className="num">Profit %</th><th className="num">Outstanding</th></tr></thead>
+                  <thead><tr><th>Month</th><th className="num">Target</th><th className="num">Collected</th><th className="num">% Achieved</th><th className="num">Expenses</th><th className="num">Personal</th><th className="num">Profit</th><th className="num">Profit %</th><th className="num">Debt</th></tr></thead>
                   <tbody>
                     {data.series.map((r) => (
                       <tr key={r.month}>
@@ -280,19 +300,17 @@ export default function ReportsPage({ mode, vehicles }: { mode: "report" | "grap
 
           <Section title="Debt Summary">
             <div className="rpt-debt">
-              <Kpi label="New Debt" value={tsh(t.new_debt)} sub="deni jipya" tone="orange" />
-              <Kpi label="Debt Payments" value={tsh(t.debt_payments)} sub="malipo ya deni" tone="green" />
-              <Kpi label="Excess" value={tsh(t.excess)} sub="mapato ya ziada" tone="green" />
-              <Kpi label="Ending Debt" value={tsh(t.outstanding)} sub={`${pct(share(t.outstanding, t.target))} ya target`} tone="red" />
+              <Kpi label="New Debt" value={tsh(t.new_debt)} sub="New debt added" tone="orange" />
+              <Kpi label="Debt Payments" value={tsh(t.debt_payments)} sub="Debt recovered" tone="green" />
+              <Kpi label="Excess" value={tsh(t.excess)} sub="Above-target collections" tone="green" />
+              <Kpi label="Ending Debt" value={tsh(t.outstanding)} sub={`${pct(share(t.outstanding, t.target))} of target`} tone="red" />
             </div>
           </Section>
 
           <footer className="rpt-foot">
-            <p><b>Maelezo ya mahesabu.</b> Target ni kiasi cha kila wiki kikizidishwa na idadi ya wiki za mwezi.
-              Imekusanywa ni malipo ya madereva yaliyoingizwa kama mapato, pamoja na ziada.</p>
-            <p>Matumizi ya gari ni service, matairi, bima na malipo mengine ya gari. Malipo ya deni hayahesabiwi kama matumizi,
-              kwa sababu yanapunguza deni. Deni lililobaki linatoka kwenye injini ya deni, si makadirio.</p>
-            <p>Faida (net) = imekusanywa − matumizi ya gari − matumizi binafsi − hasara ya target.</p>
+            <p><b>Calculation rules.</b> Monthly target is derived from each vehicle's daily target, working days, and the number of applicable weeks in the month. Monthly income is the total recorded collection.</p>
+            <p>Expense categories are taken from actual vehicle expense records; percentages are calculated as category expense ÷ total expenses × 100.</p>
+            <p>Profit = total income − total expenses − loss amount. Profit percentage = (profit ÷ total income) × 100. Loss is not counted twice.</p>
           </footer>
         </article>
       )}
@@ -300,31 +318,31 @@ export default function ReportsPage({ mode, vehicles }: { mode: "report" | "grap
       {data && mode === "graphs" && (
         <>
           <section className="card">
-            <h3>Target dhidi ya Imekusanywa</h3>
+            <h3>Target vs Collected</h3>
             <GroupBars labels={labels} series={[
               { name: "Target", color: "#3b82f6", values: data.series.map((r) => r.target) },
-              { name: "Imekusanywa", color: "#10b981", values: data.series.map((r) => r.collected) },
+              { name: "Collected", color: "#10b981", values: data.series.map((r) => r.collected) },
             ]} />
           </section>
           <section className="card">
-            <h3>Matumizi dhidi ya Faida</h3>
+            <h3>Expenses vs Profit</h3>
             <Lines labels={labels} series={[
-              { name: "Matumizi", color: "#dc2626", values: data.series.map((r) => r.expenses + r.personal) },
-              { name: "Faida (net)", color: "#059669", values: data.series.map((r) => r.profit) },
+              { name: "Expenses", color: "#dc2626", values: data.series.map((r) => r.expenses + r.personal) },
+              { name: "Net Profit", color: "#059669", values: data.series.map((r) => r.profit) },
             ]} />
           </section>
           <section className="card">
-            <h3>Deni Jipya na Malipo ya Deni</h3>
+            <h3>New Debt vs Debt Payments</h3>
             <GroupBars labels={labels} series={[
-              { name: "Deni jipya", color: "#f59e0b", values: data.series.map((r) => r.new_debt) },
-              { name: "Malipo ya deni", color: "#10b981", values: data.series.map((r) => r.debt_payments) },
+              { name: "New Debt", color: "#f59e0b", values: data.series.map((r) => r.new_debt) },
+              { name: "Debt Payments", color: "#10b981", values: data.series.map((r) => r.debt_payments) },
             ]} />
           </section>
           <section className="card">
-            <h3>Deni Lililobaki</h3>
+            <h3>Outstanding Debt</h3>
             <Lines labels={labels} series={[
-              { name: "Deni lililobaki", color: "#dc2626", values: data.series.map((r) => r.outstanding) },
-            ]} empty="Hakuna deni lililobaki kwa kipindi hiki" />
+              { name: "Outstanding Debt", color: "#dc2626", values: data.series.map((r) => r.outstanding) },
+            ]} empty="No outstanding debt for this period" />
           </section>
         </>
       )}
