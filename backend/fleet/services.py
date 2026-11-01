@@ -60,6 +60,7 @@ def serialize_entries(entries):
         "previous_debt": e.previous_debt, "new_debt": e.new_debt, "paid_debt": e.paid_debt,
         "closed_debt": e.closed_debt, "remaining_debt": e.remaining_debt,
         "week_number": e.week_number, "confirmed": e.confirmed,
+        "period_end": e.period_end.isoformat() if e.period_end else None,
     } for e in entries]
 
 
@@ -67,7 +68,8 @@ def build_config(vehicle) -> VehicleConfig:
     """Builds the engine config from the database. Used by debt, reports and the Set Targets screen."""
     periods = [DriverPeriod(p.driver_name, p.from_date) for p in vehicle.driver_periods.all()]
     days = sorted(vehicle.active_days) if vehicle.active_days else list(range(vehicle.working_days_count))
-    overrides = {(ws.month, ws.week_number): WeekOverride(active=ws.active_days, target=ws.target)
+    overrides = {(ws.month, ws.week_number): WeekOverride(active=ws.active_days, target=ws.target,
+                                                          start=ws.start_date, end=ws.end_date)
                  for ws in vehicle.week_settings.all()}
     return VehicleConfig(
         daily_target=vehicle.daily_target,
