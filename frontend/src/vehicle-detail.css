@@ -71,3 +71,18 @@ html[data-theme="dark"] .vd-x { background: #0f172a; color: #e2e8f0; }
 .target-panel table { width: 100%; border-collapse: collapse; margin-top: 6px; font-size: 14px; }
 .target-panel td, .target-panel th { padding: 6px 4px; border-bottom: 1px solid #e2e8f0; text-align: left; }
 .target-panel .muted { color: #94a3b8; }
+
+/* ===== Set Target: all inputs the same short size ===== */
+.target-panel input,
+.target-panel select {
+  width: 200px;
+  max-width: 100%;
+  padding: 9px 10px;
+  font-size: 15px;
+}
+.target-panel label {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 4px;
+}
