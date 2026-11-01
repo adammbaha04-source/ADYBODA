@@ -1,3 +1,4 @@
+import datetime as _dt
 from fleet.models import WeekSetting
 from fleet.services import build_config
 from fleet.engine import plan_month
@@ -17,6 +18,16 @@ from fleet.serializers import (VehicleSerializer, DriverPeriodSerializer, Return
                                PaymentRecordSerializer, ServiceRecordSerializer,
                                TyreRecordSerializer, InsuranceRecordSerializer)
 from fleet.services import vehicle_debt, debt_summary, serialize_entries
+
+
+def _parse_day(value, field):
+    """A date typed on the Set Targets screen (YYYY-MM-DD). Empty means None."""
+    if value in (None, ""):
+        return None
+    try:
+        return _dt.date.fromisoformat(str(value))
+    except ValueError:
+        raise ValidationError({field: "Tarehe si sahihi. Tumia YYYY-MM-DD."})
 
 
 class OwnedVehicleMixin:
@@ -70,7 +81,16 @@ class VehicleViewSet(viewsets.ModelViewSet):
                 raise ValidationError({"week_number": "Namba ya wiki si sahihi."})
             if not 1 <= week <= 5:
                 raise ValidationError({"week_number": "Wiki ni 1 hadi 5."})
+            has_dates = "start_date" in request.data or "end_date" in request.data
+            new_start = _parse_day(request.data.get("start_date"), "start_date")
+            new_end = _parse_day(request.data.get("end_date"), "end_date")
+            if has_dates and (new_start is None) != (new_end is None):
+                raise ValidationError({"end_date": "Weka tarehe zote mbili: ya kuanza na ya kumaliza."})
+            if new_start and new_end and new_end < new_start:
+                raise ValidationError({"end_date": "Tarehe ya kumaliza iwe baada ya ya kuanza."})
             ws, _ = WeekSetting.objects.get_or_create(vehicle=vehicle, month=month, week_number=week)
+            if has_dates:
+                ws.start_date, ws.end_date = new_start, new_end
 
             if "active_days" in request.data:
                 days = request.data.get("active_days")
@@ -95,7 +115,7 @@ class VehicleViewSet(viewsets.ModelViewSet):
                         raise ValidationError({"target": "Target lazima iwe kubwa kuliko 0."})
                     ws.target = t
 
-            if ws.active_days is None and ws.target is None:
+            if ws.active_days is None and ws.target is None and ws.start_date is None:
                 ws.delete()
             else:
                 ws.save()
