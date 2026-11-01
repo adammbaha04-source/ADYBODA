@@ -86,3 +86,27 @@ html[data-theme="dark"] .vd-x { background: #0f172a; color: #e2e8f0; }
   align-items: flex-start;
   gap: 4px;
 }
+
+/* ===== Set Target layout ===== */
+.target-panel .tp-week { width: 200px; }
+.target-panel .tp-days {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 8px;
+  max-width: 360px;
+}
+.target-panel .tp-day {
+  padding: 10px;
+  border-radius: 10px;
+  border: 2px solid #cbd5e1;
+  background: #fff;
+  color: #64748b;
+  font-weight: 700;
+  cursor: pointer;
+}
+.target-panel .tp-day.on {
+  background: #2563eb;
+  border-color: #2563eb;
+  color: #fff;
+}
+.target-panel .btn-row { display: flex; flex-wrap: wrap; gap: 8px; }
