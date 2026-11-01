@@ -28,16 +28,18 @@
 .rpt-insights { margin:12px 0 0; padding:12px 14px 12px 30px; background:#eff6ff; border-radius:12px;
   font-size:13px; line-height:1.7; color:#1e3a8a; }
 .rpt-table { width:100%; border-collapse:collapse; font-size:13px; }
-.rpt-table th { background:#0f172a; color:#fff; text-align:left; padding:9px 10px; font-size:10.5px;
-  letter-spacing:.06em; text-transform:uppercase; }
-.rpt-table td { padding:9px 10px; border-bottom:1px solid #e2e8f0; }
+.rpt-table th { background:linear-gradient(90deg,#fcd34d,#f59e0b); color:#1c1917; text-align:left; padding:9px 10px;
+  font-size:10.5px; letter-spacing:.06em; text-transform:uppercase; font-weight:800; }
+.rpt-table td { padding:9px 10px; border-bottom:1px solid #fde68a; }
+.rpt-table tbody tr:not(.total):not(.sub):nth-child(odd) td { background:#fffbeb; }
 .rpt-table .num { text-align:right; white-space:nowrap; font-variant-numeric:tabular-nums; }
 .rpt-table tr.indent td:first-child { padding-left:24px; color:#475569; }
 .rpt-table tr.sub td { font-weight:800; background:#f8fafc; }
-.rpt-table tr.total td { background:#0f172a; color:#fff; font-weight:900; font-size:14px; }
+.rpt-table tr.total td { background:linear-gradient(90deg,#fbbf24,#f59e0b); color:#1c1917; font-weight:900; font-size:14px; }
 .rpt-table td.neg { color:#dc2626; }
 .rpt-table td.pos { color:#059669; }
-.rpt-table tr.total td.neg, .rpt-table tr.total td.pos { color:#fff; }
+.rpt-table tr.total td.neg { color:#991b1b; }
+.rpt-table tr.total td.pos { color:#065f46; }
 .rpt-bar { height:6px; background:#e2e8f0; border-radius:99px; overflow:hidden; margin-top:4px; }
 .rpt-bar i { display:block; height:100%; background:#6366f1; border-radius:99px; }
 .rpt-cats { display:grid; gap:10px; }
@@ -78,6 +80,7 @@
 .rpt-table .green { color:#059669; } .rpt-table .red { color:#dc2626; }
 .rpt-table .green.num, .rpt-table td.green { color:#059669; }
 .rpt-table td.orange, .rpt-table .orange { color:#d97706; }
-.rpt-table tr.total td.green, .rpt-table tr.total td.red { color:#fff; }
+.rpt-table tr.total td.green { color:#065f46; }
+.rpt-table tr.total td.red { color:#991b1b; }
 .rpt-table td.green, .rpt-table td.red, .rpt-table td.orange { font-weight:700; }
 .chip.on { background:#4f46e5; color:#fff; border-color:#4f46e5; }
