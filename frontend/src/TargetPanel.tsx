@@ -1,6 +1,5 @@
 import { useEffect, useState } from "react";
 import { getWeekPlan, saveWeekPlan, updateVehicle, type WeekPlan } from "./api";
-import { PRESETS } from "./VehiclesPage";
 import { tsh } from "./format";
 import type { Vehicle } from "./types";
 
@@ -20,15 +19,18 @@ export default function TargetPanel({ vehicle, month: startMonth, onSaved }: {
   const [month, setMonth] = useState(startMonth);
   const [week, setWeek] = useState(1);
   const [weeks, setWeeks] = useState<WeekPlan[]>([]);
+  const [startDate, setStartDate] = useState("");
+  const [endDate, setEndDate] = useState("");
   const [days, setDays] = useState<number[]>(baseDays);
   const [manual, setManual] = useState("");
-  const [name, setName] = useState(vehicle.name);
-  const [type] = useState(vehicle.vehicle_type);
   const [daily, setDaily] = useState(String(vehicle.daily_target));
   const [msg, setMsg] = useState("");
   const [err, setErr] = useState("");
 
   const current = weeks.find((w) => w.week_number === week);
+  const dailyNum = Number(daily) || 0;
+  const autoTarget = dailyNum * Math.max(0, days.length - (current?.lost_days ?? 0));
+  const shownTarget = manual.trim() ? Number(manual) : autoTarget;
 
   async function loadPlan(m: string) {
     try {
@@ -47,12 +49,9 @@ export default function TargetPanel({ vehicle, month: startMonth, onSaved }: {
     if (!w) return;
     setDays(w.active_days);
     setManual(w.manual_target == null ? "" : String(w.manual_target));
+    setStartDate(w.start);
+    setEndDate(w.end);
   }, [weeks, week]);
-
-  const dailyNum = Number(daily) || 0;
-  const autoPreview = dailyNum * Math.max(0, days.length - (current?.lost_days ?? 0));
-  const shownTarget = manual.trim() ? Number(manual) : autoPreview;
-  const monthTarget = weeks.reduce((a, w) => (w.in_income_period ? a + w.target : a), 0);
 
   function toggleDay(d: number) {
     setDays((prev) => (prev.includes(d) ? prev.filter((x) => x !== d) : [...prev, d].sort((a, b) => a - b)));
@@ -61,13 +60,15 @@ export default function TargetPanel({ vehicle, month: startMonth, onSaved }: {
   async function saveWeek() {
     setErr(""); setMsg("");
     if (days.length === 0) { setErr("Chagua angalau siku moja ya kufanya kazi."); return; }
+    if (startDate && endDate && endDate < startDate) { setErr("Tarehe ya mwisho iwe baada ya tarehe ya kuanza."); return; }
     try {
       const r = await saveWeekPlan(vehicle.id, {
         month,
         week_number: week,
-        // Same as the vehicle's default days -> store null so the week follows the vehicle.
         active_days: sameDays(days, baseDays) ? null : days,
         target: manual.trim() === "" ? null : Number(manual),
+        start_date: startDate || null,
+        end_date: endDate || null,
       });
       setWeeks(r.weeks);
       setMsg(`Wiki ${week} imehifadhiwa.`);
@@ -89,20 +90,15 @@ export default function TargetPanel({ vehicle, month: startMonth, onSaved }: {
     }
   }
 
-  async function saveVehicle() {
+  async function saveDayTarget() {
     setErr(""); setMsg("");
-    const preset = PRESETS.find((p) => p.key === type);
-    const typeChanged = type !== vehicle.vehicle_type;
     try {
       await updateVehicle(vehicle.id, {
-        name: name.trim().toUpperCase(),
-        vehicle_type: type,
+        name: vehicle.name,
+        vehicle_type: vehicle.vehicle_type,
         daily_target: Number(daily),
-        ...(typeChanged && preset
-          ? { active_days: Array.from({ length: preset.days }, (_, i) => i) }
-          : {}),
       });
-      setMsg("Gari limebadilishwa.");
+      setMsg("Day target imehifadhiwa.");
       onSaved();
     } catch (e) {
       setErr((e as Error).message);
@@ -111,70 +107,54 @@ export default function TargetPanel({ vehicle, month: startMonth, onSaved }: {
 
   return (
     <div className="target-panel">
-      <h4>Gari</h4>
-      <label>Vehicle Number / Name<input value={name} onChange={(e) => setName(e.target.value)} /></label>
+      <h4>Set Target</h4>
+
+      <label>Month
+        <input type="month" value={month} onChange={(e) => setMonth(e.target.value)} />
+      </label>
+
+      <label>Week
+        <select className="tp-week" value={week} onChange={(e) => setWeek(Number(e.target.value))}>
+          {weeks.map((w) => (
+            <option key={w.week_number} value={w.week_number}>Wiki {w.week_number}</option>
+          ))}
+        </select>
+      </label>
+
+      <label>Start Date
+        <input type="date" value={startDate} onChange={(e) => setStartDate(e.target.value)} />
+      </label>
+
+      <label>End Date
+        <input type="date" value={endDate} onChange={(e) => setEndDate(e.target.value)} />
+      </label>
+
+      <h4>Working Days</h4>
+      <div className="tp-days">
+        {DAYS.map((label, d) => (
+          <button type="button" key={d} className={days.includes(d) ? "tp-day on" : "tp-day off"} onClick={() => toggleDay(d)}>
+            {label}
+          </button>
+        ))}
+      </div>
+      <p className="hint">Working days this week: {days.length}</p>
+
       <label>Day Target (TSh)
         <input type="number" inputMode="numeric" min={1} value={daily} onChange={(e) => setDaily(e.target.value)} />
       </label>
-      <div className="btn-row">
-        <button type="button" className="ghost" onClick={saveVehicle}>Hifadhi gari</button>
-      </div>
 
-      <h4>Mwezi na Wiki</h4>
-      <label>Mwezi<input type="month" value={month} onChange={(e) => setMonth(e.target.value)} /></label>
-      <div className="week-tabs">
-        {weeks.map((w) => (
-          <button type="button" key={w.week_number}
-            className={w.week_number === week ? "active" : ""}
-            onClick={() => setWeek(w.week_number)}>
-            Wiki {w.week_number}
-          </button>
-        ))}
-      </div>
-      {current && (
-        <p className="hint">
-          {current.start} hadi {current.end}
-          {!current.in_income_period && " · Nje ya kipindi cha mapato (haihesabiwi)"}
-        </p>
-      )}
-
-      <h4>Siku za kufanya kazi (bonyeza kuzima/kuwasha)</h4>
-      <div className="day-toggles">
-        {DAYS.map((label, d) => (
-          <button type="button" key={d} className={days.includes(d) ? "on" : "off"} onClick={() => toggleDay(d)}>
-            {label.slice(0, 3)}
-          </button>
-        ))}
-      </div>
-      <p className="hint">Siku za kazi wiki hii: {days.length}</p>
-
-      <label>Target ya wiki hii (hiari, andika kwa nusu siku)
+      <label>Week Target (TSh)
         <input type="number" inputMode="numeric" min={1}
-          placeholder={`Kiotomatiki: ${tsh(autoPreview)}`}
+          placeholder={`Automatic: ${tsh(autoTarget)}`}
           value={manual} onChange={(e) => setManual(e.target.value)} />
       </label>
-      <p className="hint">Target ya wiki hii: <b>{tsh(shownTarget)}</b></p>
+      <p className="hint">Week target: <b>{tsh(shownTarget)}</b></p>
 
       <div className="btn-row">
-        <button type="button" onClick={saveWeek}>Hifadhi wiki {week}</button>
-        <button type="button" className="ghost" onClick={resetWeek}>Rudisha kiotomatiki</button>
+        <button type="button" onClick={saveWeek}>Save week {week}</button>
+        <button type="button" className="ghost" onClick={resetWeek}>Reset automatic</button>
+        <button type="button" className="ghost" onClick={saveDayTarget}>Save day target</button>
       </div>
-
-      <h4>Muhtasari wa mwezi</h4>
-      <table>
-        <thead><tr><th>Wiki</th><th>Siku</th><th>Target</th><th>Chanzo</th></tr></thead>
-        <tbody>
-          {weeks.map((w) => (
-            <tr key={w.week_number} className={w.in_income_period ? "" : "muted"}>
-              <td>{w.week_number}</td>
-              <td>{w.active_days.length}</td>
-              <td>{tsh(w.target)}</td>
-              <td>{w.manual_target == null ? "Auto" : "Manual"}</td>
-            </tr>
-          ))}
-        </tbody>
-      </table>
-      <p><b>Target ya mwezi: {tsh(monthTarget)}</b></p>
 
       {msg && <p className="notice">{msg}</p>}
       {err && <p className="error">{err}</p>}
