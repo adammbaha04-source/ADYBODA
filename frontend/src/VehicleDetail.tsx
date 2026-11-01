@@ -9,7 +9,6 @@ import { confirmManualEntry, confirmPayment, listManualEntries, type ManualEntry
 import IncomeForm from "./IncomeForm";
 import WeekTable from "./WeekTable";
 import TargetPanel from "./TargetPanel";
-import IncomePeriod from "./IncomePeriod";
 import DebtTable from "./DebtTable";
 import { monthLabel, shortDate, todayYMD, tsh } from "./format";
 import type { Role } from "./roles";
@@ -335,7 +334,6 @@ export default function VehicleDetail(props: {
         </section>
       )}
 
-      <IncomePeriod vehicle={vehicle} onChanged={onChanged} />
 
       <section className="card">
         <h3>Muhtasari wa Wiki za Mwezi</h3>
