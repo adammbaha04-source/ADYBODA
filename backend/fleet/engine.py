@@ -41,6 +41,8 @@ class DriverPeriod:          # who was driving from this date onward
 class WeekOverride:          # one week's own settings (set by the user)
     active: Optional[List[int]] = None   # None = use the vehicle's working days
     target: Optional[int] = None         # None = automatic (daily target x working days)
+    start: Optional[date] = None         # None = automatic start date
+    end: Optional[date] = None           # None = automatic end date
 
 
 @dataclass
@@ -72,6 +74,7 @@ class DebtEntry:
     week_number: Optional[int] = None
     confirmed: Optional[bool] = None     # week rows: True when every income record of the week is signed
     week_target: Optional[int] = None    # week rows: the target used for this week
+    period_end: Optional[date] = None    # week rows: last day of the week (typed or automatic)
 
 
 def _in_week(r, m, w):
@@ -99,6 +102,14 @@ def month_weeks(year: int, month: int, working_days_count: int, include_week5: b
         end = start + timedelta(days=working_days_count - 1)
         weeks.append(Week(n, start, end))
     return weeks
+
+
+def week_span(cfg: "VehicleConfig", month: str, w: Week) -> Week:
+    """The week's real dates: the start and end typed on the Set Targets screen, or the automatic ones."""
+    ov = cfg.week_overrides.get((month, w.number))
+    if ov is not None and ov.start is not None and ov.end is not None:
+        return Week(w.number, ov.start, ov.end)
+    return w
 
 
 def driver_for(periods: Sequence[DriverPeriod], day: date) -> Optional[DriverPeriod]:
@@ -143,7 +154,7 @@ def resolve_week(cfg: VehicleConfig, month: str, week_number: int, lost: int):
 
 def in_income_window(cfg: VehicleConfig, w: Week) -> bool:
     """A week counts only if it overlaps the income start/end dates (when they are set)."""
-    last = w.start + timedelta(days=6)
+    last = w.end
     if cfg.income_start and last < cfg.income_start:
         return False
     if cfg.income_end and w.start > cfg.income_end:
@@ -155,13 +166,15 @@ def plan_month(cfg: VehicleConfig, month: str, lost_days: Dict[Tuple[str, int], 
     """Per-week plan for one month, used by the Set Targets screen."""
     y, mo = int(month[:4]), int(month[5:7])
     rows = []
-    for w in month_weeks(y, mo, cfg.working_days_count, cfg.include_week5):
+    for base in month_weeks(y, mo, cfg.working_days_count, cfg.include_week5):
+        w = week_span(cfg, month, base)
         lost = lost_days.get((month, w.number), 0)
         active, auto, target, ov = resolve_week(cfg, month, w.number, lost)
         rows.append({
             "week_number": w.number,
             "start": w.start.isoformat(),
             "end": w.end.isoformat(),
+            "dates_manual": ov is not None and ov.start is not None and ov.end is not None,
             "active_days": active,
             "manual_target": ov.target if ov is not None else None,
             "auto_target": auto,
@@ -183,7 +196,8 @@ def generate_entries(cfg: VehicleConfig, returns: Sequence[ReturnRecord],
     for m in months_between(start_month, end_month):
         y, mo = int(m[:4]), int(m[5:7])
         weeks = month_weeks(y, mo, cfg.working_days_count, cfg.include_week5)
-        for w in weeks:
+        for base in weeks:
+            w = week_span(cfg, m, base)
             if not in_income_window(cfg, w):
                 continue
             period = driver_for(cfg.driver_periods, w.start)
@@ -212,6 +226,7 @@ def generate_entries(cfg: VehicleConfig, returns: Sequence[ReturnRecord],
                 kind = "NO_CHANGE"
             out.append(DebtEntry(month=m, day=w.start, type=kind, week_number=w.number,
                                  new_debt=deficit, week_surplus=surplus, sub=0, week_target=target,
+                                 period_end=w.end,
                                  confirmed=(all(r.confirmed for r in in_week) if in_week else None),
                                  notes=(f"Dereva: {name} - " if name else "") +
                                        f"Week {w.number}: Income {income} vs Target {target}"))
