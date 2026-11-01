@@ -23,7 +23,7 @@ export default function TargetPanel({ vehicle, month: startMonth, onSaved }: {
   const [days, setDays] = useState<number[]>(baseDays);
   const [manual, setManual] = useState("");
   const [name, setName] = useState(vehicle.name);
-  const [type, setType] = useState(vehicle.vehicle_type);
+  const [type] = useState(vehicle.vehicle_type);
   const [daily, setDaily] = useState(String(vehicle.daily_target));
   const [msg, setMsg] = useState("");
   const [err, setErr] = useState("");
@@ -113,15 +113,6 @@ export default function TargetPanel({ vehicle, month: startMonth, onSaved }: {
     <div className="target-panel">
       <h4>Gari</h4>
       <label>Vehicle Number / Name<input value={name} onChange={(e) => setName(e.target.value)} /></label>
-      <label>Vehicle Type
-        <select value={type} onChange={(e) => {
-          setType(e.target.value);
-          const p = PRESETS.find((x) => x.key === e.target.value);
-          if (p) setDaily(String(p.daily));
-        }}>
-          {PRESETS.map((p) => <option key={p.key} value={p.key}>{p.label}</option>)}
-        </select>
-      </label>
       <label>Day Target (TSh)
         <input type="number" inputMode="numeric" min={1} value={daily} onChange={(e) => setDaily(e.target.value)} />
       </label>
