@@ -1,5 +1,5 @@
 import { useEffect, useState, type ReactNode } from "react";
-import { GroupBars, Lines } from "./Charts";
+import GraphsView from "./GraphsView";
 import { monthLabel, tsh } from "./format";
 import { downloadReportPdf, getReportV3, type ReportV3 } from "./reportApi";
 import type { Vehicle } from "./types";
@@ -94,7 +94,6 @@ export default function ReportsPage({ mode, vehicles }: { mode: "report" | "grap
   }
 
   const t = data?.totals;
-  const labels = data ? data.series.map((r) => monthLabel(r.month)) : [];
   const scope = vehicle === "ALL" ? "All vehicles" : vehicles.find((v) => String(v.id) === vehicle)?.name ?? "Single vehicle";
   const expCats = t ? [
     { label: "Service", amount: t.service },
@@ -316,35 +315,7 @@ export default function ReportsPage({ mode, vehicles }: { mode: "report" | "grap
       )}
 
       {data && mode === "graphs" && (
-        <>
-          <section className="card">
-            <h3>Target vs Collected</h3>
-            <GroupBars labels={labels} series={[
-              { name: "Target", color: "#3b82f6", values: data.series.map((r) => r.target) },
-              { name: "Collected", color: "#10b981", values: data.series.map((r) => r.collected) },
-            ]} />
-          </section>
-          <section className="card">
-            <h3>Expenses vs Profit</h3>
-            <Lines labels={labels} series={[
-              { name: "Expenses", color: "#dc2626", values: data.series.map((r) => r.expenses + r.personal) },
-              { name: "Net Profit", color: "#059669", values: data.series.map((r) => r.profit) },
-            ]} />
-          </section>
-          <section className="card">
-            <h3>New Debt vs Debt Payments</h3>
-            <GroupBars labels={labels} series={[
-              { name: "New Debt", color: "#f59e0b", values: data.series.map((r) => r.new_debt) },
-              { name: "Debt Payments", color: "#10b981", values: data.series.map((r) => r.debt_payments) },
-            ]} />
-          </section>
-          <section className="card">
-            <h3>Outstanding Debt</h3>
-            <Lines labels={labels} series={[
-              { name: "Outstanding Debt", color: "#dc2626", values: data.series.map((r) => r.outstanding) },
-            ]} empty="No outstanding debt for this period" />
-          </section>
-        </>
+        <GraphsView data={data} expCats={expCats} period={from === to ? monthLabel(from) : `${from} to ${to}`} />
       )}
     </div>
   );
