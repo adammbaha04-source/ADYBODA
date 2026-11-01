@@ -187,7 +187,10 @@ export const getWeekPlan = (vehicleId: number, month: string) =>
 
 export const saveWeekPlan = (
   vehicleId: number,
-  body: { month: string; week_number: number; active_days?: number[] | null; target?: number | null },
+  body: {
+    month: string; week_number: number; active_days?: number[] | null; target?: number | null;
+    start_date?: string | null; end_date?: string | null;
+  },
 ) => request<{ month: string; weeks: WeekPlan[] }>(`/vehicles/${vehicleId}/week-plan/`, {
   method: "POST",
   body: JSON.stringify(body),
