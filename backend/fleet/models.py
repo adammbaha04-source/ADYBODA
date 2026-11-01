@@ -31,6 +31,8 @@ class WeekSetting(models.Model):
     week_number = models.PositiveSmallIntegerField()            # 1..5
     active_days = models.JSONField(null=True, blank=True)       # None = tumia siku za gari
     target = models.PositiveIntegerField(null=True, blank=True) # None = kiotomatiki
+    start_date = models.DateField(null=True, blank=True)        # None = tarehe za kiotomatiki
+    end_date = models.DateField(null=True, blank=True)          # None = tarehe za kiotomatiki
 
     class Meta:
         unique_together = [("vehicle", "month", "week_number")]
