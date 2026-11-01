@@ -84,3 +84,14 @@
 .rpt-table tr.total td.red { color:#991b1b; }
 .rpt-table td.green, .rpt-table td.red, .rpt-table td.orange { font-weight:700; }
 .chip.on { background:#4f46e5; color:#fff; border-color:#4f46e5; }
+
+/* ===== Layout fix: keep headers above their data ===== */
+.rpt-table { display:table; width:100%; table-layout:auto; border-collapse:collapse; }
+.rpt-table thead { display:table-header-group; }
+.rpt-table tbody { display:table-row-group; }
+.rpt-table tfoot { display:table-footer-group; }
+.rpt-table tr { display:table-row; }
+.rpt-table th, .rpt-table td { display:table-cell; vertical-align:middle; white-space:nowrap; }
+.rpt-scroll { overflow-x:auto; -webkit-overflow-scrolling:touch; }
+.rpt-scroll .rpt-table { min-width:640px; }
+.rpt-scroll .rpt-mtable { min-width:900px; }
