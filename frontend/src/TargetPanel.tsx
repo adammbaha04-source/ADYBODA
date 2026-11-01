@@ -81,7 +81,9 @@ export default function TargetPanel({ vehicle, month: startMonth, onSaved }: {
   async function resetWeek() {
     setErr(""); setMsg("");
     try {
-      const r = await saveWeekPlan(vehicle.id, { month, week_number: week, active_days: null, target: null });
+      const r = await saveWeekPlan(vehicle.id, {
+        month, week_number: week, active_days: null, target: null, start_date: null, end_date: null,
+      });
       setWeeks(r.weeks);
       setMsg(`Wiki ${week} imerudi kiotomatiki.`);
       onSaved();
