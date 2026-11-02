@@ -1,9 +1,16 @@
-"""Charts and analysis for the PDF report. Drawn with reportlab, so no image library is needed."""
+"""Charts and analysis for the PDF report. Drawn with reportlab, so no image library is needed.
+
+The report shows the same three graphs as the Grafu tab:
+  1. Income line graph (monthly income against target)
+  2. Expense pie chart (by category)
+  3. Target vs income bar chart
+"""
 import math
 
 from reportlab.graphics.charts.barcharts import VerticalBarChart
 from reportlab.graphics.charts.legends import Legend
 from reportlab.graphics.charts.linecharts import HorizontalLineChart
+from reportlab.graphics.charts.piecharts import Pie
 from reportlab.graphics.shapes import Drawing
 from reportlab.graphics.widgets.markers import makeMarker
 from reportlab.lib import colors
@@ -12,17 +19,15 @@ from reportlab.platypus import KeepTogether, Paragraph, Spacer
 
 from fleet.reports import MONTHS_SW
 
-TARGET = colors.HexColor("#3b82f6")
-INCOME = colors.HexColor("#10b981")
-EXPENSE = colors.HexColor("#ef4444")
-PROFIT = colors.HexColor("#059669")
-NEW_DEBT = colors.HexColor("#f59e0b")
-PAYMENT = colors.HexColor("#0ea5e9")
+TARGET = colors.HexColor("#7b7ef0")
+INCOME = colors.HexColor("#34c38f")
+PIE_COLORS = [colors.HexColor(c) for c in
+              ("#7077f0", "#eda020", "#9b6cf5", "#10b981", "#ec4899", "#3b82f6", "#f97316", "#14b8a6")]
 CHART_H = 70 * mm
 
 
 def _tsh(n):
-    return f"TSh {round(n):,}"
+    return f"TSh {round(n or 0):,}"
 
 
 def _k(v):
@@ -31,10 +36,6 @@ def _k(v):
 
 def _label(ym):
     return f"{MONTHS_SW[int(ym[5:7]) - 1][:3]} {ym[2:4]}"
-
-
-def _quarter(ym):
-    return f"Q{(int(ym[5:7]) - 1) // 3 + 1} {ym[:4]}"
 
 
 def _axis(vmax):
@@ -87,6 +88,7 @@ def _bars(labels, series, width):
 
 
 def _lines(labels, series, width):
+    """series = [(name, color, values), ...]"""
     d = Drawing(width, CHART_H)
     top, step = _axis(max([0] + [v for _, _, vals in series for v in vals]))
     ch = HorizontalLineChart()
@@ -105,20 +107,27 @@ def _lines(labels, series, width):
     return d
 
 
+def _pie(items, width):
+    """items = [(name, amount), ...]; legend shows name, amount and share."""
+    d = Drawing(width, CHART_H)
+    total = sum(a for _, a in items)
+    pie = Pie()
+    pie.x, pie.y = 40, 14
+    pie.width = pie.height = CHART_H - 28
+    pie.data = [a for _, a in items]
+    pie.slices.strokeWidth = 0.8
+    pie.slices.strokeColor = colors.white
+    for i in range(len(items)):
+        pie.slices[i].fillColor = PIE_COLORS[i % len(PIE_COLORS)]
+    d.add(pie)
+    pairs = [(PIE_COLORS[i % len(PIE_COLORS)],
+              f"{name}: {_tsh(amt)} ({amt / total * 100:.1f}%)") for i, (name, amt) in enumerate(items)]
+    d.add(_legend(pairs, pie.x + pie.width + 40, CHART_H - 40))
+    return d
+
+
 def _block(title, drawing, S):
     return KeepTogether([Paragraph(title, S["h2"]), drawing, Spacer(1, 6)])
-
-
-def _quarters(rows):
-    order, agg = [], {}
-    for r in rows:
-        q = _quarter(r["month"])
-        if q not in agg:
-            order.append(q)
-            agg[q] = {"target": 0, "collected": 0}
-        agg[q]["target"] += r["target"]
-        agg[q]["collected"] += r["collected"]
-    return order, agg
 
 
 def _analysis(report, S):
@@ -159,34 +168,28 @@ def _analysis(report, S):
     return [KeepTogether([Paragraph("Uchambuzi wa Kipindi", S["h2"])] + body), Spacer(1, 8)]
 
 
-def chart_flowables(report: dict, S: dict, width) -> list:
-    """Everything the PDF needs for charts: analysis first, then the graphs."""
+def chart_flowables(report: dict, S: dict, width, exp_rows) -> list:
+    """Analysis, then the three graphs: income line, expense pie, target vs income."""
     rows = report.get("series") or []
     if not rows:
         return []
     labels = [_label(r["month"]) for r in rows]
     out = _analysis(report, S)
 
+    out.append(_block("Mstari wa Mapato dhidi ya Target", _lines(labels, [
+        ("Mapato", INCOME, [r["collected"] for r in rows]),
+        ("Target", TARGET, [r["target"] for r in rows]),
+    ], width), S))
+
+    items = [(n, a) for n, a in exp_rows if a > 0]
+    if items:
+        out.append(_block("Matumizi kwa Kategoria", _pie(items, width), S))
+    else:
+        out.append(_block("Matumizi kwa Kategoria",
+                          Paragraph("Hakuna matumizi yaliyorekodiwa kwa kipindi hiki.", S["note"]), S))
+
     out.append(_block("Target dhidi ya Mapato kwa Mwezi", _bars(labels, [
         ("Target", TARGET, [r["target"] for r in rows]),
         ("Mapato", INCOME, [r["collected"] for r in rows]),
-    ], width), S))
-
-    if len(rows) >= 6:
-        order, agg = _quarters(rows)
-        out.append(_block("Mapato kwa Robo Mwaka", _bars(order, [
-            ("Target", TARGET, [agg[q]["target"] for q in order]),
-            ("Mapato", INCOME, [agg[q]["collected"] for q in order]),
-        ], width), S))
-
-    if len(rows) >= 2:
-        out.append(_block("Matumizi dhidi ya Faida Halisi", _lines(labels, [
-            ("Matumizi", EXPENSE, [r["expenses"] + r["personal"] for r in rows]),
-            ("Faida halisi", PROFIT, [r["profit"] for r in rows]),
-        ], width), S))
-
-    out.append(_block("Deni: Jipya dhidi ya Malipo", _bars(labels, [
-        ("Deni jipya", NEW_DEBT, [r["new_debt"] for r in rows]),
-        ("Malipo ya deni", PAYMENT, [r["debt_payments"] for r in rows]),
     ], width), S))
     return out
