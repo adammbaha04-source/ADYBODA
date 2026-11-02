@@ -21,7 +21,8 @@ RED = colors.HexColor("#dc2626")
 AMBER = colors.HexColor("#d97706")
 SLATE = colors.HexColor("#64748b")
 LINE = colors.HexColor("#e2e8f0")
-ZEBRA = colors.HexColor("#f8fafc")
+ZEBRA = colors.HexColor("#fffbeb")
+HEADER_BG = colors.HexColor("#fbbf24")
 TRACK = colors.HexColor("#e2e8f0")
 PAGE_W, PAGE_H = landscape(A4)
 MARGIN = 14 * mm
@@ -36,7 +37,7 @@ S = {
                            backColor=colors.HexColor("#eff6ff"), borderPadding=(6, 6, 6, 6), spaceAfter=8),
     "cell": ParagraphStyle("cell", fontName="Helvetica", fontSize=7.2, leading=8.6, textColor=NAVY),
     "cellr": ParagraphStyle("cellr", fontName="Helvetica", fontSize=7.2, leading=8.6, textColor=NAVY, alignment=TA_RIGHT),
-    "head": ParagraphStyle("head", fontName="Helvetica-Bold", fontSize=6.8, leading=8, textColor=colors.white,
+    "head": ParagraphStyle("head", fontName="Helvetica-Bold", fontSize=6.8, leading=8, textColor=colors.HexColor("#1c1917"),
                            alignment=TA_CENTER),
     "kl": ParagraphStyle("kl", fontName="Helvetica-Bold", fontSize=7, leading=9, textColor=SLATE),
     "kv": ParagraphStyle("kv", fontName="Helvetica-Bold", fontSize=14, leading=17, textColor=NAVY),
@@ -97,7 +98,7 @@ def _header_footer(canvas, doc, report):
 def _table(rows, widths, header_rows=1, total=False):
     t = Table(rows, colWidths=widths, repeatRows=header_rows)
     style = [
-        ("BACKGROUND", (0, 0), (-1, header_rows - 1), NAVY),
+        ("BACKGROUND", (0, 0), (-1, header_rows - 1), HEADER_BG),
         ("VALIGN", (0, 0), (-1, -1), "MIDDLE"),
         ("LINEBELOW", (0, header_rows), (-1, -1), 0.4, LINE),
         ("TOPPADDING", (0, 0), (-1, -1), 4),
@@ -110,7 +111,7 @@ def _table(rows, widths, header_rows=1, total=False):
             style.append(("BACKGROUND", (0, i), (-1, i), ZEBRA))
     if total:
         last = len(rows) - 1
-        style += [("BACKGROUND", (0, last), (-1, last), colors.HexColor("#e0e7ff")),
+        style += [("BACKGROUND", (0, last), (-1, last), colors.HexColor("#fde68a")),
                   ("LINEABOVE", (0, last), (-1, last), 1, NAVY)]
     t.setStyle(TableStyle(style))
     return t
@@ -328,7 +329,7 @@ def build_pdf(report: dict) -> bytes:
     story.append(KeepTogether([Paragraph("Debt Summary", S["h2"]), _table(drows, [AVAIL / 5] * 5)]))
 
     # --- Charts and analysis ---------------------------------------------------
-    story.extend(chart_flowables(report, S, AVAIL))
+    story.extend(chart_flowables(report, S, AVAIL, exp_rows))
 
     # --- Notes -----------------------------------------------------------------
     story.append(Spacer(1, 10))
