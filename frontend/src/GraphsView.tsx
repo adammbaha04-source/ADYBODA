@@ -206,9 +206,243 @@ function TargetChart({ data, period }: DataProps) {
   );
 }
 
-export default function GraphsView({ data, expCats, period }: Props) {
+type Series = { name: string; color: string; values: number[] };
+
+const MONTH_SHORT = ["Jan", "Feb", "Mac", "Apr", "Mei", "Jun", "Jul", "Ago", "Sep", "Okt", "Nov", "Des"];
+const mLabel = (ym: string) => `${MONTH_SHORT[Number(ym.slice(5, 7)) - 1]} ${ym.slice(2, 4)}`;
+const qLabel = (ym: string) => `Q${Math.floor((Number(ym.slice(5, 7)) - 1) / 3) + 1} ${ym.slice(0, 4)}`;
+const sumOf = (xs: number[]) => xs.reduce((a, b) => a + b, 0);
+const pctOf = (a: number, b: number) => (b > 0 ? (a / b) * 100 : 0);
+const kLabel = (v: number) => (v >= 1000 ? `${Math.round(v / 1000)}k` : `${Math.round(v)}`);
+
+function SeriesLegend({ series }: { series: Series[] }) {
+  return (
+    <ul style={LEGEND}>
+      {series.map((s) => (
+        <li key={s.name} style={{ display: "flex", alignItems: "center", gap: 6 }}>
+          <span style={{ ...DOT, background: s.color }} />{s.name}
+        </li>
+      ))}
+    </ul>
+  );
+}
+
+function GroupedBars({ labels, series }: { labels: string[]; series: Series[] }) {
+  const W = 640, H = 300, L = 96, R = 12, T = 14, B = 52;
+  const iw = W - L - R, ih = H - T - B;
+  const { step, top } = axis(Math.max(0, ...series.flatMap((s) => s.values)));
+  const py = (v: number) => T + ih - (v / top) * ih;
+  const groupW = iw / Math.max(labels.length, 1);
+  const barW = Math.min(26, (groupW * 0.75) / Math.max(series.length, 1));
   return (
     <>
+      <SeriesLegend series={series} />
+      <svg viewBox={`0 0 ${W} ${H}`} width="100%" role="img" aria-label="Bar chart">
+        {Array.from({ length: 6 }, (_, k) => k * step).map((val) => (
+          <g key={val}>
+            <line x1={L} x2={W - R} y1={py(val)} y2={py(val)} stroke="#e5e7eb" />
+            <text x={L - 8} y={py(val) + 5} textAnchor="end" fontSize="13" fill="#4b5563">{kLabel(val)}</text>
+          </g>
+        ))}
+        {labels.map((lab, i) => {
+          const cx = L + i * groupW + groupW / 2;
+          return (
+            <g key={`${lab}-${i}`}>
+              {series.map((s, si) => {
+                const v = s.values[i] ?? 0;
+                const x = cx - (series.length * barW) / 2 + si * barW;
+                return (
+                  <rect key={s.name} x={x + 1} y={py(v)} width={barW - 2} height={Math.max(0, T + ih - py(v))} rx={4} fill={s.color}>
+                    <title>{`${s.name}: ${tsh(v)}`}</title>
+                  </rect>
+                );
+              })}
+              <text x={cx} y={H - 22} textAnchor="middle" fontSize="13" fill="#4b5563">{lab}</text>
+            </g>
+          );
+        })}
+      </svg>
+    </>
+  );
+}
+
+function Trend({ labels, series }: { labels: string[]; series: Series[] }) {
+  const W = 640, H = 300, L = 96, R = 12, T = 14, B = 52;
+  const iw = W - L - R, ih = H - T - B;
+  const { step, top } = axis(Math.max(0, ...series.flatMap((s) => s.values)));
+  const py = (v: number) => T + ih - (v / top) * ih;
+  const px = (i: number) => L + (labels.length === 1 ? iw / 2 : (i * iw) / (labels.length - 1));
+  return (
+    <>
+      <SeriesLegend series={series} />
+      <svg viewBox={`0 0 ${W} ${H}`} width="100%" role="img" aria-label="Trend chart">
+        {Array.from({ length: 6 }, (_, k) => k * step).map((val) => (
+          <g key={val}>
+            <line x1={L} x2={W - R} y1={py(val)} y2={py(val)} stroke="#e5e7eb" />
+            <text x={L - 8} y={py(val) + 5} textAnchor="end" fontSize="13" fill="#4b5563">{kLabel(val)}</text>
+          </g>
+        ))}
+        {series.map((s) => {
+          const pts: [number, number][] = s.values.map((v, i) => [px(i), py(v)]);
+          return (
+            <g key={s.name}>
+              <path d={smooth(pts)} fill="none" stroke={s.color} strokeWidth="3" />
+              {pts.map((p, i) => (
+                <circle key={i} cx={p[0]} cy={p[1]} r="5" fill="#fff" stroke={s.color} strokeWidth="3" />
+              ))}
+            </g>
+          );
+        })}
+        {labels.map((lab, i) => (
+          <text key={`${lab}-${i}`} x={px(i)} y={H - 22} textAnchor="middle" fontSize="13" fill="#4b5563">{lab}</text>
+        ))}
+      </svg>
+    </>
+  );
+}
+
+function Analysis({ data, period }: DataProps) {
+  const rows = data.series;
+  if (rows.length === 0) {
+    return (
+      <>
+        <h3 style={TITLE}>Analysis - {period}</h3>
+        <p className="hint" style={{ textAlign: "center" }}>No data for this period</p>
+      </>
+    );
+  }
+  const target = sumOf(rows.map((r) => r.target));
+  const income = sumOf(rows.map((r) => r.collected));
+  const spend = sumOf(rows.map((r) => r.expenses + r.personal));
+  const profit = sumOf(rows.map((r) => r.profit));
+  const ach = pctOf(income, target);
+  const hit = rows.filter((r) => r.target > 0 && r.collected >= r.target).length;
+  const best = rows.reduce((a, b) => (b.collected > a.collected ? b : a));
+  const worst = rows.reduce((a, b) => (b.collected < a.collected ? b : a));
+  const last = rows[rows.length - 1];
+  const prev = rows.length > 1 ? rows[rows.length - 2] : null;
+  const change = prev && prev.collected > 0 ? ((last.collected - prev.collected) / prev.collected) * 100 : null;
+  const spendPct = pctOf(spend, income);
+  const marginPct = pctOf(profit, income);
+
+  const notes: string[] = [
+    `Umefikia ${ach.toFixed(1)}% ya target: ${tsh(income)} kati ya ${tsh(target)}.`,
+    `Miezi ${hit} kati ya ${rows.length} ilifikia target kamili.`,
+    `Mwezi bora ni ${mLabel(best.month)} (${tsh(best.collected)}); dhaifu ni ${mLabel(worst.month)} (${tsh(worst.collected)}).`,
+    `Wastani wa mapato kwa mwezi: ${tsh(income / rows.length)}.`,
+  ];
+  if (change !== null) {
+    notes.push(`Mwezi wa mwisho (${mLabel(last.month)}) umebadilika ${change >= 0 ? "+" : ""}${change.toFixed(1)}% ukilinganisha na uliopita.`);
+  }
+  notes.push(`Matumizi ni ${spendPct.toFixed(1)}% ya mapato; faida halisi ni ${marginPct.toFixed(1)}% ya mapato.`);
+  if (ach < 60) notes.push("Pendekezo: target haifikiwi. Pitia siku zilizopotea na uwezo wa magari kabla ya kuweka target mpya.");
+  if (spendPct > 50) notes.push("Pendekezo: matumizi ni makubwa. Pitia gharama za service, matairi na bima.");
+  if (data.totals.outstanding > 0) notes.push(`Deni lililobaki mwishoni: ${tsh(data.totals.outstanding)}.`);
+
+  const cards = [
+    { label: "Target", value: tsh(target), tone: "#2563eb" },
+    { label: "Mapato", value: tsh(income), tone: "#059669" },
+    { label: "Kufikia target", value: `${ach.toFixed(1)}%`, tone: ach >= 90 ? "#059669" : ach >= 60 ? "#ea580c" : "#dc2626" },
+    { label: "Faida halisi", value: tsh(profit), tone: profit >= 0 ? "#059669" : "#dc2626" },
+  ];
+  return (
+    <>
+      <h3 style={TITLE}>Analysis - {period}</h3>
+      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, marginBottom: 14 }}>
+        {cards.map((c) => (
+          <div key={c.label} style={{ border: "1px solid #e2e8f0", borderRadius: 14, padding: 12, background: "#f8fafc" }}>
+            <div style={{ fontSize: 11, fontWeight: 800, color: "#64748b", textTransform: "uppercase" }}>{c.label}</div>
+            <div style={{ fontSize: 16, fontWeight: 900, color: c.tone, marginTop: 4 }}>{c.value}</div>
+          </div>
+        ))}
+      </div>
+      <ul style={{ margin: 0, paddingLeft: 18, fontSize: 14, lineHeight: 1.7, color: "#334155" }}>
+        {notes.map((n, i) => <li key={i}>{n}</li>)}
+      </ul>
+    </>
+  );
+}
+
+function MonthlyBars({ data, period }: DataProps) {
+  const rows = data.series;
+  return (
+    <>
+      <h3 style={TITLE}>Target vs Income by Month - {period}</h3>
+      <GroupedBars
+        labels={rows.map((r) => mLabel(r.month))}
+        series={[
+          { name: "Target", color: TARGET_COLOR, values: rows.map((r) => r.target) },
+          { name: "Income", color: ACTUAL_COLOR, values: rows.map((r) => r.collected) },
+        ]}
+      />
+    </>
+  );
+}
+
+function QuarterBars({ data, period }: DataProps) {
+  const order: string[] = [];
+  const agg: Record<string, { target: number; collected: number }> = {};
+  for (const r of data.series) {
+    const q = qLabel(r.month);
+    if (!agg[q]) { agg[q] = { target: 0, collected: 0 }; order.push(q); }
+    agg[q].target += r.target;
+    agg[q].collected += r.collected;
+  }
+  return (
+    <>
+      <h3 style={TITLE}>Quarterly Income - {period}</h3>
+      <GroupedBars
+        labels={order}
+        series={[
+          { name: "Target", color: TARGET_COLOR, values: order.map((q) => agg[q].target) },
+          { name: "Income", color: ACTUAL_COLOR, values: order.map((q) => agg[q].collected) },
+        ]}
+      />
+    </>
+  );
+}
+
+function ExpenseProfit({ data, period }: DataProps) {
+  const rows = data.series;
+  return (
+    <>
+      <h3 style={TITLE}>Expenses vs Net Profit - {period}</h3>
+      <Trend
+        labels={rows.map((r) => mLabel(r.month))}
+        series={[
+          { name: "Expenses", color: "#ef4444", values: rows.map((r) => r.expenses + r.personal) },
+          { name: "Net Profit", color: "#059669", values: rows.map((r) => r.profit) },
+        ]}
+      />
+    </>
+  );
+}
+
+function DebtChart({ data, period }: DataProps) {
+  const rows = data.series;
+  return (
+    <>
+      <h3 style={TITLE}>Debt: New vs Payments - {period}</h3>
+      <GroupedBars
+        labels={rows.map((r) => mLabel(r.month))}
+        series={[
+          { name: "New debt", color: "#f59e0b", values: rows.map((r) => r.new_debt) },
+          { name: "Debt payments", color: "#0ea5e9", values: rows.map((r) => r.debt_payments) },
+        ]}
+      />
+    </>
+  );
+}
+
+export default function GraphsView({ data, expCats, period }: Props) {
+  const hasQuarters = data.series.length >= 6;
+  return (
+    <>
+      <section className="card"><Analysis data={data} period={period} /></section>
+      <section className="card"><MonthlyBars data={data} period={period} /></section>
+      {hasQuarters && <section className="card"><QuarterBars data={data} period={period} /></section>}
+      {data.series.length >= 2 && <section className="card"><ExpenseProfit data={data} period={period} /></section>}
+      <section className="card"><DebtChart data={data} period={period} /></section>
       <section className="card"><WeeklyChart data={data} period={period} /></section>
       <section className="card"><ExpensePie cats={expCats} period={period} /></section>
       <section className="card"><TargetChart data={data} period={period} /></section>
