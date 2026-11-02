@@ -402,16 +402,16 @@ function QuarterBars({ data, period }: DataProps) {
   );
 }
 
-function ExpenseProfit({ data, period }: DataProps) {
+function IncomeLine({ data, period }: DataProps) {
   const rows = data.series;
   return (
     <>
-      <h3 style={TITLE}>Expenses vs Net Profit - {period}</h3>
+      <h3 style={TITLE}>Income Line vs Target - {period}</h3>
       <Trend
         labels={rows.map((r) => mLabel(r.month))}
         series={[
-          { name: "Expenses", color: "#ef4444", values: rows.map((r) => r.expenses + r.personal) },
-          { name: "Net Profit", color: "#059669", values: rows.map((r) => r.profit) },
+          { name: "Income", color: ACTUAL_COLOR, values: rows.map((r) => r.collected) },
+          { name: "Target", color: TARGET_COLOR, values: rows.map((r) => r.target) },
         ]}
       />
     </>
@@ -439,12 +439,12 @@ export default function GraphsView({ data, expCats, period }: Props) {
   return (
     <>
       <section className="card"><Analysis data={data} period={period} /></section>
+      <section className="card"><IncomeLine data={data} period={period} /></section>
+      <section className="card"><ExpensePie cats={expCats} period={period} /></section>
       <section className="card"><MonthlyBars data={data} period={period} /></section>
       {hasQuarters && <section className="card"><QuarterBars data={data} period={period} /></section>}
-      {data.series.length >= 2 && <section className="card"><ExpenseProfit data={data} period={period} /></section>}
       <section className="card"><DebtChart data={data} period={period} /></section>
       <section className="card"><WeeklyChart data={data} period={period} /></section>
-      <section className="card"><ExpensePie cats={expCats} period={period} /></section>
       <section className="card"><TargetChart data={data} period={period} /></section>
     </>
   );
