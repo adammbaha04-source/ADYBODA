@@ -12,6 +12,7 @@ from reportlab.lib.units import mm
 from reportlab.platypus import (Paragraph, SimpleDocTemplate, Spacer, Table, TableStyle, KeepTogether)
 
 from fleet.reports import MONTHS_SW
+from fleet.pdf_charts import chart_flowables
 
 NAVY = colors.HexColor("#0f172a")
 INDIGO = colors.HexColor("#4f46e5")
@@ -325,6 +326,9 @@ def build_pdf(report: dict) -> bytes:
               Paragraph(tsh(t["excess"]), S["cellr"]), Paragraph(f"<b>{tsh(t['outstanding'])}</b>", S["cellr"]),
               Paragraph(f"{pct(t['outstanding'], t['target']):.1f}%", S["cellr"])]]
     story.append(KeepTogether([Paragraph("Debt Summary", S["h2"]), _table(drows, [AVAIL / 5] * 5)]))
+
+    # --- Charts and analysis ---------------------------------------------------
+    story.extend(chart_flowables(report, S, AVAIL))
 
     # --- Notes -----------------------------------------------------------------
     story.append(Spacer(1, 10))
