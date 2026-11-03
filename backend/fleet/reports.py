@@ -13,10 +13,10 @@ Definitions (kept identical to the existing screens):
 """
 from datetime import date
 from django.db.models import Sum
-from fleet.engine import months_between, month_weeks
+from fleet.engine import months_between, month_weeks, loss_for_month
 from fleet.models import (Return, LostDays, ServiceRecord, TyreRecord, InsuranceRecord, PaymentRecord,
                           PersonalExpense, UserProfile)
-from fleet.services import vehicle_debt, debt_summary
+from fleet.services import vehicle_debt, debt_summary, build_config
 
 WEEK_TYPES = ("WEEKLY_DEFICIT", "WEEKLY_EXCESS", "EXCESS_PAYMENT", "NO_CHANGE")
 MONTHS_SW = ["Januari", "Februari", "Machi", "Aprili", "Mei", "Juni", "Julai", "Agosti",
@@ -39,7 +39,8 @@ def vehicle_month(v, m, entries):
     collected = _in_month(Return.objects.filter(vehicle=v), "day", m).aggregate(t=Sum("amount"))["t"] or 0
     excess = _in_month(Return.objects.filter(vehicle=v, is_excess=True), "day", m).aggregate(t=Sum("amount"))["t"] or 0
     lost_days = sum(l.days for l in LostDays.objects.filter(vehicle=v, month=m))
-    lost_amount = lost_days * v.daily_target
+    lost_map = {(l.month, l.week_number): l.days for l in v.lost_days.all()}
+    lost_amount = loss_for_month(build_config(v), m, lost_map)
     service = sum(x.count * x.unit_price for x in _in_month(ServiceRecord.objects.filter(vehicle=v), "day", m))
     tyres = _in_month(TyreRecord.objects.filter(vehicle=v), "day", m).aggregate(t=Sum("amount"))["t"] or 0
     insurance = _in_month(InsuranceRecord.objects.filter(vehicle=v), "day", m).aggregate(t=Sum("amount"))["t"] or 0
@@ -126,7 +127,7 @@ def build_report(owner, start: str, end: str, vehicle_id=None):
             "other_payments": tot["other_payments"], "expenses": tot["expenses"],
             "weeks": [{"number": n, "amount": a} for n, a in sorted(week_totals.items())] if single else [],
             "week_count": week_count if single else 0,
-            "profit": tot["collected"] - tot["expenses"] - tot["lost_amount"],
+            "profit": tot["collected"] - tot["expenses"],
         })
 
     personal = {}
@@ -141,7 +142,7 @@ def build_report(owner, start: str, end: str, vehicle_id=None):
     series = []
     for m in months:
         mr = month_rows[m]
-        profit = mr["collected"] - mr["expenses"] - personal[m] - mr["lost_amount"]
+        profit = mr["collected"] - mr["expenses"] - personal[m]
         series.append({"month": m, **mr, "personal": personal[m], "profit": profit})
 
     totals = {k: sum(r[k] for r in series) for k in
@@ -149,7 +150,12 @@ def build_report(owner, start: str, end: str, vehicle_id=None):
                "service", "tyres", "insurance", "other_payments")}
     totals["personal"] = sum(personal.values())
     totals["outstanding"] = series[-1]["outstanding"] if series else 0
-    totals["profit"] = totals["collected"] - totals["expenses"] - totals["personal"] - totals["lost_amount"]
+    totals["profit"] = totals["collected"] - totals["expenses"] - totals["personal"]
+    # Deviation from system target: loss / system target (system target = target used + loss).
+    system_target = totals["target"] + totals["lost_amount"]
+    totals["system_target"] = system_target
+    totals["loss_pct"] = round(totals["lost_amount"] / system_target * 100, 1) if system_target else 0
+    totals["achieved_pct"] = round(totals["collected"] / totals["target"] * 100, 1) if totals["target"] else 0
 
     prof = UserProfile.objects.filter(user=owner).first()
     cats = [{"code": code, "label": label, "amount": personal_by_cat.get(code, 0)}
