@@ -75,6 +75,8 @@ class DebtEntry:
     confirmed: Optional[bool] = None     # week rows: True when every income record of the week is signed
     week_target: Optional[int] = None    # week rows: the target used for this week
     period_end: Optional[date] = None    # week rows: last day of the week (typed or automatic)
+    week_days: Optional[int] = None      # week rows: working days used this week
+    week_loss: Optional[int] = None      # week rows: system main target minus target used (not debt)
 
 
 def _in_week(r, m, w):
@@ -165,9 +167,9 @@ def loss_for_month(cfg: VehicleConfig, month: str, lost_map: Dict[Tuple[str, int
         if not in_income_window(cfg, w):
             continue
         lost = lost_map.get((month, w.number), 0)
-        active, _, target, _ = resolve_week(cfg, month, w.number, lost)
-        planned = cfg.daily_target * len(active)
-        total += max(0, planned - target)
+        _, _, target, _ = resolve_week(cfg, month, w.number, lost)
+        main = cfg.daily_target * cfg.working_days_count
+        total += max(0, main - target)
     return total
 
 
@@ -232,7 +234,7 @@ def generate_entries(cfg: VehicleConfig, returns: Sequence[ReturnRecord],
             income = sum(r.amount for r in in_week if not r.is_excess)
             excess_in = sum(r.amount for r in in_week if r.is_excess)
             lost = lost_days.get((m, w.number), 0)
-            _, _, target, _ = resolve_week(cfg, m, w.number, lost)
+            active, _, target, _ = resolve_week(cfg, m, w.number, lost)
             deficit = max(0, target - income)
             surplus = max(0, income - target) + excess_in
             if income < target:
@@ -246,6 +248,8 @@ def generate_entries(cfg: VehicleConfig, returns: Sequence[ReturnRecord],
             out.append(DebtEntry(month=m, day=w.start, type=kind, week_number=w.number,
                                  new_debt=deficit, week_surplus=surplus, sub=0, week_target=target,
                                  period_end=w.end,
+                                 week_days=len(active),
+                                 week_loss=max(0, cfg.daily_target * cfg.working_days_count - target),
                                  confirmed=(all(r.confirmed for r in in_week) if in_week else None),
                                  notes=(f"Dereva: {name} - " if name else "") +
                                        f"Week {w.number}: Income {income} vs Target {target}"))
