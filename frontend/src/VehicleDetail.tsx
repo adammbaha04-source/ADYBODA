@@ -493,7 +493,10 @@ export default function VehicleDetail(props: {
               <label>Kiasi (TSh)<input type="number" inputMode="numeric" value={fAmount} onChange={(e) => setFAmount(e.target.value)} required min={1} /></label>
               <label>Maelezo<input value={fNote} onChange={(e) => setFNote(e.target.value)} placeholder="Maelezo ya ziada" /></label>
               {fPayType !== "debt_payment" && <p className="hint">Aina hii ni gharama tu. Haipunguzi deni.</p>}
-              <button type="submit">Hifadhi</button>
+              <div className="vd-actions">
+                <button type="submit">Hifadhi</button>
+                <button type="button" className="ghost" onClick={closeForm}>Sitisha / Cancel</button>
+              </div>
             </form>
           )}
           {form === "debt" && (
@@ -502,7 +505,10 @@ export default function VehicleDetail(props: {
               <label>Tarehe ya Record<input type="date" value={fDay} onChange={(e) => setFDay(e.target.value)} required /></label>
               <label>Kiasi (TSh)<input type="number" inputMode="numeric" value={fAmount} onChange={(e) => setFAmount(e.target.value)} required min={1} /></label>
               <label>Maelezo<input value={fNote} onChange={(e) => setFNote(e.target.value)} placeholder="Maelezo ya ziada" /></label>
-              <button type="submit">Hifadhi</button>
+              <div className="vd-actions">
+                <button type="submit">Hifadhi</button>
+                <button type="button" className="ghost" onClick={closeForm}>Sitisha / Cancel</button>
+              </div>
             </form>
           )}
           {(form === "service" || form === "servicePack") && (
@@ -515,7 +521,10 @@ export default function VehicleDetail(props: {
               <label>Muuzaji<input value={fSeller} onChange={(e) => setFSeller(e.target.value)} placeholder="Jina la muuzaji" /></label>
               <label>Maelezo<input value={fNote} onChange={(e) => setFNote(e.target.value)} placeholder="Maelezo ya ziada" /></label>
               <p className="hint">Jumla: {tsh((Number(fCount) || 0) * (Number(fUnit) || 0))}</p>
-              <button type="submit">{form === "servicePack" ? "Hifadhi kwa Vyombo Vyote" : "Hifadhi"}</button>
+              <div className="vd-actions">
+                <button type="submit">{form === "servicePack" ? "Hifadhi kwa Vyombo Vyote" : "Hifadhi"}</button>
+                <button type="button" className="ghost" onClick={closeForm}>Sitisha / Cancel</button>
+              </div>
             </form>
           )}
           {form === "tyre" && (
@@ -525,7 +534,10 @@ export default function VehicleDetail(props: {
               <label>Namba ya Tairi<input value={fTyre} onChange={(e) => setFTyre(e.target.value)} placeholder="TYRE001" /></label>
               <label>Kiasi (TSh)<input type="number" inputMode="numeric" value={fAmount} onChange={(e) => setFAmount(e.target.value)} min={0} /></label>
               <label>Maelezo<input value={fNote} onChange={(e) => setFNote(e.target.value)} placeholder="Maelezo ya ziada" /></label>
-              <button type="submit">Hifadhi</button>
+              <div className="vd-actions">
+                <button type="submit">Hifadhi</button>
+                <button type="button" className="ghost" onClick={closeForm}>Sitisha / Cancel</button>
+              </div>
             </form>
           )}
           {form === "insurance" && (
@@ -536,13 +548,16 @@ export default function VehicleDetail(props: {
               <label>Aina ya Bima<input value={fInsType} onChange={(e) => setFInsType(e.target.value)} placeholder="Comprehensive, Third Party" /></label>
               <label>Muda (Miezi)<input type="number" inputMode="numeric" value={fMonths} onChange={(e) => setFMonths(e.target.value)} min={1} /></label>
               <label>Maelezo<input value={fNote} onChange={(e) => setFNote(e.target.value)} placeholder="Maelezo ya ziada" /></label>
-              <button type="submit">Hifadhi</button>
+              <div className="vd-actions">
+                <button type="submit">Hifadhi</button>
+                <button type="button" className="ghost" onClick={closeForm}>Sitisha / Cancel</button>
+              </div>
             </form>
           )}
           {form === "edit" && (
             <TargetPanel vehicle={vehicle} month={month} onSaved={() => { load(); onChanged(); }} />
           )}
-          {form !== "income" && <button className="ghost" onClick={closeForm}>Sitisha / Cancel</button>}
+          {form === "edit" && <button className="ghost" onClick={closeForm}>Sitisha / Cancel</button>}
         </Dialog>
       )}
     </div>
