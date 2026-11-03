@@ -5,7 +5,7 @@ import "./income.css";
 const WEEK_TYPES = ["WEEKLY_DEFICIT", "WEEKLY_EXCESS", "EXCESS_PAYMENT", "NO_CHANGE"];
 const WEEK_RE = /Week (\d+): Income (\d+) vs Target (\d+)/;
 
-// Muhtasari wa Wiki: Week | Date Range | Working Days | Target | Income | Remaining | Excess | Confirmed
+// Muhtasari wa Wiki: Week | Date Range | Working Days | Target | Loss | Income | Remaining | Excess | Confirmed
 export default function WeekTable(props: {
   entries: DebtLine[]; returns: IncomeRow[]; month: string; workingDays: number;
   lostDays: { week_number: number; days: number }[];
@@ -25,7 +25,9 @@ export default function WeekTable(props: {
         .reduce((a, r) => a + r.amount, 0);
       const lost = lostDays.filter((l) => l.week_number === week).reduce((a, l) => a + l.days, 0);
       return {
-        week, start, end, income, target, working: Math.max(0, wd - lost),
+        week, start, end, income, target,
+        working: e.week_days ?? Math.max(0, wd - lost),
+        loss: e.week_loss ?? 0,
         remaining: Math.max(0, target - income),
         excess: Math.max(0, income - target) + extra,
         confirmed: e.confirmed ?? null,
@@ -39,16 +41,17 @@ export default function WeekTable(props: {
     <div className="scroll">
       <table className="tbl-nw">
         <thead>
-          <tr><th>Week</th><th>Date Range</th><th>Working Days</th><th>Target</th><th>Income</th><th>Remaining</th><th>Excess</th><th>Confirmed</th></tr>
+          <tr><th>Week</th><th>Date Range</th><th>Working Days</th><th>Target</th><th>Loss</th><th>Income</th><th>Remaining</th><th>Excess</th><th>Confirmed</th></tr>
         </thead>
         <tbody>
-          {rows.length === 0 && <tr><td colSpan={8}>Hakuna wiki mwezi huu</td></tr>}
+          {rows.length === 0 && <tr><td colSpan={9}>Hakuna wiki mwezi huu</td></tr>}
           {rows.map((r) => (
             <tr key={r.week}>
               <td><b>Week {r.week}</b></td>
               <td>{shortDate(r.start)} - {shortDate(r.end)}</td>
               <td className="purple">{r.working}/{wd}</td>
               <td className="blue">{tsh(r.target)}</td>
+              <td className="red">{tsh(r.loss)}</td>
               <td className="green">{tsh(r.income)}</td>
               <td className="red">{tsh(r.remaining)}</td>
               <td className="green">{tsh(r.excess)}</td>
@@ -64,6 +67,7 @@ export default function WeekTable(props: {
               <td><b>Jumla ({rows.length} wiki)</b></td>
               <td></td><td className="purple">{wd} days/week</td>
               <td className="blue">{tsh(sum((r) => r.target))}</td>
+              <td className="red">{tsh(sum((r) => r.loss))}</td>
               <td className="green">{tsh(sum((r) => r.income))}</td>
               <td className="red">{tsh(sum((r) => r.remaining))}</td>
               <td className="green">{tsh(sum((r) => r.excess))}</td>
