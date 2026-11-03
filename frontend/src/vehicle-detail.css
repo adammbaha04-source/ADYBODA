@@ -110,3 +110,13 @@ html[data-theme="dark"] .vd-x { background: #0f172a; color: #e2e8f0; }
   color: #fff;
 }
 .target-panel .btn-row { display: flex; flex-wrap: wrap; gap: 8px; }
+
+/* ===== Forms in popups: visible title/close, full-width fields, buttons side by side ===== */
+.vd-overlay { padding: calc(env(safe-area-inset-top, 0px) + 78px) 12px 14px; }
+.vd-modal { max-height: calc(100dvh - 96px); }
+.vd-modal-body form label { display: flex; flex-direction: column; gap: 5px; }
+.vd-modal-body form input,
+.vd-modal-body form select { width: 100%; box-sizing: border-box; min-width: 0; }
+.vd-actions { display: flex; gap: 10px; margin-top: 12px; }
+.vd-actions button { flex: 1; }
+
