@@ -16,6 +16,8 @@ export interface DebtLine {
   previous_debt: number; new_debt: number; paid_debt: number; closed_debt: number; remaining_debt: number;
   week_number?: number | null; confirmed?: boolean | null;
   period_end?: string | null;
+  week_days?: number | null;
+  week_loss?: number | null;
 }
 
 async function call<T>(path: string, init: RequestInit = {}): Promise<T> {
