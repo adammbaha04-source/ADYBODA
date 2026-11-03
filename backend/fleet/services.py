@@ -61,6 +61,8 @@ def serialize_entries(entries):
         "closed_debt": e.closed_debt, "remaining_debt": e.remaining_debt,
         "week_number": e.week_number, "confirmed": e.confirmed,
         "period_end": e.period_end.isoformat() if e.period_end else None,
+        "week_days": e.week_days,
+        "week_loss": e.week_loss,
     } for e in entries]
 
 
