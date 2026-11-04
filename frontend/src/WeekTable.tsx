@@ -65,7 +65,7 @@ export default function WeekTable(props: {
           {rows.length > 0 && (
             <tr className="total-row">
               <td><b>Jumla ({rows.length} wiki)</b></td>
-              <td></td><td className="purple">{wd} days/week</td>
+              <td></td><td className="purple">{sum((r) => r.working)} days</td>
               <td className="blue">{tsh(sum((r) => r.target))}</td>
               <td className="red">{tsh(sum((r) => r.loss))}</td>
               <td className="green">{tsh(sum((r) => r.income))}</td>
