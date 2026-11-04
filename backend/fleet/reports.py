@@ -11,6 +11,7 @@ Definitions (kept identical to the existing screens):
 - lost target: lost days x daily target.
 - profit: collected - vehicle expenses - personal expenses - lost target (same formula as the old monthly report).
 """
+import logging
 from datetime import date
 from django.db.models import Sum
 from fleet.engine import months_between, month_weeks, month_stats
@@ -25,6 +26,9 @@ MONTHS_SW = ["Januari", "Februari", "Machi", "Aprili", "Mei", "Juni", "Julai", "
 
 def _ym(d: date) -> str:
     return f"{d.year:04d}-{d.month:02d}"
+
+
+log = logging.getLogger(__name__)
 
 
 def _in_month(qs, field, m):
@@ -89,6 +93,15 @@ def report_title(start: str, end: str):
 
 
 def build_report(owner, start: str, end: str, vehicle_id=None):
+    """Wraps the calculation so any error is written to the Render logs with its full traceback."""
+    try:
+        return _build_report(owner, start, end, vehicle_id)
+    except Exception:
+        log.exception("Report failed: owner=%s start=%s end=%s vehicle=%s", owner.id, start, end, vehicle_id)
+        raise
+
+
+def _build_report(owner, start: str, end: str, vehicle_id=None):
     vehicles = list(owner.vehicles.prefetch_related("driver_periods").all())
     if vehicle_id:
         vehicles = [v for v in vehicles if v.id == vehicle_id]
