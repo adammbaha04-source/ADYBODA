@@ -154,23 +154,31 @@ def resolve_week(cfg: VehicleConfig, month: str, week_number: int, lost: int):
     return active, auto, target, ov
 
 
-def loss_for_month(cfg: VehicleConfig, month: str, lost_map: Dict[Tuple[str, int], int]) -> int:
-    """Loss of TARGET for a month. This is NOT debt.
-    For each income week: the planned target (daily target x that week's working days) minus the target used.
-    - Lost days lower the automatic target, so the loss equals daily target x days lost.
-    - A typed week target lower than the planned target is a loss (e.g. 96,000 planned, 85,000 typed = 11,000).
-    Debt is separate: income below the target used is debt (see generate_entries)."""
+def month_stats(cfg: VehicleConfig, month: str, lost_map: Dict[Tuple[str, int], int]) -> dict:
+    """System view of one month, for the reports.
+    theoretical_target: full target, no losses (daily x main working days x income weeks).
+    real_target: the target written for each week (typed, or automatic after lost days).
+    loss: theoretical minus real, per week, only where real is lower. Loss is NOT debt.
+    theoretical_days / working_days: main days per week vs days actually worked after lost days."""
     y, mo = int(month[:4]), int(month[5:7])
-    total = 0
+    main = cfg.daily_target * cfg.working_days_count
+    st = {"theoretical_target": 0, "real_target": 0, "loss": 0, "theoretical_days": 0, "working_days": 0}
     for base in month_weeks(y, mo, cfg.working_days_count, cfg.include_week5):
         w = week_span(cfg, month, base)
         if not in_income_window(cfg, w):
             continue
         lost = lost_map.get((month, w.number), 0)
-        _, _, target, _ = resolve_week(cfg, month, w.number, lost)
-        main = cfg.daily_target * cfg.working_days_count
-        total += max(0, main - target)
-    return total
+        active, _, target, _ = resolve_week(cfg, month, w.number, lost)
+        st["theoretical_target"] += main
+        st["real_target"] += target
+        st["loss"] += max(0, main - target)
+        st["theoretical_days"] += cfg.working_days_count
+        st["working_days"] += max(0, len(active) - lost)
+    return st
+
+
+def loss_for_month(cfg: VehicleConfig, month: str, lost_map: Dict[Tuple[str, int], int]) -> int:
+    return month_stats(cfg, month, lost_map)["loss"]
 
 
 def in_income_window(cfg: VehicleConfig, w: Week) -> bool:
@@ -248,7 +256,7 @@ def generate_entries(cfg: VehicleConfig, returns: Sequence[ReturnRecord],
             out.append(DebtEntry(month=m, day=w.start, type=kind, week_number=w.number,
                                  new_debt=deficit, week_surplus=surplus, sub=0, week_target=target,
                                  period_end=w.end,
-                                 week_days=len(active),
+                                 week_days=max(0, len(active) - lost),
                                  week_loss=max(0, cfg.daily_target * cfg.working_days_count - target),
                                  confirmed=(all(r.confirmed for r in in_week) if in_week else None),
                                  notes=(f"Dereva: {name} - " if name else "") +
