@@ -36,12 +36,21 @@ def _in_month(qs, field, m):
     return qs.filter(**{f"{field}__year": y, f"{field}__month": mo})
 
 
+def _returns_in_month(qs, m):
+    """Income belongs to the month and week chosen on the form (record_month + week_number),
+    the same rule the Income screen uses. Old records without a week use their payment date."""
+    from django.db.models import Q
+    y, mo = int(m[:4]), int(m[5:7])
+    return qs.filter(Q(week_number__isnull=False, record_month=m) |
+                     Q(week_number__isnull=True, day__year=y, day__month=mo))
+
+
 def vehicle_month(v, m, entries):
     s = debt_summary(entries, m, v)
     weeks = sum(1 for e in entries if e.month == m and e.type in WEEK_TYPES)
     target = sum((e.week_target or 0) for e in entries if e.month == m and e.type in WEEK_TYPES)
-    collected = _in_month(Return.objects.filter(vehicle=v), "day", m).aggregate(t=Sum("amount"))["t"] or 0
-    excess = _in_month(Return.objects.filter(vehicle=v, is_excess=True), "day", m).aggregate(t=Sum("amount"))["t"] or 0
+    collected = _returns_in_month(Return.objects.filter(vehicle=v), m).aggregate(t=Sum("amount"))["t"] or 0
+    excess = _returns_in_month(Return.objects.filter(vehicle=v, is_excess=True), m).aggregate(t=Sum("amount"))["t"] or 0
     lost_map = {(l.month, l.week_number): l.days for l in v.lost_days.all()}
     st = month_stats(build_config(v), m, lost_map)
     lost_amount = st["loss"]
