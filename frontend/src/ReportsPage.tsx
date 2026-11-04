@@ -108,22 +108,24 @@ export default function ReportsPage({ mode, vehicles }: { mode: "report" | "grap
   const isQuarterly = kind === "q1" || kind === "q2" || kind === "q3" || kind === "q4";
   const isYearly = kind === "year";
 
-  const kpis = t ? [
-    ...(isMonthly ? [
-      { label: "Monthly Target", value: tsh(t.target), sub: "Total expected income", tone: "blue" },
-      { label: "Monthly Income", value: tsh(t.collected), sub: `${pct(share(t.collected, t.target))} of target`, tone: "green", bar: share(t.collected, t.target) },
-      { label: "Days Lost", value: String(t.lost_days), sub: "Working days lost", tone: "orange" },
-      { label: "Loss Amount", value: tsh(t.lost_amount), sub: "Financial value of lost days", tone: "red", bar: share(t.lost_amount, t.target) },
-    ] : [
-      { label: "Total Income", value: tsh(t.collected), sub: "Actual collection", tone: "green", bar: share(t.collected, t.target) },
-      { label: "Total Expenses", value: tsh(t.expenses + t.personal), sub: "Operating costs", tone: "orange" },
-      { label: "Days Lost", value: String(t.lost_days), sub: "Working days lost", tone: "orange" },
-      { label: "Loss Amount", value: tsh(t.lost_amount), sub: "Financial impact of lost days", tone: "red", bar: share(t.lost_amount, t.target) },
-    ]),
-    { label: isMonthly ? "Total Expenses" : "Total Profit", value: tsh(isMonthly ? t.expenses + t.personal : t.profit), sub: isMonthly ? "All business expenses" : "Income − expenses − loss", tone: isMonthly ? "orange" : (t.profit >= 0 ? "green" : "red") },
-    { label: isMonthly ? "Profit" : "Profit Margin", value: tsh(isMonthly ? t.profit : t.profit), sub: isMonthly ? "Income − expenses − loss" : `${pct(share(t.profit, t.collected))} of income`, tone: isMonthly ? (t.profit >= 0 ? "green" : "red") : (share(t.profit, t.collected) >= 0 ? "green" : "red"), bar: isMonthly ? undefined : share(t.profit, t.collected) },
-    { label: isMonthly ? "Profit Percentage" : "Annual Profit", value: isMonthly ? pct(share(t.profit, t.collected)) : tsh(t.profit), sub: isMonthly ? "Profit / income" : "Net profit for the selected period", tone: isMonthly ? (share(t.profit, t.collected) >= 0 ? "green" : "red") : (t.profit >= 0 ? "green" : "red") },
+  const monthlyKpis = t ? [
+    { label: "Theoretical Target", value: tsh(t.theoretical_target), sub: "Full target, no losses", tone: "blue", bar: 100 },
+    { label: "Real Target", value: tsh(t.target), sub: `${pct(share(t.target, t.theoretical_target))} of theoretical`, tone: "blue", bar: share(t.target, t.theoretical_target) },
+    { label: "Income", value: tsh(t.collected), sub: `${pct(share(t.collected, t.target))} of real target`, tone: "green", bar: share(t.collected, t.target) },
+    { label: "Working Days", value: `${t.working_days}/${t.theoretical_days}`, sub: `Lost days: ${t.theoretical_days - t.working_days}`, tone: "orange", bar: share(t.working_days, t.theoretical_days) },
+    { label: "Loss of Target", value: tsh(t.lost_amount), sub: `${pct(share(t.lost_amount, t.theoretical_target))} below theoretical`, tone: "red", bar: share(t.lost_amount, t.theoretical_target) },
+    { label: "Total Expenses", value: tsh(t.expenses + t.personal), sub: `${pct(share(t.expenses + t.personal, t.collected))} of income`, tone: "orange", bar: share(t.expenses + t.personal, t.collected) },
+    { label: "Profit", value: tsh(t.profit), sub: `${pct(share(t.profit, t.collected))} of income`, tone: t.profit >= 0 ? "green" : "red", bar: share(t.profit, t.collected) },
   ] : [];
+  const periodKpis = t ? [
+    { label: "Total Income", value: tsh(t.collected), sub: "Actual collection", tone: "green", bar: share(t.collected, t.target) },
+    { label: "Total Expenses", value: tsh(t.expenses + t.personal), sub: "Operating costs", tone: "orange" },
+    { label: "Days Lost", value: String(t.lost_days), sub: "Working days lost", tone: "orange" },
+    { label: "Loss Amount", value: tsh(t.lost_amount), sub: "Financial impact of lost days", tone: "red", bar: share(t.lost_amount, t.theoretical_target) },
+    { label: "Total Profit", value: tsh(t.profit), sub: "Income − expenses", tone: t.profit >= 0 ? "green" : "red" },
+    { label: "Profit Margin", value: pct(share(t.profit, t.collected)), sub: "Profit as % of income", tone: share(t.profit, t.collected) >= 0 ? "green" : "red", bar: share(t.profit, t.collected) },
+  ] : [];
+  const kpis = isMonthly ? monthlyKpis : periodKpis;
 
   return (
     <div className="reports">
@@ -309,7 +311,7 @@ export default function ReportsPage({ mode, vehicles }: { mode: "report" | "grap
           <footer className="rpt-foot">
             <p><b>Calculation rules.</b> Monthly target is derived from each vehicle's daily target, working days, and the number of applicable weeks in the month. Monthly income is the total recorded collection.</p>
             <p>Expense categories are taken from actual vehicle expense records; percentages are calculated as category expense ÷ total expenses × 100.</p>
-            <p>Profit = total income − total expenses − loss amount. Profit percentage = (profit ÷ total income) × 100. Loss is not counted twice.</p>
+            <p>Profit = total income − total expenses. Loss of target is tracked separately: loss = theoretical target − real target, and its % is loss ÷ theoretical target. Debt is only income below the real target.</p>
           </footer>
         </article>
       )}
