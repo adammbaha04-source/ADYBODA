@@ -2,18 +2,18 @@ import { getToken, request } from "./api";
 
 export interface ReportTotalsV3 {
   target: number; collected: number; excess: number; new_debt: number; debt_payments: number;
-  expenses: number; lost_days: number; lost_amount: number; personal: number; outstanding: number; profit: number;
+  expenses: number; lost_days: number; theoretical_target: number; theoretical_days: number; working_days: number; lost_amount: number; personal: number; outstanding: number; profit: number;
   service: number; tyres: number; insurance: number; other_payments: number;
 }
 export interface ReportMonthV3 {
   month: string; target: number; collected: number; excess: number; new_debt: number; debt_payments: number;
-  outstanding: number; expenses: number; lost_amount: number; lost_days: number; personal: number; profit: number;
+  outstanding: number; expenses: number; lost_amount: number; lost_days: number; theoretical_target: number; theoretical_days: number; working_days: number; personal: number; profit: number;
   service: number; tyres: number; insurance: number; other_payments: number;
 }
 export interface ReportVehicleV3 {
   id: number; name: string; type: string; driver: string; working_days: number; daily_target: number;
   weekly_target: number; target: number; collected: number; excess: number; outstanding: number;
-  new_debt: number; debt_payments: number; lost_days: number; lost_amount: number; service: number;
+  new_debt: number; debt_payments: number; lost_days: number; theoretical_target: number; theoretical_days: number; working_days: number; lost_amount: number; service: number;
   tyres: number; insurance: number; other_payments: number; expenses: number; profit: number;
   weeks: { number: number; amount: number }[]; week_count: number;
 }
