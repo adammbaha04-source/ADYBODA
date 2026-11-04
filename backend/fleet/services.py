@@ -71,7 +71,7 @@ def build_config(vehicle) -> VehicleConfig:
     periods = [DriverPeriod(p.driver_name, p.from_date) for p in vehicle.driver_periods.all()]
     days = sorted(vehicle.active_days) if vehicle.active_days else list(range(vehicle.working_days_count))
     overrides = {(ws.month, ws.week_number): WeekOverride(active=ws.active_days, target=ws.target,
-                                                          start=ws.start_date, end=ws.end_date)
+                                                          start=ws.start_date, end=ws.end_date, note=ws.note)
                  for ws in vehicle.week_settings.all()}
     return VehicleConfig(
         daily_target=vehicle.daily_target,
