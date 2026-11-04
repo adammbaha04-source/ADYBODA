@@ -40,6 +40,10 @@ export const listVehicles = () => request<Vehicle[]>("/vehicles/");
 export const getDebt = (vehicleId: number, month: string) =>
   request<DebtResponse>(`/vehicles/${vehicleId}/debt/?month=${month}`);
 
+export type DebtBundle = DebtResponse & { vehicle_id: number };
+export const getDebtSummaries = (month: string) =>
+  request<DebtBundle[]>(`/vehicles/debt-summaries/?month=${month}`);
+
 export const setCarry = (vehicleId: number, month: string, carry: boolean) =>
   request(`/vehicles/${vehicleId}/carry/`, {
     method: "POST",
@@ -180,6 +184,7 @@ export interface WeekPlan {
   target: number;
   lost_days: number;
   in_income_period: boolean;
+  note?: string;
 }
 
 export const getWeekPlan = (vehicleId: number, month: string) =>
@@ -189,7 +194,7 @@ export const saveWeekPlan = (
   vehicleId: number,
   body: {
     month: string; week_number: number; active_days?: number[] | null; target?: number | null;
-    start_date?: string | null; end_date?: string | null;
+    start_date?: string | null; end_date?: string | null; note?: string | null;
   },
 ) => request<{ month: string; weeks: WeekPlan[] }>(`/vehicles/${vehicleId}/week-plan/`, {
   method: "POST",
