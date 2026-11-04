@@ -1,3 +1,4 @@
+import { useState } from "react";
 import type { CSSProperties, ReactNode } from "react";
 import type { ReportV3 } from "./reportApi";
 import { tsh } from "./format";
@@ -105,6 +106,7 @@ function WeeklyChart({ data, period }: DataProps) {
 }
 
 function ExpensePie({ cats, period }: { cats: ExpCat[]; period: string }) {
+  const [sel, setSel] = useState<number | null>(null);
   const items = cats.filter((c) => c.amount > 0);
   const total = items.reduce((a, c) => a + c.amount, 0);
   if (total <= 0) {
@@ -134,21 +136,28 @@ function ExpensePie({ cats, period }: { cats: ExpCat[]; period: string }) {
       <h3 style={TITLE}>Expenses by Category - {period}</h3>
       <div style={{ display: "flex", flexWrap: "wrap", alignItems: "center", justifyContent: "center", gap: 18 }}>
         <svg viewBox="0 0 240 240" width="220" height="220" role="img" aria-label="Expenses pie chart">
-          {slices.map((s) => (
-            <path key={s.label} d={s.d} fill={s.color} stroke="#fff" strokeWidth="2">
+          {slices.map((s, i) => (
+            <path key={s.label} d={s.d} fill={s.color} stroke="#fff" strokeWidth={sel === i ? 4 : 2}
+              onClick={() => setSel(sel === i ? null : i)} style={{ cursor: "pointer" }}>
               <title>{`${s.label}: ${tsh(s.amount)} (${s.pct.toFixed(0)}%)`}</title>
             </path>
           ))}
         </svg>
         <ul style={{ listStyle: "none", margin: 0, padding: 0, fontSize: 15, color: "#4b5563" }}>
-          {slices.map((s) => (
-            <li key={s.label} style={{ display: "flex", alignItems: "center", gap: 8, padding: "4px 0" }}>
+          {slices.map((s, i) => (
+            <li key={s.label} onClick={() => setSel(sel === i ? null : i)}
+              style={{ display: "flex", alignItems: "center", gap: 8, padding: "4px 0", cursor: "pointer" }}>
               <span style={{ ...DOT, background: s.color }} />
               {s.label}
             </li>
           ))}
         </ul>
       </div>
+      {sel !== null && slices[sel] && (
+        <div style={{ marginTop: 12, padding: 12, borderRadius: 12, background: "#f8fafc", border: "1px solid #e2e8f0", textAlign: "center", fontSize: 15, color: "#334155" }}>
+          <b style={{ color: slices[sel].color }}>{slices[sel].label}</b>: {tsh(slices[sel].amount)} ({slices[sel].pct.toFixed(1)}% ya matumizi)
+        </div>
+      )}
     </>
   );
 }
