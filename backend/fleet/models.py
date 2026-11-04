@@ -33,6 +33,7 @@ class WeekSetting(models.Model):
     target = models.PositiveIntegerField(null=True, blank=True) # None = kiotomatiki
     start_date = models.DateField(null=True, blank=True)        # None = tarehe za kiotomatiki
     end_date = models.DateField(null=True, blank=True)          # None = tarehe za kiotomatiki
+    note = models.CharField(max_length=300, blank=True, default="")  # sababu ya target kupungua
 
     class Meta:
         unique_together = [("vehicle", "month", "week_number")]
