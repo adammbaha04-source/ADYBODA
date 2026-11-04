@@ -13,7 +13,7 @@ export interface ReportMonthV3 {
 export interface ReportVehicleV3 {
   id: number; name: string; type: string; driver: string; working_days: number; daily_target: number;
   weekly_target: number; target: number; collected: number; excess: number; outstanding: number;
-  new_debt: number; debt_payments: number; lost_days: number; theoretical_target: number; theoretical_days: number; working_days: number; lost_amount: number; service: number;
+  new_debt: number; debt_payments: number; lost_days: number; lost_amount: number; service: number;
   tyres: number; insurance: number; other_payments: number; expenses: number; profit: number;
   weeks: { number: number; amount: number }[]; week_count: number;
 }
