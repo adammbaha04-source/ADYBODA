@@ -13,7 +13,7 @@ Definitions (kept identical to the existing screens):
 """
 from datetime import date
 from django.db.models import Sum
-from fleet.engine import months_between, month_weeks, loss_for_month
+from fleet.engine import months_between, month_weeks, month_stats
 from fleet.models import (Return, LostDays, ServiceRecord, TyreRecord, InsuranceRecord, PaymentRecord,
                           PersonalExpense, UserProfile)
 from fleet.services import vehicle_debt, debt_summary, build_config
@@ -38,9 +38,10 @@ def vehicle_month(v, m, entries):
     target = sum((e.week_target or 0) for e in entries if e.month == m and e.type in WEEK_TYPES)
     collected = _in_month(Return.objects.filter(vehicle=v), "day", m).aggregate(t=Sum("amount"))["t"] or 0
     excess = _in_month(Return.objects.filter(vehicle=v, is_excess=True), "day", m).aggregate(t=Sum("amount"))["t"] or 0
-    lost_days = sum(l.days for l in LostDays.objects.filter(vehicle=v, month=m))
     lost_map = {(l.month, l.week_number): l.days for l in v.lost_days.all()}
-    lost_amount = loss_for_month(build_config(v), m, lost_map)
+    st = month_stats(build_config(v), m, lost_map)
+    lost_amount = st["loss"]
+    lost_days = st["theoretical_days"] - st["working_days"]
     service = sum(x.count * x.unit_price for x in _in_month(ServiceRecord.objects.filter(vehicle=v), "day", m))
     tyres = _in_month(TyreRecord.objects.filter(vehicle=v), "day", m).aggregate(t=Sum("amount"))["t"] or 0
     insurance = _in_month(InsuranceRecord.objects.filter(vehicle=v), "day", m).aggregate(t=Sum("amount"))["t"] or 0
@@ -52,6 +53,8 @@ def vehicle_month(v, m, entries):
         "lost_days": lost_days, "lost_amount": lost_amount,
         "service": service, "tyres": tyres, "insurance": insurance, "other_payments": other_pay,
         "expenses": expenses, "weeks_in_month": weeks,
+        "theoretical_target": st["theoretical_target"], "theoretical_days": st["theoretical_days"],
+        "working_days": st["working_days"],
     }
 
 
@@ -94,6 +97,7 @@ def build_report(owner, start: str, end: str, vehicle_id=None):
     per_vehicle = []
     month_rows = {m: {"target": 0, "collected": 0, "excess": 0, "new_debt": 0, "debt_payments": 0,
                       "outstanding": 0, "expenses": 0, "lost_amount": 0, "lost_days": 0,
+                      "theoretical_target": 0, "theoretical_days": 0, "working_days": 0,
                       "service": 0, "tyres": 0, "insurance": 0, "other_payments": 0} for m in months}
     for v in vehicles:
         entries = vehicle_debt(v, end)
@@ -106,7 +110,8 @@ def build_report(owner, start: str, end: str, vehicle_id=None):
             r = vehicle_month(v, m, entries)
             mr = month_rows[m]
             for k in ("target", "collected", "excess", "new_debt", "debt_payments", "lost_days", "lost_amount",
-                      "expenses", "service", "tyres", "insurance", "other_payments"):
+                      "expenses", "service", "tyres", "insurance", "other_payments",
+                      "theoretical_target", "theoretical_days", "working_days"):
                 mr[k] += r[k]
                 tot[k] += r[k]
             mr["outstanding"] += r["outstanding"]
@@ -147,14 +152,15 @@ def build_report(owner, start: str, end: str, vehicle_id=None):
 
     totals = {k: sum(r[k] for r in series) for k in
               ("target", "collected", "excess", "new_debt", "debt_payments", "expenses", "lost_days", "lost_amount",
-               "service", "tyres", "insurance", "other_payments")}
+               "service", "tyres", "insurance", "other_payments", "theoretical_target", "theoretical_days",
+               "working_days")}
     totals["personal"] = sum(personal.values())
     totals["outstanding"] = series[-1]["outstanding"] if series else 0
     totals["profit"] = totals["collected"] - totals["expenses"] - totals["personal"]
     # Deviation from system target: loss / system target (system target = target used + loss).
     system_target = totals["target"] + totals["lost_amount"]
     totals["system_target"] = system_target
-    totals["loss_pct"] = round(totals["lost_amount"] / system_target * 100, 1) if system_target else 0
+    totals["loss_pct"] = round(totals["lost_amount"] / totals["theoretical_target"] * 100, 1) if totals["theoretical_target"] else 0
     totals["achieved_pct"] = round(totals["collected"] / totals["target"] * 100, 1) if totals["target"] else 0
 
     prof = UserProfile.objects.filter(user=owner).first()
