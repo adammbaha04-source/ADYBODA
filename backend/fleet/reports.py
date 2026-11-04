@@ -115,7 +115,8 @@ def _build_report(owner, start: str, end: str, vehicle_id=None):
     for v in vehicles:
         entries = vehicle_debt(v, end)
         tot = {k: 0 for k in ("target", "collected", "excess", "lost_days", "lost_amount", "expenses",
-                              "new_debt", "debt_payments", "service", "tyres", "insurance", "other_payments")}
+                              "new_debt", "debt_payments", "service", "tyres", "insurance", "other_payments",
+                              "theoretical_target", "theoretical_days", "working_days")}
         last_outstanding = 0
         week_totals = {}
         week_count = 0
