@@ -50,6 +50,21 @@ class VehicleViewSet(viewsets.ModelViewSet):
     def perform_create(self, serializer):
         serializer.save(owner=self.request.user)
 
+    @action(detail=False, methods=["get"], url_path="debt-summaries")
+    def debt_summaries(self, request):
+        """All vehicles' debt for one month in ONE request (the Vehicles screen used to make one request per vehicle)."""
+        month = request.query_params.get("month")
+        if not month or len(month) != 7:
+            raise ValidationError({"month": "Use YYYY-MM."})
+        out = []
+        for vehicle in self.get_queryset():
+            entries = vehicle_debt(vehicle, month)
+            month_entries = [e for e in entries if e.month == month]
+            out.append({"vehicle_id": vehicle.id,
+                        "summary": debt_summary(entries, month, vehicle),
+                        "entries": serialize_entries(month_entries)})
+        return Response(out)
+
     @action(detail=True, methods=["get"])
     def debt(self, request, pk=None):
         vehicle = self.get_object()
@@ -91,6 +106,8 @@ class VehicleViewSet(viewsets.ModelViewSet):
             ws, _ = WeekSetting.objects.get_or_create(vehicle=vehicle, month=month, week_number=week)
             if has_dates:
                 ws.start_date, ws.end_date = new_start, new_end
+            if "note" in request.data:
+                ws.note = str(request.data.get("note") or "").strip()[:300]
 
             if "active_days" in request.data:
                 days = request.data.get("active_days")
@@ -115,7 +132,7 @@ class VehicleViewSet(viewsets.ModelViewSet):
                         raise ValidationError({"target": "Target lazima iwe kubwa kuliko 0."})
                     ws.target = t
 
-            if ws.active_days is None and ws.target is None and ws.start_date is None:
+            if ws.active_days is None and ws.target is None and ws.start_date is None and not ws.note:
                 ws.delete()
             else:
                 ws.save()
