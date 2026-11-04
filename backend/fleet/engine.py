@@ -43,6 +43,7 @@ class WeekOverride:          # one week's own settings (set by the user)
     target: Optional[int] = None         # None = automatic (daily target x working days)
     start: Optional[date] = None         # None = automatic start date
     end: Optional[date] = None           # None = automatic end date
+    note: str = ""                       # reason for a reduced week target
 
 
 @dataclass
@@ -210,6 +211,7 @@ def plan_month(cfg: VehicleConfig, month: str, lost_days: Dict[Tuple[str, int], 
             "target": target,
             "lost_days": lost,
             "in_income_period": in_income_window(cfg, w),
+            "note": ov.note if ov is not None else "",
         })
     return rows
 
