@@ -23,6 +23,7 @@ export default function TargetPanel({ vehicle, month: startMonth, onSaved }: {
   const [endDate, setEndDate] = useState("");
   const [days, setDays] = useState<number[]>(baseDays);
   const [manual, setManual] = useState("");
+  const [note, setNote] = useState("");
   const [daily, setDaily] = useState(String(vehicle.daily_target));
   const [msg, setMsg] = useState("");
   const [err, setErr] = useState("");
@@ -31,6 +32,8 @@ export default function TargetPanel({ vehicle, month: startMonth, onSaved }: {
   const dailyNum = Number(daily) || 0;
   const autoTarget = dailyNum * Math.max(0, days.length - (current?.lost_days ?? 0));
   const shownTarget = manual.trim() ? Number(manual) : autoTarget;
+  const mainTarget = dailyNum * vehicle.working_days_count;
+  const reduced = manual.trim() !== "" && Number(manual) < mainTarget;
 
   async function loadPlan(m: string) {
     try {
@@ -49,6 +52,7 @@ export default function TargetPanel({ vehicle, month: startMonth, onSaved }: {
     if (!w) return;
     setDays(w.active_days);
     setManual(w.manual_target == null ? "" : String(w.manual_target));
+    setNote(w.note ?? "");
     setStartDate(w.start);
     setEndDate(w.end);
   }, [weeks, week]);
@@ -60,6 +64,7 @@ export default function TargetPanel({ vehicle, month: startMonth, onSaved }: {
   async function saveWeek() {
     setErr(""); setMsg("");
     if (days.length === 0) { setErr("Chagua angalau siku moja ya kufanya kazi."); return; }
+    if (reduced && !note.trim()) { setErr("Andika sababu ya target kupungua (mf. garage, mgonjwa, amekamatwa na police)."); return; }
     if (startDate && endDate && endDate < startDate) { setErr("Tarehe ya mwisho iwe baada ya tarehe ya kuanza."); return; }
     try {
       const r = await saveWeekPlan(vehicle.id, {
@@ -69,6 +74,7 @@ export default function TargetPanel({ vehicle, month: startMonth, onSaved }: {
         target: manual.trim() === "" ? null : Number(manual),
         start_date: startDate || null,
         end_date: endDate || null,
+        note: note.trim() || null,
       });
       setWeeks(r.weeks);
       setMsg(`Wiki ${week} imehifadhiwa.`);
@@ -82,7 +88,7 @@ export default function TargetPanel({ vehicle, month: startMonth, onSaved }: {
     setErr(""); setMsg("");
     try {
       const r = await saveWeekPlan(vehicle.id, {
-        month, week_number: week, active_days: null, target: null, start_date: null, end_date: null,
+        month, week_number: week, active_days: null, target: null, start_date: null, end_date: null, note: null,
       });
       setWeeks(r.weeks);
       setMsg(`Wiki ${week} imerudi kiotomatiki.`);
@@ -151,6 +157,12 @@ export default function TargetPanel({ vehicle, month: startMonth, onSaved }: {
           value={manual} onChange={(e) => setManual(e.target.value)} />
       </label>
       <p className="hint">Week target: <b>{tsh(shownTarget)}</b></p>
+      {reduced && (
+        <label>Sababu ya target kupungua
+          <textarea rows={2} maxLength={300} value={note} onChange={(e) => setNote(e.target.value)}
+            placeholder="Mf. garage, mgonjwa, amekamatwa na police" />
+        </label>
+      )}
 
       <div className="btn-row">
         <button type="button" onClick={saveWeek}>Save week {week}</button>
