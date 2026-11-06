@@ -4,7 +4,7 @@ export type Role = "owner" | "manager" | "driver";
 
 export type View =
   | "vehicles" | "income" | "service" | "debt" | "changamoto" | "ripoti"
-  | "grafu" | "users" | "profile" | "settings" | "manage";
+  | "grafu" | "users" | "profile" | "settings";
 
 export interface MenuItem { key: View; label: string; icon: string; }
 
@@ -19,7 +19,6 @@ export const MENU: MenuItem[] = [
   { key: "users", label: "Users", icon: "👥" },
   { key: "profile", label: "Profile", icon: "👤" },
   { key: "settings", label: "Settings", icon: "⚙️" },
-  { key: "manage", label: "Usimamizi", icon: "🛠️" },
 ];
 
 const ALLOWED: Record<Role, View[]> = {
