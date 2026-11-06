@@ -1,5 +1,6 @@
 import { useEffect, useState, type FormEvent } from "react";
 import { changeDriver, createVehicle, getDebt, updateVehicle } from "./api";
+import DriverSection from "./DriverSection";
 import { monthLabel, shortDate, todayYMD, tsh } from "./format";
 import type { DebtEntry, DebtSummary, Vehicle } from "./types";
 
@@ -85,7 +86,10 @@ export function AddVehicleForm({ onSaved, onCancel }: { onSaved: () => void; onC
 }
 
 // ---------- Edit vehicle (inline, opened by the pencil) ----------
-function EditVehicleInline({ vehicle, onSaved, onClose }: { vehicle: Vehicle; onSaved: () => void; onClose: () => void }) {
+// Vehicle fields on top, then the driver section (Hariri dereva / Badili dereva).
+function EditVehicleInline({
+  vehicle, onSaved, onClose, onRefresh,
+}: { vehicle: Vehicle; onSaved: () => void; onClose: () => void; onRefresh: () => void }) {
   const [name, setName] = useState(vehicle.name);
   const [type, setType] = useState(vehicle.vehicle_type);
   const [amount, setAmount] = useState(String(vehicle.daily_target));
@@ -107,25 +111,29 @@ function EditVehicleInline({ vehicle, onSaved, onClose }: { vehicle: Vehicle; on
   }
 
   return (
-    <form className="inline-edit" onSubmit={save} onClick={(e) => e.stopPropagation()}>
-      <label>Namba ya gari<input value={name} onChange={(e) => setName(e.target.value)} required /></label>
-      <div className="type-pick">
-        {PRESETS.map((p) => (
-          <label key={p.key} className={type === p.key ? "on" : ""}>
-            <input type="radio" name={"edit-" + vehicle.id} checked={type === p.key} onChange={() => setType(p.key)} />
-            <span>{p.label}</span>
-          </label>
-        ))}
-      </div>
-      <label>Kiasi kwa siku (TSh)<input type="number" inputMode="numeric" min={1} value={amount} onChange={(e) => setAmount(e.target.value)} required /></label>
-      <label>Siku za kazi kwa wiki<input type="number" inputMode="numeric" min={1} max={7} value={days} onChange={(e) => setDays(e.target.value)} required /></label>
-      <p className="week-preview">Target ya wiki: {tsh((Number(amount) || 0) * (Number(days) || 0))}</p>
-      {error && <p className="error">{error}</p>}
-      <div className="row">
-        <button type="submit" disabled={busy}>{busy ? "Inahifadhi..." : "Hifadhi"}</button>
-        <button type="button" className="ghost" onClick={onClose}>Funga</button>
-      </div>
-    </form>
+    <div className="vehicle-edit" onClick={(e) => e.stopPropagation()}>
+      <form className="inline-edit" onSubmit={save}>
+        <label>Namba ya gari<input value={name} onChange={(e) => setName(e.target.value)} required /></label>
+        <div className="type-pick">
+          {PRESETS.map((p) => (
+            <label key={p.key} className={type === p.key ? "on" : ""}>
+              <input type="radio" name={"edit-" + vehicle.id} checked={type === p.key} onChange={() => setType(p.key)} />
+              <span>{p.label}</span>
+            </label>
+          ))}
+        </div>
+        <label>Kiasi kwa siku (TSh)<input type="number" inputMode="numeric" min={1} value={amount} onChange={(e) => setAmount(e.target.value)} required /></label>
+        <label>Siku za kazi kwa wiki<input type="number" inputMode="numeric" min={1} max={7} value={days} onChange={(e) => setDays(e.target.value)} required /></label>
+        <p className="week-preview">Target ya wiki: {tsh((Number(amount) || 0) * (Number(days) || 0))}</p>
+        {error && <p className="error">{error}</p>}
+        <div className="row">
+          <button type="submit" disabled={busy}>{busy ? "Inahifadhi..." : "Hifadhi"}</button>
+          <button type="button" className="ghost" onClick={onClose}>Funga</button>
+        </div>
+      </form>
+
+      <DriverSection vehicle={vehicle} onSaved={onRefresh} />
+    </div>
   );
 }
 
@@ -171,7 +179,14 @@ export function VehicleCard(props: {
       </div>
       <p className="driver">{driverText}</p>
 
-      {canManage && editing && <EditVehicleInline vehicle={vehicle} onSaved={() => { setEditing(false); onUpdated(); }} onClose={() => setEditing(false)} />}
+      {canManage && editing && (
+        <EditVehicleInline
+          vehicle={vehicle}
+          onSaved={() => { setEditing(false); onUpdated(); }}
+          onClose={() => setEditing(false)}
+          onRefresh={onUpdated}
+        />
+      )}
 
       {!s && <p className="driver">Inapakia...</p>}
 
