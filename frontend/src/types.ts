@@ -3,6 +3,11 @@ export interface DriverPeriod {
   driver_name: string;
   phone: string;
   from_date: string;
+  email?: string;
+  residence?: string;
+  guarantor_name?: string;
+  guarantor_phone?: string;
+  reason?: string;
 }
 
 export interface Vehicle {
