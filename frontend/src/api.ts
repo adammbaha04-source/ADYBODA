@@ -73,17 +73,51 @@ export const updateVehicle = (id: number, data: Partial<Vehicle>) =>
 export const listLostDays = (vehicleId: number) =>
   request<LostDays[]>(`/lost-days/`).then((rows) => rows.filter((r) => r.vehicle === vehicleId));
 
-export const changeDriver = (vehicleId: number, driverName: string, phone: string, fromDate: string) =>
+// ----- Driver -----
+export interface DriverDetails {
+  email?: string;
+  residence?: string;
+  guarantor_name?: string;
+  guarantor_phone?: string;
+  reason?: string;
+}
+
+// Badili dereva: creates a new driver period. Positional arguments stay the same,
+// so AddVehicleForm keeps working without changes.
+export const changeDriver = (
+  vehicleId: number,
+  driverName: string,
+  phone: string,
+  fromDate: string,
+  extra: DriverDetails = {},
+) =>
   request("/driver-periods/", {
     method: "POST",
-    body: JSON.stringify({ vehicle: vehicleId, driver_name: driverName, phone, from_date: fromDate }),
+    body: JSON.stringify({ vehicle: vehicleId, driver_name: driverName, phone, from_date: fromDate, ...extra }),
   });
+
+// Hariri dereva: corrects the current driver period without creating a new one.
+export const updateDriverPeriod = (periodId: number, data: Record<string, string>) =>
+  request(`/driver-periods/${periodId}/`, { method: "PATCH", body: JSON.stringify(data) });
 
 export const addLostDays = (vehicleId: number, month: string, weekNumber: number, days: number) =>
   request("/lost-days/", {
     method: "POST",
     body: JSON.stringify({ vehicle: vehicleId, month, week_number: weekNumber, days }),
   });
+
+// Siku zilizopotea: one row per (vehicle, month, week). Updates the existing row when there is one,
+// so a second entry for the same week does not hit the unique constraint.
+export const saveLostDays = (
+  vehicleId: number,
+  month: string,
+  weekNumber: number,
+  days: number,
+  existingId?: number,
+) =>
+  existingId
+    ? request(`/lost-days/${existingId}/`, { method: "PATCH", body: JSON.stringify({ days }) })
+    : addLostDays(vehicleId, month, weekNumber, days);
 
 export const addManualEntry = (vehicleId: number, kind: string, day: string, amount: number, note: string) =>
   request("/manual-entries/", {
