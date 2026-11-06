@@ -22,11 +22,22 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 # SECURITY WARNING: keep the secret key used in production secret!
 import os
 import dj_database_url
-
-SECRET_KEY = os.environ.get('DJANGO_SECRET_KEY', 'dev-only-insecure-key-change-me')
+from django.core.exceptions import ImproperlyConfigured
 
 # SECURITY WARNING: don't run with debug turned on in production!
-DEBUG = os.environ.get('DJANGO_DEBUG', '1') == '1'
+# Debug is OFF unless explicitly switched on (local development only).
+DEBUG = os.environ.get('DJANGO_DEBUG', '0') == '1'
+
+# The secret key must come from the environment in production. A fallback key is only
+# allowed while DEBUG is on, so a missing key on the server stops the app instead of
+# running with a publicly known key.
+_secret_key = os.environ.get('DJANGO_SECRET_KEY')
+if not _secret_key:
+    if DEBUG:
+        _secret_key = 'dev-only-insecure-key-change-me'
+    else:
+        raise ImproperlyConfigured('DJANGO_SECRET_KEY is not set. Add it in the Render environment settings.')
+SECRET_KEY = _secret_key
 
 ALLOWED_HOSTS = [h for h in os.environ.get('DJANGO_ALLOWED_HOSTS', 'localhost,127.0.0.1').split(',') if h]
 CSRF_TRUSTED_ORIGINS = [o for o in os.environ.get('DJANGO_CSRF_ORIGINS', '').split(',') if o]
