@@ -6,7 +6,8 @@ from fleet.models import (Vehicle, DriverPeriod, Return, LostDays, ManualLedgerE
 class DriverPeriodSerializer(serializers.ModelSerializer):
     class Meta:
         model = DriverPeriod
-        fields = ["id", "driver_name", "phone", "from_date"]
+        fields = ["id", "driver_name", "phone", "from_date", "email", "residence",
+                  "guarantor_name", "guarantor_phone", "reason"]
 
 
 class VehicleSerializer(serializers.ModelSerializer):
