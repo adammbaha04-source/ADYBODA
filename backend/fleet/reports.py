@@ -36,6 +36,38 @@ def _in_month(qs, field, m):
     return qs.filter(**{f"{field}__year": y, f"{field}__month": mo})
 
 
+def _expense_items(v, m):
+    """Every expense of one vehicle in one month, one row per record, with its description."""
+    items = []
+    for r in _in_month(ServiceRecord.objects.filter(vehicle=v), "day", m):
+        bits = [r.tool or "Service"]
+        if r.count and r.count > 1:
+            bits.append(f"{r.count} x {r.unit_price:,}")
+        if r.seller:
+            bits.append(f"muuzaji: {r.seller}")
+        if r.note:
+            bits.append(r.note)
+        items.append({"category": "Service", "description": " · ".join(bits), "amount": r.count * r.unit_price})
+    for r in _in_month(TyreRecord.objects.filter(vehicle=v), "day", m):
+        items.append({"category": "Tairi", "description": r.note or "Tairi", "amount": r.amount})
+    for r in _in_month(InsuranceRecord.objects.filter(vehicle=v), "day", m):
+        items.append({"category": "Bima", "description": r.note or "Bima", "amount": r.amount})
+    labels = dict(PaymentRecord.TYPES)
+    for r in _in_month(PaymentRecord.objects.filter(vehicle=v).exclude(payment_type="debt_payment"), "day", m):
+        label = labels.get(r.payment_type, r.payment_type)
+        items.append({"category": label, "description": r.note or label, "amount": r.amount})
+    return items
+
+
+def _sorted_items(items):
+    """Largest first, each with its percentage of total expenses."""
+    total = sum(it["amount"] for it in items)
+    out = sorted(items, key=lambda it: it["amount"], reverse=True)
+    for it in out:
+        it["pct"] = round(it["amount"] / total * 100, 1) if total else 0
+    return out
+
+
 def _returns_in_month(qs, m):
     """Income belongs to the month and week chosen on the form (record_month + week_number),
     the same rule the Income screen uses. Old records without a week use their payment date."""
@@ -68,6 +100,7 @@ def vehicle_month(v, m, entries):
         "expenses": expenses, "weeks_in_month": weeks,
         "theoretical_target": st["theoretical_target"], "theoretical_days": st["theoretical_days"],
         "working_days": st["working_days"],
+        "expense_items": _expense_items(v, m),
     }
 
 
@@ -117,6 +150,7 @@ def _build_report(owner, start: str, end: str, vehicle_id=None):
     months = months_between(start, end)
     single = len(months) == 1
     per_vehicle = []
+    all_items = []
     month_rows = {m: {"target": 0, "collected": 0, "excess": 0, "new_debt": 0, "debt_payments": 0,
                       "outstanding": 0, "expenses": 0, "lost_amount": 0, "lost_days": 0,
                       "theoretical_target": 0, "theoretical_days": 0, "working_days": 0,
@@ -131,6 +165,7 @@ def _build_report(owner, start: str, end: str, vehicle_id=None):
         week_count = 0
         for m in months:
             r = vehicle_month(v, m, entries)
+            all_items.extend({**it, "vehicle": v.name} for it in r["expense_items"])
             mr = month_rows[m]
             for k in ("target", "collected", "excess", "new_debt", "debt_payments", "lost_days", "lost_amount",
                       "expenses", "service", "tyres", "insurance", "other_payments",
@@ -194,6 +229,7 @@ def _build_report(owner, start: str, end: str, vehicle_id=None):
         "from": start, "to": end, "vehicle_id": vehicle_id, "single_month": single,
         "title": kind, "subtitle": subtitle,
         "totals": totals, "series": series, "vehicles": per_vehicle,
+        "expense_items": _sorted_items(all_items),
         "personal_categories": cats,
         "business_name": (prof.business_name if prof else "") or owner.username,
         "generated": date.today().isoformat(),
