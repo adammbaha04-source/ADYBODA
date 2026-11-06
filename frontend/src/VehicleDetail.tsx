@@ -2,7 +2,7 @@ import { useEffect, useState, type FormEvent, type ReactNode } from "react";
 import {
   addManualEntry, createInsurance, createPayment, createService, createTyre,
   deleteRecord, deleteVehicle, getDebt, listInsurances, listLostDays, listPayments,
-  listServices, listTyres, setCarry, updateVehicle,
+  listServices, listTyres, saveLostDays, setCarry, updateVehicle,
 } from "./api";
 import { confirmIncome, deleteIncome, listIncome, type IncomeRow } from "./incomeApi";
 import { confirmManualEntry, confirmPayment, listManualEntries, type ManualEntry, type PaymentRow } from "./roleApi";
@@ -15,7 +15,7 @@ import type { Role } from "./roles";
 import type { DebtEntry, DebtResponse, InsuranceRecord, LostDays, ServiceRecord, TyreRecord, Vehicle } from "./types";
 import "./vehicle-detail.css";
 
-type Form = "income" | "service" | "servicePack" | "payment" | "debt" | "tyre" | "insurance" | "edit";
+type Form = "income" | "service" | "servicePack" | "payment" | "debt" | "tyre" | "insurance" | "edit" | "lost";
 
 const PAYMENT_TYPES = [
   { key: "TRA", label: "TRA Taxes" },
@@ -34,6 +34,7 @@ const FORM_TITLE: Record<Form, string> = {
   insurance: "Add Insurance",
   debt: "Add Debt",
   edit: "Set Targets & Edit Vehicle",
+  lost: "Siku zilizopotea",
 };
 
 // Bottom bar tiles (owner sees all five; manager sees income and payment; driver sees none).
@@ -47,6 +48,7 @@ const BAR: { key: Form; label: string; icon: string }[] = [
 // Opened from the + tile (owner only).
 const MORE: { key: Form | "saveMonth" | "delete"; label: string; icon: string; red?: boolean }[] = [
   { key: "debt", label: "Add Debt", icon: "📝" },
+  { key: "lost", label: "Siku zilizopotea", icon: "📅" },
   { key: "insurance", label: "Insurance", icon: "🛡️" },
   { key: "edit", label: "Set Targets & Edit", icon: "🎯" },
   { key: "saveMonth", label: "Save Month", icon: "💾" },
@@ -125,6 +127,8 @@ export default function VehicleDetail(props: {
   const [fTyre, setFTyre] = useState("");
   const [fInsType, setFInsType] = useState("");
   const [fMonths, setFMonths] = useState("12");
+  const [fWeek, setFWeek] = useState("1");
+  const [fLostDays, setFLostDays] = useState("1");
 
   const currentYM = todayYMD().slice(0, 7);
   const prevMonth = shiftMonth(month, -1);
@@ -175,6 +179,7 @@ export default function VehicleDetail(props: {
   function clearFields() {
     setFAmount(""); setFNote(""); setFTool(""); setFCount("1"); setFUnit("");
     setFSeller(""); setFTyre(""); setFInsType(""); setFMonths("12");
+    setFWeek("1"); setFLostDays("1");
   }
 
   function open(key: Form | "saveMonth" | "delete") {
@@ -226,6 +231,16 @@ export default function VehicleDetail(props: {
   function submitInsurance(e: FormEvent) {
     e.preventDefault();
     run(() => createInsurance(vehicle.id, fDay, fInsType.trim(), Number(fAmount) || 0, Number(fMonths) || 12, fNote.trim()), "Bima imehifadhiwa.");
+  }
+  // Siku zilizopotea: updates the week's row if it already exists, otherwise creates it.
+  function submitLost(e: FormEvent) {
+    e.preventDefault();
+    const week = Number(fWeek);
+    const existing = lost.find((l) => l.week_number === week);
+    run(
+      () => saveLostDays(vehicle.id, month, week, Number(fLostDays), existing?.id),
+      "Siku zimehifadhiwa.",
+    );
   }
   async function removeVehicle() {
     if (!confirm(`Futa gari ${vehicle.name}? Historia yake yote itafutwa.`)) return;
@@ -548,6 +563,27 @@ export default function VehicleDetail(props: {
               <label>Aina ya Bima<input value={fInsType} onChange={(e) => setFInsType(e.target.value)} placeholder="Comprehensive, Third Party" /></label>
               <label>Muda (Miezi)<input type="number" inputMode="numeric" value={fMonths} onChange={(e) => setFMonths(e.target.value)} min={1} /></label>
               <label>Maelezo<input value={fNote} onChange={(e) => setFNote(e.target.value)} placeholder="Maelezo ya ziada" /></label>
+              <div className="vd-actions">
+                <button type="submit">Hifadhi</button>
+                <button type="button" className="ghost" onClick={closeForm}>Sitisha / Cancel</button>
+              </div>
+            </form>
+          )}
+          {form === "lost" && (
+            <form onSubmit={submitLost}>
+              <h3>Siku zilizopotea</h3>
+              <label>Wiki
+                <select value={fWeek} onChange={(e) => setFWeek(e.target.value)}>
+                  {(vehicle.include_week5 ? [1, 2, 3, 4, 5] : [1, 2, 3, 4]).map((w) => (
+                    <option key={w} value={w}>Wiki {w}</option>
+                  ))}
+                </select>
+              </label>
+              <label>Siku zilizopotea (1-7)
+                <input type="number" inputMode="numeric" min={1} max={7} value={fLostDays}
+                  onChange={(e) => setFLostDays(e.target.value)} required />
+              </label>
+              <p className="hint">Mwezi: {monthLabel(month)}. Ikiwa wiki hiyo ina rekodi, itabadilishwa.</p>
               <div className="vd-actions">
                 <button type="submit">Hifadhi</button>
                 <button type="button" className="ghost" onClick={closeForm}>Sitisha / Cancel</button>
