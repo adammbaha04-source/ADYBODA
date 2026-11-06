@@ -38,11 +38,17 @@ class WeekSetting(models.Model):
     class Meta:
         unique_together = [("vehicle", "month", "week_number")]
 
+
 class DriverPeriod(models.Model):
     vehicle = models.ForeignKey(Vehicle, on_delete=models.CASCADE, related_name="driver_periods")
     driver_name = models.CharField(max_length=80, blank=True)  # blank = vehicle without driver
     phone = models.CharField(max_length=20, blank=True)
     from_date = models.DateField()
+    email = models.EmailField(blank=True, default="")
+    residence = models.CharField(max_length=160, blank=True, default="")         # anapoishi
+    guarantor_name = models.CharField(max_length=80, blank=True, default="")     # jina la mdhamini
+    guarantor_phone = models.CharField(max_length=20, blank=True, default="")    # simu ya mdhamini
+    reason = models.CharField(max_length=120, blank=True, default="")            # kwa nini alibadilishwa (dereva wa zamani)
 
     class Meta:
         ordering = ["from_date"]
