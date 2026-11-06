@@ -15,7 +15,7 @@ from reportlab.graphics.shapes import Drawing
 from reportlab.graphics.widgets.markers import makeMarker
 from reportlab.lib import colors
 from reportlab.lib.units import mm
-from reportlab.platypus import KeepTogether, Paragraph, Spacer
+from reportlab.platypus import KeepTogether, Paragraph, Spacer, Table, TableStyle
 
 from fleet.reports import MONTHS_SW
 
@@ -168,6 +168,48 @@ def _analysis(report, S):
     return [KeepTogether([Paragraph("Uchambuzi wa Kipindi", S["h2"])] + body), Spacer(1, 8)]
 
 
+VEHICLE_COLORS = [colors.HexColor(c) for c in
+                  ("#6366f1", "#a855f7", "#3b82f6", "#1e40af", "#ec4899", "#10b981", "#f97316", "#14b8a6")]
+
+
+def _weekly_lines(report, width):
+    """Weekly income line per vehicle, for a single-month report."""
+    vehicles = [v for v in report.get("vehicles", []) if v.get("weeks")]
+    if not vehicles:
+        return None
+    n = max(v.get("week_count") or 0 for v in vehicles) or max(w["number"] for v in vehicles for w in v["weeks"])
+    labels = [f"Wiki {i}" for i in range(1, n + 1)]
+    series = []
+    for i, v in enumerate(vehicles):
+        by_no = {w["number"]: w["amount"] for w in v["weeks"]}
+        series.append((v["name"], VEHICLE_COLORS[i % len(VEHICLE_COLORS)], [by_no.get(k, 0) for k in range(1, n + 1)]))
+    return _lines(labels, series, width)
+
+
+def _items_table(items, width, S):
+    """Every expense with its description and percentage."""
+    total = sum(it["amount"] for it in items)
+    rows = [["Aina", "Maelezo", "Kiasi", "%"]]
+    for it in items:
+        rows.append([Paragraph(it["category"], S["note"]), Paragraph(it["description"], S["note"]),
+                     _tsh(it["amount"]), f"{it['pct']:.1f}%"])
+    rows.append(["JUMLA", "", _tsh(total), "100%"])
+    t = Table(rows, colWidths=[width * 0.20, width * 0.48, width * 0.20, width * 0.12], repeatRows=1)
+    t.setStyle(TableStyle([
+        ("BACKGROUND", (0, 0), (-1, 0), colors.HexColor("#fbbf24")),
+        ("TEXTCOLOR", (0, 0), (-1, 0), colors.HexColor("#1c1917")),
+        ("FONTNAME", (0, 0), (-1, 0), "Helvetica-Bold"),
+        ("FONTSIZE", (0, 0), (-1, -1), 8),
+        ("ROWBACKGROUNDS", (0, 1), (-1, -2), [colors.white, colors.HexColor("#fffbeb")]),
+        ("BACKGROUND", (0, -1), (-1, -1), colors.HexColor("#fde68a")),
+        ("FONTNAME", (0, -1), (-1, -1), "Helvetica-Bold"),
+        ("ALIGN", (2, 0), (-1, -1), "RIGHT"),
+        ("GRID", (0, 0), (-1, -1), 0.25, colors.HexColor("#e2e8f0")),
+        ("VALIGN", (0, 0), (-1, -1), "MIDDLE"),
+    ]))
+    return t
+
+
 def chart_flowables(report: dict, S: dict, width, exp_rows) -> list:
     """Analysis, then the three graphs: income line, expense pie, target vs income."""
     rows = report.get("series") or []
@@ -176,10 +218,14 @@ def chart_flowables(report: dict, S: dict, width, exp_rows) -> list:
     labels = [_label(r["month"]) for r in rows]
     out = _analysis(report, S)
 
-    out.append(_block("Mstari wa Mapato dhidi ya Target", _lines(labels, [
-        ("Mapato", INCOME, [r["collected"] for r in rows]),
-        ("Target", TARGET, [r["target"] for r in rows]),
-    ], width), S))
+    weekly = _weekly_lines(report, width) if len(rows) == 1 else None
+    if weekly is not None:
+        out.append(_block("Mapato ya Wiki kwa Gari", weekly, S))
+    else:
+        out.append(_block("Mstari wa Mapato dhidi ya Target", _lines(labels, [
+            ("Mapato", INCOME, [r["collected"] for r in rows]),
+            ("Target", TARGET, [r["target"] for r in rows]),
+        ], width), S))
 
     items = [(n, a) for n, a in exp_rows if a > 0]
     if items:
@@ -187,6 +233,12 @@ def chart_flowables(report: dict, S: dict, width, exp_rows) -> list:
     else:
         out.append(_block("Matumizi kwa Kategoria",
                           Paragraph("Hakuna matumizi yaliyorekodiwa kwa kipindi hiki.", S["note"]), S))
+
+    items = report.get("expense_items") or []
+    if items:
+        out.append(Paragraph("Matumizi Yote kwa Maelezo", S["h2"]))
+        out.append(_items_table(items, width, S))
+        out.append(Spacer(1, 10))
 
     out.append(_block("Target dhidi ya Mapato kwa Mwezi", _bars(labels, [
         ("Target", TARGET, [r["target"] for r in rows]),
