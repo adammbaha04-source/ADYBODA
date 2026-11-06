@@ -3,7 +3,6 @@ import { deleteVehicle, getMe, listVehicles, type MeProfile } from "./api";
 import { currentMonth } from "./format";
 import { applyAppearance } from "./theme";
 import { asRole, canOpen, menuFor, ROLE_NAME, type View } from "./roles";
-import Manage from "./Manage";
 import VehicleDetail from "./VehicleDetail";
 import VehiclesPage, { type PeriodSel } from "./VehiclesPage";
 import ExpensesPage from "./ExpensesPage";
@@ -187,9 +186,6 @@ export default function Dashboard({ onLogout }: { onLogout: () => void }) {
         {view === "users" && <UsersPage vehicles={vehicles} />}
         {view === "profile" && <ProfilePage onChanged={(p) => applyAppearance(p)} />}
         {view === "settings" && <SettingsPage />}
-        {view === "manage" && (
-          <Manage vehicleId={vehicleId} onChanged={bump} onVehicleCreated={() => { loadVehicles(); bump(); }} />
-        )}
       </div>
     </div>
   );
