@@ -1,6 +1,6 @@
 import { useEffect, useState, type FormEvent, type ReactNode } from "react";
 import {
-  addManualEntry, createInsurance, createPayment, createService, createTyre,
+  addManualEntry, createInsurance, createPayment, createService,
   deleteRecord, deleteVehicle, getDebt, listInsurances, listLostDays, listPayments,
   listServices, listTyres, saveLostDays, setCarry, updateVehicle,
 } from "./api";
@@ -9,6 +9,8 @@ import { confirmManualEntry, confirmPayment, listManualEntries, type ManualEntry
 import IncomeForm from "./IncomeForm";
 import WeekTable from "./WeekTable";
 import TargetPanel from "./TargetPanel";
+import ToolInput from "./ToolInput";
+import RetireTyreDialog from "./RetireTyreDialog";
 import DebtTable from "./DebtTable";
 import { monthLabel, shortDate, todayYMD, tsh } from "./format";
 import type { Role } from "./roles";
@@ -30,7 +32,7 @@ const FORM_TITLE: Record<Form, string> = {
   payment: "Add Payment",
   service: "Add Service",
   servicePack: "Service ya Pamoja",
-  tyre: "Add Tyre",
+  tyre: "Tairi mpya / iliyoharibika",
   insurance: "Add Insurance",
   debt: "Add Debt",
   edit: "Set Targets & Edit Vehicle",
@@ -43,7 +45,7 @@ const BAR: { key: Form; label: string; icon: string }[] = [
   { key: "service", label: "Service", icon: "🔧" },
   { key: "payment", label: "Payment", icon: "🧾" },
   { key: "servicePack", label: "Pamoja", icon: "🧰" },
-  { key: "tyre", label: "Tyre", icon: "🛞" },
+  { key: "tyre", label: "Tairi", icon: "🛞" },
 ];
 // Opened from the + tile (owner only).
 const MORE: { key: Form | "saveMonth" | "delete"; label: string; icon: string; red?: boolean }[] = [
@@ -89,10 +91,10 @@ function Dialog({ title, onClose, children }: { title: string; onClose: () => vo
 }
 
 export default function VehicleDetail(props: {
-  vehicle: Vehicle; role: Role; month: string;
+  vehicle: Vehicle; allVehicles: Vehicle[]; role: Role; month: string;
   onBack: () => void; onChanged: () => void; onDeleted: () => void; onMonthChange: (m: string) => void;
 }) {
-  const { vehicle, role, month, onBack, onChanged, onDeleted, onMonthChange } = props;
+  const { vehicle, allVehicles, role, month, onBack, onChanged, onDeleted, onMonthChange } = props;
   const isOwner = role === "owner";
   const isManager = role === "manager";
   const isDriver = role === "driver";
@@ -223,10 +225,6 @@ export default function VehicleDetail(props: {
       day: fDay, tool: fTool.trim(), count: Number(fCount) || 1,
       unit_price: Number(fUnit) || 0, seller: fSeller.trim(), note: fNote.trim(),
     }), pack ? "Service ya pamoja imehifadhiwa." : "Service imehifadhiwa.");
-  }
-  function submitTyre(e: FormEvent) {
-    e.preventDefault();
-    run(() => createTyre(vehicle.id, fDay, fTyre.trim(), Number(fAmount) || 0, fNote.trim()), "Tairi imehifadhiwa.");
   }
   function submitInsurance(e: FormEvent) {
     e.preventDefault();
@@ -530,7 +528,7 @@ export default function VehicleDetail(props: {
             <form onSubmit={(e) => submitService(e, form === "servicePack")}>
               <h3>{form === "servicePack" ? "Ongeza Service ya Pamoja" : "Add Service"}</h3>
               <label>Tarehe ya Malipo<input type="date" value={fDay} onChange={(e) => setFDay(e.target.value)} required /></label>
-              <label>Kifaa (Tool)<input value={fTool} onChange={(e) => setFTool(e.target.value)} placeholder="Mafuta, Filter, nk" required /></label>
+              <ToolInput vehicleIds={allVehicles.map((v) => v.id)} value={fTool} onChange={setFTool} day={fDay} required />
               <label>Idadi<input type="number" inputMode="numeric" value={fCount} onChange={(e) => setFCount(e.target.value)} min={1} required /></label>
               <label>Bei ya Kimoja (TSh)<input type="number" inputMode="numeric" value={fUnit} onChange={(e) => setFUnit(e.target.value)} min={0} /></label>
               <label>Muuzaji<input value={fSeller} onChange={(e) => setFSeller(e.target.value)} placeholder="Jina la muuzaji" /></label>
@@ -543,17 +541,12 @@ export default function VehicleDetail(props: {
             </form>
           )}
           {form === "tyre" && (
-            <form onSubmit={submitTyre}>
-              <h3>Add Tyre</h3>
-              <label>Tarehe ya Malipo<input type="date" value={fDay} onChange={(e) => setFDay(e.target.value)} required /></label>
-              <label>Namba ya Tairi<input value={fTyre} onChange={(e) => setFTyre(e.target.value)} placeholder="TYRE001" /></label>
-              <label>Kiasi (TSh)<input type="number" inputMode="numeric" value={fAmount} onChange={(e) => setFAmount(e.target.value)} min={0} /></label>
-              <label>Maelezo<input value={fNote} onChange={(e) => setFNote(e.target.value)} placeholder="Maelezo ya ziada" /></label>
-              <div className="vd-actions">
-                <button type="submit">Hifadhi</button>
-                <button type="button" className="ghost" onClick={closeForm}>Sitisha / Cancel</button>
-              </div>
-            </form>
+            <RetireTyreDialog
+              vehicle={vehicle}
+              allVehicles={allVehicles}
+              defaultDay={fDay}
+              onDone={(msg) => { closeForm(); setNotice(msg); load(); onChanged(); }}
+            />
           )}
           {form === "insurance" && (
             <form onSubmit={submitInsurance}>
