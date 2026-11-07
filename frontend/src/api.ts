@@ -137,6 +137,9 @@ export const createPayment = (vehicleId: number, day: string, paymentType: strin
   request<PaymentRecord>("/payment-records/", { method: "POST", body: JSON.stringify({ vehicle: vehicleId, day, payment_type: paymentType, amount, note }) });
 export const createService = (vehicleId: number, body: { day: string; tool: string; count: number; unit_price: number; seller: string; note: string }) =>
   request<ServiceRecord>("/service-records/", { method: "POST", body: JSON.stringify({ vehicle: vehicleId, ...body }) });
+export const updateTyre = (id: number, data: { retired_on?: string | null; tyre_number?: string; amount?: number; note?: string }) =>
+  request<TyreRecord>(`/tyre-records/${id}/`, { method: "PATCH", body: JSON.stringify(data) });
+
 export const createTyre = (vehicleId: number, day: string, tyreNumber: string, amount: number, note: string) =>
   request<TyreRecord>("/tyre-records/", { method: "POST", body: JSON.stringify({ vehicle: vehicleId, day, tyre_number: tyreNumber, amount, note }) });
 export const createInsurance = (vehicleId: number, day: string, insuranceType: string, amount: number, months: number, note: string) =>
