@@ -134,6 +134,7 @@ class TyreRecord(models.Model):
     tyre_number = models.CharField(max_length=40, blank=True)
     amount = models.PositiveIntegerField(default=0)
     note = models.CharField(max_length=200, blank=True)
+    retired_on = models.DateField(null=True, blank=True)   # tarehe tairi iliyoondolewa gari
 
     class Meta:
         ordering = ["day", "id"]
