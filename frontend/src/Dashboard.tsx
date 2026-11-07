@@ -133,7 +133,15 @@ export default function Dashboard({ onLogout }: { onLogout: () => void }) {
       <div className="wrap">
         {error && <p className="error">{error}</p>}
 
-        {!NO_PERIOD.includes(view) && (
+        {(view === "ripoti" || view === "grafu") && (
+          <section className="card period">
+            <label>Mwezi:
+              <input type="month" value={month} onChange={(e) => setMonth(e.target.value)} />
+            </label>
+          </section>
+        )}
+
+        {!NO_PERIOD.includes(view) && view !== "ripoti" && view !== "grafu" && (
           <section className="card period">
             <div className="seg">
               <button className={"seg-btn" + (periodMode === "month" ? " active" : "")} onClick={() => setPeriodMode("month")}>Mwezi</button>
@@ -155,6 +163,7 @@ export default function Dashboard({ onLogout }: { onLogout: () => void }) {
         {view === "vehicles" && detail && (
           <VehicleDetail
             vehicle={detail}
+            allVehicles={vehicles}
             role={role}
             month={month}
             onBack={() => setDetailId(null)}
@@ -181,8 +190,8 @@ export default function Dashboard({ onLogout }: { onLogout: () => void }) {
         {view === "service" && <ServicePage vehicles={vehicles} month={month} />}
         {view === "debt" && <DebtPage vehicles={vehicles} month={month} />}
         {view === "changamoto" && <ChallengesPage vehicles={vehicles} role={role} />}
-        {view === "ripoti" && <ReportsPage mode="report" vehicles={vehicles} />}
-        {view === "grafu" && <ReportsPage mode="graphs" vehicles={vehicles} />}
+        {view === "ripoti" && <ReportsPage mode="report" vehicles={vehicles} month={month} onMonthChange={setMonth} />}
+        {view === "grafu" && <ReportsPage mode="graphs" vehicles={vehicles} month={month} onMonthChange={setMonth} />}
         {view === "users" && <UsersPage vehicles={vehicles} />}
         {view === "profile" && <ProfilePage onChanged={(p) => applyAppearance(p)} />}
         {view === "settings" && <SettingsPage />}
