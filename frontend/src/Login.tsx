@@ -2,17 +2,6 @@ import { useState, type FormEvent, type ReactNode } from "react";
 import { login, registerOwner } from "./api";
 import "./login.css";
 
-// Simple three-wheeler (bajaj) silhouette used as the subtle background.
-const BAJAJ_SVG = `<svg xmlns='http://www.w3.org/2000/svg' width='480' height='300' viewBox='0 0 480 300'>
-<g fill='white' fill-opacity='0.08'>
-<path d='M80 205 Q80 130 160 118 L300 118 Q350 118 372 165 L392 205 Z'/>
-<path d='M130 118 Q150 70 230 70 L292 118 Z'/>
-<rect x='52' y='190' width='44' height='12' rx='6'/>
-<circle cx='132' cy='238' r='34'/><circle cx='370' cy='238' r='28'/>
-<rect x='236' y='160' width='30' height='10' rx='5'/>
-</g></svg>`;
-const BG = `url("data:image/svg+xml,${encodeURIComponent(BAJAJ_SVG)}")`;
-
 function Icon({ children }: { children: ReactNode }) {
   return (
     <svg viewBox="0 0 24 24" aria-hidden="true">
@@ -52,6 +41,30 @@ const EyeOffIcon = () => (
     <path d="M9.9 5.1A10 10 0 0 1 12 5c6.5 0 10 7 10 7a17 17 0 0 1-3.2 4.2M6.6 6.6A17 17 0 0 0 2 12s3.5 7 10 7a9.7 9.7 0 0 0 4.1-.9" />
   </Icon>
 );
+const ArrowRight = () => (
+  <Icon>
+    <path d="M5 12h14M13 6l6 6-6 6" />
+  </Icon>
+);
+const TabUsers = () => (
+  <Icon>
+    <circle cx="9" cy="8" r="3.5" />
+    <path d="M2.5 20c0-3.6 2.9-5.5 6.5-5.5s6.5 1.9 6.5 5.5" />
+    <circle cx="17" cy="9" r="2.8" />
+    <path d="M16 14.2c3.2 0 5.5 1.6 5.5 4.8" />
+  </Icon>
+);
+const TabChart = () => (
+  <Icon>
+    <path d="M4 20V11M10 20V4M16 20v-7M22 20H2" />
+  </Icon>
+);
+const PersonIcon = () => (
+  <Icon>
+    <circle cx="12" cy="8" r="4" />
+    <path d="M4 21c0-4 3.6-6 8-6s8 2 8 6" />
+  </Icon>
+);
 
 // Password field with a show/hide button. Each field keeps its own visibility state.
 function PasswordInput({
@@ -62,13 +75,14 @@ function PasswordInput({
   const [show, setShow] = useState(false);
   return (
     <label className="lg-field">
-      <span className="lg-label">{label}</span>
       <span className="lg-input">
         <LockIcon />
         <input
           type={show ? "text" : "password"}
           value={value}
           onChange={(e) => onChange(e.target.value)}
+          placeholder={label}
+          aria-label={label}
           autoComplete={autoComplete}
           minLength={minLength}
           required
@@ -130,19 +144,21 @@ export default function Login({ onDone }: { onDone: () => void }) {
   }
 
   return (
-    <div className="lg-page" style={{ backgroundImage: BG }}>
+    <div className="lg-page">
+      {/* Header: logo, name, tagline and bajaji photo are part of the header image. */}
       <header className="lg-hero">
-        <div className="lg-brand">
-          <span className="lg-logo" aria-hidden="true">AB</span>
-          <span className="lg-word">Ady<i>Bajaj</i></span>
-        </div>
-        <p className="lg-tag">Simamia magari yako, mapato, madeni, matengenezo na timu yako kwa sehemu moja.</p>
+        <h1 className="sr-only">AdyBajaj</h1>
+        <p className="sr-only">Simamia magari yako, mapato, madeni, matengenezo na timu yako kwa sehemu moja.</p>
       </header>
 
       <main className="lg-card">
-        <h1>{mode === "login" ? "Karibu AdyBajaj" : "Tengeneza akaunti"}</h1>
+        <span className="lg-avatar" aria-hidden="true"><PersonIcon /></span>
+
+        <h2 className="lg-title">{mode === "login" ? "Karibu AdyBajaj" : "Tengeneza akaunti"}</h2>
         <p className="lg-sub">
-          {mode === "login" ? "Ingia kwenye akaunti yako" : "Jisajili kama mmiliki wa biashara"}
+          {mode === "login"
+            ? "Ingia kwenye akaunti yako ili kuendelea"
+            : "Jisajili kama mmiliki wa biashara"}
         </p>
 
         <div className="lg-tabs" role="tablist">
@@ -150,25 +166,28 @@ export default function Login({ onDone }: { onDone: () => void }) {
             type="button" role="tab" aria-selected={mode === "login"}
             className={mode === "login" ? "on" : ""} onClick={() => switchMode("login")}
           >
-            Ingia
+            <TabUsers />
+            <span>Ingia</span>
           </button>
           <button
             type="button" role="tab" aria-selected={mode === "register"}
             className={mode === "register" ? "on" : ""} onClick={() => switchMode("register")}
           >
-            Jisajili
+            <TabChart />
+            <span>Jisajili</span>
           </button>
         </div>
 
         {mode === "login" ? (
           <form onSubmit={doLogin} className="lg-form">
             <label className="lg-field">
-              <span className="lg-label">Email au jina la mtumiaji</span>
               <span className="lg-input">
                 <MailIcon />
                 <input
                   value={username}
                   onChange={(e) => setUsername(e.target.value)}
+                  placeholder="Email au jina la mtumiaji"
+                  aria-label="Email au jina la mtumiaji"
                   autoComplete="username"
                   autoCapitalize="none"
                   required
@@ -183,7 +202,8 @@ export default function Login({ onDone }: { onDone: () => void }) {
             {error && <p className="lg-error" role="alert">{error}</p>}
 
             <button type="submit" className="lg-submit" disabled={busy}>
-              {busy ? "Inaingia..." : "Ingia"}
+              <span>{busy ? "Inaingia..." : "Ingia"}</span>
+              {!busy && <ArrowRight />}
             </button>
 
             <p className="lg-switch">
@@ -200,38 +220,41 @@ export default function Login({ onDone }: { onDone: () => void }) {
             </p>
 
             <label className="lg-field">
-              <span className="lg-label">Jina kamili</span>
               <span className="lg-input">
                 <UserIcon />
-                <input value={fullName} onChange={(e) => setFullName(e.target.value)} autoComplete="name" required />
-              </span>
-            </label>
-
-            <label className="lg-field">
-              <span className="lg-label">Jina la biashara</span>
-              <span className="lg-input">
                 <input
-                  value={business}
-                  onChange={(e) => setBusiness(e.target.value)}
-                  placeholder="mfano: Ady Bajaj Transport"
-                  required
+                  value={fullName} onChange={(e) => setFullName(e.target.value)}
+                  placeholder="Jina kamili" aria-label="Jina kamili" autoComplete="name" required
                 />
               </span>
             </label>
 
             <label className="lg-field">
-              <span className="lg-label">Namba ya simu</span>
               <span className="lg-input">
-                <input value={phone} onChange={(e) => setPhone(e.target.value)} inputMode="tel" autoComplete="tel" required />
+                <input
+                  value={business} onChange={(e) => setBusiness(e.target.value)}
+                  placeholder="Jina la biashara (mfano: Ady Bajaj Transport)"
+                  aria-label="Jina la biashara" required
+                />
               </span>
             </label>
 
             <label className="lg-field">
-              <span className="lg-label">Email</span>
+              <span className="lg-input">
+                <input
+                  value={phone} onChange={(e) => setPhone(e.target.value)}
+                  placeholder="Namba ya simu" aria-label="Namba ya simu"
+                  inputMode="tel" autoComplete="tel" required
+                />
+              </span>
+            </label>
+
+            <label className="lg-field">
               <span className="lg-input">
                 <MailIcon />
                 <input
                   type="email" value={email} onChange={(e) => setEmail(e.target.value)}
+                  placeholder="Email" aria-label="Email"
                   autoComplete="email" autoCapitalize="none" required
                 />
               </span>
@@ -249,7 +272,8 @@ export default function Login({ onDone }: { onDone: () => void }) {
             {error && <p className="lg-error" role="alert">{error}</p>}
 
             <button type="submit" className="lg-submit" disabled={busy}>
-              {busy ? "Inasajili..." : "Tengeneza Akaunti"}
+              <span>{busy ? "Inasajili..." : "Tengeneza Akaunti"}</span>
+              {!busy && <ArrowRight />}
             </button>
 
             <p className="lg-switch">
@@ -261,6 +285,11 @@ export default function Login({ onDone }: { onDone: () => void }) {
           </form>
         )}
       </main>
+
+      {/* Footer: feature icons and closing line are part of the footer image. */}
+      <footer className="lg-footer">
+        <h2 className="sr-only">Ripoti za mapato, usalama wa juu, usimamizi wa timu, msaada mara moja</h2>
+      </footer>
     </div>
   );
 }
