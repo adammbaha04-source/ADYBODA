@@ -4,8 +4,16 @@ import { monthLabel, tsh } from "./format";
 import { downloadReportPdf, getReportV3, type ReportV3 } from "./reportApi";
 import type { Vehicle } from "./types";
 import "./report.css";
+import "./reports-controls.css";
 
 type Kind = "month" | "q1" | "q2" | "q3" | "q4" | "year" | "custom";
+
+const QUARTERS: { kind: Kind; label: string; range: string }[] = [
+  { kind: "q1", label: "Q1", range: "Jan – Mar" },
+  { kind: "q2", label: "Q2", range: "Apr – Jun" },
+  { kind: "q3", label: "Q3", range: "Jul – Sep" },
+  { kind: "q4", label: "Q4", range: "Oct – Dec" },
+];
 
 const pct = (n: number) => `${n.toFixed(1)}%`;
 const share = (part: number, whole: number) => (whole > 0 ? (part / whole) * 100 : 0);
@@ -48,10 +56,15 @@ function Section({ title, children }: { title: string; children: ReactNode }) {
   return <section><h2 className="rpt-h">{title}</h2>{children}</section>;
 }
 
-export default function ReportsPage({ mode, vehicles }: { mode: "report" | "graphs"; vehicles: Vehicle[] }) {
+export default function ReportsPage({
+  mode, vehicles, month, onMonthChange,
+}: {
+  mode: "report" | "graphs";
+  vehicles: Vehicle[];
+  month: string;                       // the single month selector lives on the Dashboard
+  onMonthChange: (m: string) => void;
+}) {
   const [kind, setKind] = useState<Kind>("month");
-  const [month, setMonth] = useState(thisMonth());
-  const [year, setYear] = useState(thisYear());
   const [cFrom, setCFrom] = useState(`${thisYear()}-01`);
   const [cTo, setCTo] = useState(thisMonth());
   const [vehicle, setVehicle] = useState("ALL");
@@ -60,10 +73,12 @@ export default function ReportsPage({ mode, vehicles }: { mode: "report" | "grap
   const [loading, setLoading] = useState(false);
   const [pdfBusy, setPdfBusy] = useState(false);
 
+  // Year for Quarterly and Yearly reports comes from the selected month.
+  const year = Number(month.slice(0, 4)) || thisYear();
   const [from, to] = rangeFor(kind, month, year, cFrom, cTo);
 
   useEffect(() => {
-    if (from > to) { setError("The start date must be before the end date."); return; }
+    if (from > to) { setError("Mwezi wa kuanzia lazima uwe kabla ya mwezi wa kumalizia."); return; }
     setLoading(true);
     getReportV3(from, to, vehicle)
       .then((d) => { setData(d); setError(""); })
@@ -105,8 +120,7 @@ export default function ReportsPage({ mode, vehicles }: { mode: "report" | "grap
   const expTotal = expCats.reduce((a, c) => a + c.amount, 0);
   const maxWeek = data ? Math.max(4, ...data.vehicles.map((v) => v.week_count)) : 4;
   const isMonthly = kind === "month";
-  const isQuarterly = kind === "q1" || kind === "q2" || kind === "q3" || kind === "q4";
-  const isYearly = kind === "year";
+  const periodText = from === to ? monthLabel(from) : `${monthLabel(from)} – ${monthLabel(to)}`;
 
   const monthlyKpis = t ? [
     { label: "Theoretical Target", value: tsh(t.theoretical_target), sub: "Full target, no losses", tone: "blue", bar: 100 },
@@ -129,40 +143,50 @@ export default function ReportsPage({ mode, vehicles }: { mode: "report" | "grap
 
   return (
     <div className="reports">
-      <section className="card no-print">
-        <div className="chip-row">
-          <button className={"chip" + (kind === "month" ? " on" : "")} onClick={() => setKind("month")}>Monthly Report</button>
-          <button className={"chip" + (kind === "q1" ? " on" : "")} onClick={() => setKind("q1")}>Quarterly Report</button>
-          <button className={"chip" + (kind === "q2" ? " on" : "")} onClick={() => setKind("q2")}>Quarterly Report</button>
-          <button className={"chip" + (kind === "q3" ? " on" : "")} onClick={() => setKind("q3")}>Quarterly Report</button>
-          <button className={"chip" + (kind === "q4" ? " on" : "")} onClick={() => setKind("q4")}>Quarterly Report</button>
-          <button className={"chip" + (kind === "year" ? " on" : "")} onClick={() => setKind("year")}>Yearly Report</button>
-          <button className={"chip" + (kind === "custom" ? " on" : "")} onClick={() => setKind("custom")}>Custom Range</button>
+      <section className="card no-print rpt-controls">
+        <div className="seg3">
+          {([["month", "Monthly"], ["year", "Yearly"], ["custom", "Custom Range"]] as [Kind, string][]).map(([k, label]) => (
+            <button key={k} className={"seg3-btn" + (kind === k ? " on" : "")} onClick={() => setKind(k)}>{label}</button>
+          ))}
         </div>
-        <div className="filter-row">
-          {kind === "month" && <label>Month<input type="month" value={month} onChange={(e) => setMonth(e.target.value)} /></label>}
-          {kind !== "month" && kind !== "custom" && (
-            <label>Year<input type="number" value={year} min={2020} max={2100} onChange={(e) => setYear(Number(e.target.value) || thisYear())} /></label>
-          )}
-          {kind === "custom" && <>
-            <label>From month<input type="month" value={cFrom} onChange={(e) => setCFrom(e.target.value)} /></label>
-            <label>To month<input type="month" value={cTo} onChange={(e) => setCTo(e.target.value)} /></label>
-          </>}
+
+        <div className="q-head">Robo mwaka {year}</div>
+        <div className="q-grid">
+          {QUARTERS.map((q) => (
+            <button key={q.kind} className={"q-tile" + (kind === q.kind ? " on" : "")} onClick={() => setKind(q.kind)}>
+              <b>{q.label}</b>
+              <small>{q.range}</small>
+            </button>
+          ))}
         </div>
-        <label>Vehicle
+
+        {kind === "custom" && (
+          <div className="custom-row">
+            <label>Kuanzia<input type="month" value={cFrom} onChange={(e) => setCFrom(e.target.value)} /></label>
+            <label>Hadi<input type="month" value={cTo} onChange={(e) => setCTo(e.target.value)} /></label>
+          </div>
+        )}
+
+        <p className="period-note">
+          Kipindi: <b>{kind === "custom" ? `${monthLabel(cFrom)} – ${monthLabel(cTo)}` : periodText}</b>
+          {kind !== "custom" && <span> · chagua mwezi juu ya ukurasa</span>}
+        </p>
+
+        <label className="vehicle-pick">Gari
           <select value={vehicle} onChange={(e) => setVehicle(e.target.value)}>
-            <option value="ALL">All vehicles</option>
+            <option value="ALL">Magari yote</option>
             {vehicles.map((v) => <option key={v.id} value={String(v.id)}>{v.name}</option>)}
           </select>
         </label>
+
         {mode === "report" && (
-          <div className="chip-row">
-            <button className="btn-add" onClick={pdf} disabled={!data || pdfBusy}>{pdfBusy ? "Preparing PDF..." : "Download PDF"}</button>
+          <div className="export-row">
+            <button className="btn-add" onClick={pdf} disabled={!data || pdfBusy}>{pdfBusy ? "Inaandaa PDF..." : "Download PDF"}</button>
             <button className="btn-add alt" onClick={downloadCsv} disabled={!data}>Download CSV</button>
             <button className="btn-add alt" onClick={() => window.print()} disabled={!data}>Print</button>
           </div>
         )}
-        {loading && <p className="hint">Loading...</p>}
+        {loading && <p className="hint">Inapakia...</p>}
         {error && <p className="error">{error}</p>}
       </section>
 
@@ -317,7 +341,7 @@ export default function ReportsPage({ mode, vehicles }: { mode: "report" | "grap
       )}
 
       {data && mode === "graphs" && (
-        <GraphsView data={data} expCats={expCats} period={from === to ? monthLabel(from) : `${from} to ${to}`} />
+        <GraphsView data={data} expCats={expCats} period={periodText} />
       )}
     </div>
   );
