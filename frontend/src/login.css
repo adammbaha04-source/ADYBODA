@@ -1,0 +1,266 @@
+/* Login and register screen. All classes are prefixed with lg- so nothing leaks into the app. */
+
+.lg-page {
+  min-height: 100vh;
+  min-height: 100dvh;
+  box-sizing: border-box;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: calc(env(safe-area-inset-top, 0px) + 28px) 16px 32px;
+  background-color: #0a1f4d;
+  background-repeat: no-repeat;
+  background-position: right -80px top -20px;
+  background-size: 560px auto;
+  font-family: inherit;
+}
+
+/* ---------- Header ---------- */
+.lg-hero {
+  width: 100%;
+  max-width: 420px;
+  color: #ffffff;
+  padding: 8px 4px 24px;
+  box-sizing: border-box;
+}
+
+.lg-brand {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.lg-logo {
+  width: 52px;
+  height: 52px;
+  border-radius: 16px;
+  display: grid;
+  place-items: center;
+  background: linear-gradient(135deg, #fb923c, #f97316);
+  color: #ffffff;
+  font-size: 20px;
+  font-weight: 800;
+  box-shadow: 0 8px 20px rgba(249, 115, 22, 0.35);
+}
+
+.lg-word {
+  font-size: 28px;
+  font-weight: 800;
+  letter-spacing: -0.02em;
+  color: #ffffff;
+}
+
+.lg-word i {
+  font-style: normal;
+  color: #fb923c;
+}
+
+.lg-tag {
+  margin: 14px 0 0;
+  font-size: 14px;
+  line-height: 1.5;
+  color: #cbd5e1;
+}
+
+/* ---------- Card ---------- */
+.lg-card {
+  width: 100%;
+  max-width: 420px;
+  box-sizing: border-box;
+  padding: 24px 20px 22px;
+  border-radius: 24px;
+  background: #ffffff;
+  color: #0f172a;
+  box-shadow: 0 20px 40px rgba(2, 6, 23, 0.25);
+}
+
+.lg-card h1 {
+  margin: 0;
+  font-size: 22px;
+  font-weight: 800;
+  color: #0b2a63;
+}
+
+.lg-sub {
+  margin: 4px 0 16px;
+  font-size: 14px;
+  color: #64748b;
+}
+
+/* ---------- Tabs ---------- */
+.lg-tabs {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 4px;
+  padding: 4px;
+  margin-bottom: 18px;
+  border-radius: 14px;
+  background: #eef2f8;
+}
+
+.lg-tabs button {
+  height: 42px;
+  border: 0;
+  border-radius: 11px;
+  background: transparent;
+  color: #475569;
+  font: inherit;
+  font-size: 15px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.lg-tabs button.on {
+  background: linear-gradient(135deg, #fb923c, #f97316);
+  color: #ffffff;
+  box-shadow: 0 6px 14px rgba(249, 115, 22, 0.3);
+}
+
+/* ---------- Form ---------- */
+.lg-form {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.lg-field {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.lg-label {
+  font-size: 13px;
+  font-weight: 600;
+  color: #334155;
+}
+
+.lg-input {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  height: 50px;
+  padding: 0 14px;
+  box-sizing: border-box;
+  border: 1px solid #d5deeb;
+  border-radius: 14px;
+  background: #ffffff;
+  color: #64748b;
+  transition: border-color 0.15s ease, box-shadow 0.15s ease;
+}
+
+.lg-input:focus-within {
+  border-color: #f97316;
+  box-shadow: 0 0 0 4px rgba(249, 115, 22, 0.15);
+}
+
+.lg-input svg {
+  width: 18px;
+  height: 18px;
+  flex-shrink: 0;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 2;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.lg-input input {
+  flex: 1;
+  min-width: 0;
+  height: 100%;
+  border: 0;
+  outline: none;
+  background: transparent;
+  font: inherit;
+  font-size: 16px; /* 16px stops iOS from zooming in on focus */
+  color: #0f172a;
+}
+
+.lg-input input::placeholder {
+  color: #94a3b8;
+}
+
+.lg-eye {
+  display: grid;
+  place-items: center;
+  padding: 4px;
+  border: 0;
+  background: transparent;
+  color: #64748b;
+  cursor: pointer;
+}
+
+.lg-eye svg {
+  width: 20px;
+  height: 20px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 2;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.lg-note {
+  margin: 0;
+  font-size: 13px;
+  line-height: 1.5;
+  color: #64748b;
+}
+
+.lg-error {
+  margin: 0;
+  padding: 10px 12px;
+  border-radius: 12px;
+  background: #fee2e2;
+  color: #b91c1c;
+  font-size: 14px;
+}
+
+/* ---------- Submit ---------- */
+.lg-submit {
+  height: 52px;
+  margin-top: 4px;
+  border: 0;
+  border-radius: 14px;
+  background: linear-gradient(135deg, #fb923c, #f97316);
+  color: #ffffff;
+  font: inherit;
+  font-size: 16px;
+  font-weight: 700;
+  cursor: pointer;
+  box-shadow: 0 10px 22px rgba(249, 115, 22, 0.3);
+}
+
+.lg-submit:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+  box-shadow: none;
+}
+
+.lg-switch {
+  margin: 14px 0 0;
+  text-align: center;
+  font-size: 14px;
+  color: #64748b;
+}
+
+.lg-link {
+  padding: 0;
+  border: 0;
+  background: none;
+  color: #ea580c;
+  font: inherit;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+/* ---------- Small phones ---------- */
+@media (max-width: 360px) {
+  .lg-card {
+    padding: 20px 16px 18px;
+  }
+  .lg-word {
+    font-size: 24px;
+  }
+}
