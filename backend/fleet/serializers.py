@@ -100,7 +100,7 @@ class ServiceRecordSerializer(serializers.ModelSerializer):
 class TyreRecordSerializer(serializers.ModelSerializer):
     class Meta:
         model = TyreRecord
-        fields = ["id", "vehicle", "day", "tyre_number", "amount", "note"]
+        fields = ["id", "vehicle", "day", "tyre_number", "amount", "note", "retired_on"]
         read_only_fields = ["vehicle"]
 
 
