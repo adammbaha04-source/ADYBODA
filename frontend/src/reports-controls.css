@@ -1,0 +1,165 @@
+/* Reports period controls. Scoped under .rpt-controls so other screens are not affected. */
+
+.rpt-controls {
+  --rc-accent: #4f46e5;
+  --rc-accent-soft: #eef2ff;
+  --rc-ink: #0f172a;
+  --rc-muted: #64748b;
+  --rc-line: #e2e8f0;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+/* Monthly | Yearly | Custom Range */
+.rpt-controls .seg3 {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 6px;
+  padding: 5px;
+  border-radius: 14px;
+  background: #f1f5f9;
+}
+
+.rpt-controls .seg3-btn {
+  height: 40px;
+  border: 0;
+  border-radius: 10px;
+  background: transparent;
+  color: var(--rc-muted);
+  font: inherit;
+  font-size: 0.9rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 0.15s ease, color 0.15s ease;
+}
+
+.rpt-controls .seg3-btn.on {
+  background: #ffffff;
+  color: var(--rc-accent);
+  box-shadow: 0 1px 3px rgba(15, 23, 42, 0.12);
+}
+
+/* Quarter heading */
+.rpt-controls .q-head {
+  font-size: 0.8rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--rc-muted);
+  margin-top: 2px;
+}
+
+/* Q1 Q2 Q3 Q4 */
+.rpt-controls .q-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 8px;
+}
+
+.rpt-controls .q-tile {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 2px;
+  min-height: 60px;
+  padding: 8px 4px;
+  border: 1px solid var(--rc-line);
+  border-radius: 14px;
+  background: #ffffff;
+  color: var(--rc-ink);
+  font: inherit;
+  cursor: pointer;
+  transition: border-color 0.15s ease, background 0.15s ease, box-shadow 0.15s ease;
+}
+
+.rpt-controls .q-tile b {
+  font-size: 1.05rem;
+  font-weight: 800;
+  color: var(--rc-accent);
+}
+
+.rpt-controls .q-tile small {
+  font-size: 0.72rem;
+  color: var(--rc-muted);
+  white-space: nowrap;
+}
+
+.rpt-controls .q-tile.on {
+  border-color: var(--rc-accent);
+  background: var(--rc-accent-soft);
+  box-shadow: 0 0 0 3px rgba(79, 70, 229, 0.15);
+}
+
+.rpt-controls .q-tile:focus-visible,
+.rpt-controls .seg3-btn:focus-visible {
+  outline: 3px solid rgba(79, 70, 229, 0.35);
+  outline-offset: 2px;
+}
+
+/* Custom range (two months, shown only when Custom Range is selected) */
+.rpt-controls .custom-row {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+}
+
+.rpt-controls .custom-row label,
+.rpt-controls .vehicle-pick {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  font-size: 0.82rem;
+  font-weight: 600;
+  color: var(--rc-muted);
+}
+
+.rpt-controls input,
+.rpt-controls select {
+  width: 100%;
+  box-sizing: border-box;
+  height: 44px;
+  padding: 0 12px;
+  border: 1px solid var(--rc-line);
+  border-radius: 12px;
+  background: #ffffff;
+  color: var(--rc-ink);
+  font: inherit;
+  font-size: 0.95rem;
+}
+
+.rpt-controls input:focus,
+.rpt-controls select:focus {
+  outline: none;
+  border-color: var(--rc-accent);
+  box-shadow: 0 0 0 3px rgba(79, 70, 229, 0.15);
+}
+
+/* "Kipindi: ..." line */
+.rpt-controls .period-note {
+  margin: 0;
+  font-size: 0.86rem;
+  color: var(--rc-muted);
+}
+
+.rpt-controls .period-note b {
+  color: var(--rc-ink);
+}
+
+.rpt-controls .period-note span {
+  color: var(--rc-muted);
+}
+
+/* Export buttons row */
+.rpt-controls .export-row {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 8px;
+}
+
+@media (min-width: 520px) {
+  .rpt-controls .export-row {
+    grid-template-columns: repeat(3, 1fr);
+  }
+}
