@@ -3,8 +3,8 @@ import Dashboard from "./Dashboard";
 import Login from "./Login";
 import { clearToken, getToken } from "./api";
 
-// Muda wa kutoka yenyewe bila kutumia app (dakika 15)
-const IDLE_MS = 15 * 60 * 1000;
+// Muda wa kutoka yenyewe bila kutumia app (dakika 5)
+const IDLE_MS = 5 * 60 * 1000;
 
 export default function App() {
   const [loggedIn, setLoggedIn] = useState(() => getToken() !== null);
