@@ -1,5 +1,2 @@
-# API calls go to the Render backend, so the browser sees one domain and CORS is not needed.
-/api/*  https://adybajaj-api.onrender.com/api/:splat  200
-
-# Single-page app: every other path opens the React app.
+# Single-page app: every path that is not an API call or a real file opens the React app.
 /*      /index.html  200
