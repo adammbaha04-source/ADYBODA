@@ -1,2 +1,0 @@
-# Single-page app: every path that is not an API call or a real file opens the React app.
-/*      /index.html  200
