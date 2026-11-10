@@ -1,5 +1,19 @@
 import type { DebtResponse, ExpenseSummary, InsuranceRecord, LostDays, PaymentRecord, PersonalExpense, ReturnRecord, ServiceRecord, TeamMember, TyreRecord, Vehicle } from "./types";
 
+// Rudia ombi mara 3 mtandao wa simu ukikata muunganisho.
+const _fetch = window.fetch.bind(window);
+window.fetch = async (input, init) => {
+  for (let i = 0; i < 3; i++) {
+    try {
+      return await _fetch(input, init);
+    } catch (e) {
+      if (i === 2) throw e;
+      await new Promise((r) => setTimeout(r, 1000 * (i + 1)));
+    }
+  }
+  throw new Error("Hakuna mtandao");
+};
+
 const TOKEN_KEY = "adybajaj_token";
 
 export function getToken(): string | null {
