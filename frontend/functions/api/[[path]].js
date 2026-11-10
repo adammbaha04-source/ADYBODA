@@ -1,22 +1,32 @@
-// Forwards every /api request (GET, POST, PATCH, DELETE...) to the Render backend.
-// Cloudflare Pages _redirects cannot proxy POST requests, so this function does it instead.
 const BACKEND = "https://adybajaj-api.onrender.com";
 
 export async function onRequest(context) {
   const { request } = context;
   const url = new URL(request.url);
-  const target = BACKEND + url.pathname + url.search;
 
-  // Copy headers, but drop Host so Render routes the request by its own hostname.
+  if (url.pathname === "/api/_ping") {
+    return new Response(JSON.stringify({ function: "ok" }), {
+      status: 200,
+      headers: { "Content-Type": "application/json" },
+    });
+  }
+
+  const target = BACKEND + url.pathname + url.search;
   const headers = new Headers(request.headers);
   headers.delete("host");
 
   const hasBody = request.method !== "GET" && request.method !== "HEAD";
-  return fetch(target, {
-    method: request.method,
-    headers,
-    body: hasBody ? request.body : undefined,
-    redirect: "manual",
-  });
+  try {
+    return await fetch(target, {
+      method: request.method,
+      headers,
+      body: hasBody ? request.body : undefined,
+      redirect: "manual",
+    });
+  } catch (err) {
+    return new Response(
+      JSON.stringify({ detail: "Proxy error: " + String(err && err.message ? err.message : err), target }),
+      { status: 502, headers: { "Content-Type": "application/json" } },
+    );
+  }
 }
-
