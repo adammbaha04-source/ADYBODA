@@ -1,5 +1,5 @@
 import { useState, type FormEvent, type ReactNode } from "react";
-import { login, registerOwner } from "./api";
+import { ApiError, isNetworkError, login, registerOwner } from "./api";
 import "./login.css";
 
 function Icon({ children }: { children: ReactNode }) {
@@ -100,6 +100,15 @@ function PasswordInput({
   );
 }
 
+// Chagua ujumbe sahihi kulingana na aina ya kosa, badala ya kudhani nenosiri ni baya kila mara.
+function loginErrorMessage(err: unknown): string {
+  if (isNetworkError(err)) return (err as Error).message;
+  if (err instanceof ApiError && err.status >= 500) {
+    return "Seva haipatikani kwa sasa. Jaribu tena baada ya dakika chache.";
+  }
+  return "Email au nenosiri si sahihi.";
+}
+
 export default function Login({ onDone }: { onDone: () => void }) {
   const [mode, setMode] = useState<"login" | "register">("login");
   const [busy, setBusy] = useState(false);
@@ -124,7 +133,7 @@ export default function Login({ onDone }: { onDone: () => void }) {
     e.preventDefault();
     setBusy(true); setError("");
     try { await login(username.trim(), password); onDone(); }
-    catch { setError("Email au nenosiri si sahihi."); }
+    catch (err) { setError(loginErrorMessage(err)); }
     finally { setBusy(false); }
   }
 
