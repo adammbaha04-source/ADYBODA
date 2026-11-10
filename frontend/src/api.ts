@@ -1,17 +1,42 @@
 import type { DebtResponse, ExpenseSummary, InsuranceRecord, LostDays, PaymentRecord, PersonalExpense, ReturnRecord, ServiceRecord, TeamMember, TyreRecord, Vehicle } from "./types";
 
-// Rudia ombi mara 3 mtandao wa simu ukikata muunganisho.
+// Kosa la mtandao (simu haipati server, timeout, au Cloudflare haifiki Render).
+export class NetworkError extends Error {
+  constructor() {
+    super("Hakuna mtandao. Angalia muunganisho wako kisha jaribu tena.");
+    this.name = "NetworkError";
+  }
+}
+
+// Kosa lenye hali ya HTTP (401, 400, 500...), ili UI iweze kuamua ujumbe sahihi.
+export class ApiError extends Error {
+  status: number;
+  constructor(message: string, status: number) {
+    super(message);
+    this.name = "ApiError";
+    this.status = status;
+  }
+}
+
+export const isNetworkError = (e: unknown): boolean => e instanceof NetworkError;
+
+// Rudia ombi mara 3 ukikata muunganisho, lakini KWA GET/HEAD tu.
+// POST/PATCH/DELETE hazirudiwi, ili rekodi za malipo zisiingie mara mbili.
 const _fetch = window.fetch.bind(window);
 window.fetch = async (input, init) => {
-  for (let i = 0; i < 3; i++) {
+  const method = (init?.method ?? (input instanceof Request ? input.method : "GET")).toUpperCase();
+  const attempts = method === "GET" || method === "HEAD" ? 3 : 1;
+
+  for (let i = 0; i < attempts; i++) {
     try {
       return await _fetch(input, init);
-    } catch (e) {
-      if (i === 2) throw e;
-      await new Promise((r) => setTimeout(r, 1000 * (i + 1)));
+    } catch {
+      if (i < attempts - 1) {
+        await new Promise((r) => setTimeout(r, 1000 * (i + 1)));
+      }
     }
   }
-  throw new Error("Hakuna mtandao");
+  throw new NetworkError();
 };
 
 const TOKEN_KEY = "adybajaj_token";
@@ -31,11 +56,11 @@ export async function request<T>(path: string, init: RequestInit = {}): Promise<
   const res = await fetch(`/api${path}`, { ...init, headers: { ...headers, ...(init.headers as Record<string, string>) } });
   if (res.status === 401) {
     clearToken();
-    throw new Error("Umetoka kwenye akaunti. Ingia tena.");
+    throw new ApiError("Umetoka kwenye akaunti. Ingia tena.", 401);
   }
   if (!res.ok) {
     const body = await res.text();
-    throw new Error(body || `Hitilafu ${res.status}`);
+    throw new ApiError(body || `Hitilafu ${res.status}`, res.status);
   }
   if (res.status === 204) return undefined as T;
   return (await res.json()) as T;
