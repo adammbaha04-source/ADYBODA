@@ -97,6 +97,9 @@ DATABASES = {
         conn_max_age=600,
     )
 }
+# Check the connection before reusing it. Render Postgres closes idle connections,
+# and without this check the next request can fail with OperationalError (HTTP 500).
+DATABASES['default']['CONN_HEALTH_CHECKS'] = True
 
 
 # Password validation
@@ -153,4 +156,22 @@ REST_FRAMEWORK = {
     ],
     "DEFAULT_PERMISSION_CLASSES": ["rest_framework.permissions.IsAuthenticated"],
     "DEFAULT_PAGINATION_CLASS": None,
+}
+
+
+# Write 500 errors (with the full traceback) to the Render logs.
+# Without this, Django with DEBUG=0 prints nothing useful to the logs.
+LOGGING = {
+    'version': 1,
+    'disable_existing_loggers': False,
+    'handlers': {
+        'console': {'class': 'logging.StreamHandler'},
+    },
+    'loggers': {
+        'django.request': {
+            'handlers': ['console'],
+            'level': 'ERROR',
+            'propagate': False,
+        },
+    },
 }
