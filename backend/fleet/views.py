@@ -42,10 +42,22 @@ class OwnedVehicleMixin:
 class VehicleViewSet(viewsets.ModelViewSet):
     serializer_class = VehicleSerializer
     permission_classes = [ScopedPermission]
-    manager_can_write = False
+    # Manager may edit settings of his OWN assigned vehicles (week 5, carry over, targets, week plan).
+    # Creating and deleting vehicles stays owner only (see create and destroy below).
+    manager_can_write = True
 
     def get_queryset(self):
         return vehicles_for(self.request.user).prefetch_related("driver_periods")
+
+    def create(self, request, *args, **kwargs):
+        if role_of(request.user) != "owner":
+            raise PermissionDenied("Owner pekee ndiye anaweza kuongeza gari.")
+        return super().create(request, *args, **kwargs)
+
+    def destroy(self, request, *args, **kwargs):
+        if role_of(request.user) != "owner":
+            raise PermissionDenied("Owner pekee ndiye anaweza kufuta gari.")
+        return super().destroy(request, *args, **kwargs)
 
     def perform_create(self, serializer):
         serializer.save(owner=self.request.user)
