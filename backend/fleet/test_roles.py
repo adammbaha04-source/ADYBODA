@@ -79,3 +79,50 @@ class RolesTests(APITestCase):
         self.client.force_authenticate(self.driver)
         self.assertEqual(self.client.get("/api/reports/", {"from": "2026-10", "to": "2026-10"}).status_code, 403)
         self.assertEqual(self.client.get("/api/expense-summary/", {"month": "2026-10"}).status_code, 403)
+
+
+class ManagerSettingsTests(APITestCase):
+    def setUp(self):
+        self.owner = User.objects.create_user("boss3", password="x")
+        self.v1 = Vehicle.objects.create(owner=self.owner, name="M1", daily_target=16000, working_days_count=6)
+        self.v2 = Vehicle.objects.create(owner=self.owner, name="M2", daily_target=16000, working_days_count=6)
+        self.manager = User.objects.create_user("mgr2", password="x")
+        self.mgr = Membership.objects.create(user=self.manager, business_owner=self.owner, role="manager")
+        self.mgr.vehicles.set([self.v1])
+        self.driver = User.objects.create_user("drv3", password="x")
+        self.drv = Membership.objects.create(user=self.driver, business_owner=self.owner, role="driver")
+        self.drv.vehicles.set([self.v1])
+
+    def test_manager_can_toggle_week5_and_carry_on_assigned_vehicle(self):
+        self.client.force_authenticate(self.manager)
+        r = self.client.patch(f"/api/vehicles/{self.v1.id}/", {"include_week5": True}, format="json")
+        self.assertEqual(r.status_code, 200)
+        self.v1.refresh_from_db()
+        self.assertTrue(self.v1.include_week5)
+        r = self.client.post(f"/api/vehicles/{self.v1.id}/carry/", {"month": "2026-10", "carry": False}, format="json")
+        self.assertEqual(r.status_code, 200)
+        self.assertIn("2026-10", r.data["no_carry_months"])
+
+    def test_manager_can_set_week_target_on_assigned_vehicle(self):
+        self.client.force_authenticate(self.manager)
+        r = self.client.post(f"/api/vehicles/{self.v1.id}/week-plan/",
+                             {"month": "2026-10", "week_number": 1, "target": 90000}, format="json")
+        self.assertEqual(r.status_code, 200)
+
+    def test_manager_cannot_touch_unassigned_vehicle(self):
+        self.client.force_authenticate(self.manager)
+        r = self.client.patch(f"/api/vehicles/{self.v2.id}/", {"include_week5": True}, format="json")
+        self.assertEqual(r.status_code, 404)
+
+    def test_manager_cannot_delete_vehicle(self):
+        self.client.force_authenticate(self.manager)
+        r = self.client.delete(f"/api/vehicles/{self.v1.id}/")
+        self.assertEqual(r.status_code, 403)
+        self.assertTrue(Vehicle.objects.filter(pk=self.v1.id).exists())
+
+    def test_driver_cannot_toggle_week5_or_carry(self):
+        self.client.force_authenticate(self.driver)
+        r = self.client.patch(f"/api/vehicles/{self.v1.id}/", {"include_week5": True}, format="json")
+        self.assertEqual(r.status_code, 403)
+        r = self.client.post(f"/api/vehicles/{self.v1.id}/carry/", {"month": "2026-10", "carry": False}, format="json")
+        self.assertEqual(r.status_code, 403)
