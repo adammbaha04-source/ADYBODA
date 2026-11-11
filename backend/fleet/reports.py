@@ -205,7 +205,7 @@ def _build_report(owner, start: str, end: str, vehicle_id=None):
     series = []
     for m in months:
         mr = month_rows[m]
-        profit = mr["collected"] - mr["expenses"] - personal[m]
+        profit = mr["collected"] - mr["expenses"] - personal[m] - mr["lost_amount"]
         series.append({"month": m, **mr, "personal": personal[m], "profit": profit})
 
     totals = {k: sum(r[k] for r in series) for k in
@@ -214,7 +214,7 @@ def _build_report(owner, start: str, end: str, vehicle_id=None):
                "working_days")}
     totals["personal"] = sum(personal.values())
     totals["outstanding"] = series[-1]["outstanding"] if series else 0
-    totals["profit"] = totals["collected"] - totals["expenses"] - totals["personal"]
+    totals["profit"] = totals["collected"] - totals["expenses"] - totals["personal"] - totals["lost_amount"]
     # Deviation from system target: loss / system target (system target = target used + loss).
     system_target = totals["target"] + totals["lost_amount"]
     totals["system_target"] = system_target
