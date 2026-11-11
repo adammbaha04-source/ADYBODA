@@ -2,7 +2,7 @@ import { useEffect, useState, type FormEvent, type ReactNode } from "react";
 import {
   addManualEntry, createInsurance, createPayment, createService,
   deleteRecord, deleteVehicle, getDebt, listInsurances, listLostDays, listPayments,
-  listServices, listTyres, saveLostDays, setCarry, updateVehicle,
+  listServices, listTyres, saveLostDays, setCarry, updateService, updateVehicle,
 } from "./api";
 import { confirmIncome, deleteIncome, listIncome, type IncomeRow } from "./incomeApi";
 import { confirmManualEntry, confirmPayment, listManualEntries, type ManualEntry, type PaymentRow } from "./roleApi";
@@ -39,7 +39,7 @@ const FORM_TITLE: Record<Form, string> = {
   lost: "Siku zilizopotea",
 };
 
-// Bottom bar tiles (owner sees all five; manager sees income and payment; driver sees none).
+// Bottom bar tiles. Owner and manager see all five; driver sees none.
 const BAR: { key: Form; label: string; icon: string }[] = [
   { key: "income", label: "Income", icon: "💵" },
   { key: "service", label: "Service", icon: "🔧" },
@@ -47,16 +47,15 @@ const BAR: { key: Form; label: string; icon: string }[] = [
   { key: "servicePack", label: "Pamoja", icon: "🧰" },
   { key: "tyre", label: "Tairi", icon: "🛞" },
 ];
-// Opened from the + tile (owner only).
-const MORE: { key: Form | "saveMonth" | "delete"; label: string; icon: string; red?: boolean }[] = [
+// Opened from the + tile (owner and manager). Delete is owner only.
+const MORE: { key: Form | "saveMonth" | "delete"; label: string; icon: string; red?: boolean; ownerOnly?: boolean }[] = [
   { key: "debt", label: "Add Debt", icon: "📝" },
   { key: "lost", label: "Siku zilizopotea", icon: "📅" },
   { key: "insurance", label: "Insurance", icon: "🛡️" },
   { key: "edit", label: "Set Targets & Edit", icon: "🎯" },
   { key: "saveMonth", label: "Save Month", icon: "💾" },
-  { key: "delete", label: "Delete Vehicle", icon: "🗑️", red: true },
+  { key: "delete", label: "Delete Vehicle", icon: "🗑️", red: true, ownerOnly: true },
 ];
-const MANAGER_TILES = ["income", "payment"];
 const PLACEHOLDER = "Save Month inajengwa katika hatua inayofuata.";
 
 function parseWeekNote(note: string): { week: number } | null {
@@ -67,6 +66,7 @@ function shiftMonth(m: string, d: number): string {
   const dt = new Date(Number(m.slice(0, 4)), Number(m.slice(5, 7)) - 1 + d, 1);
   return `${dt.getFullYear()}-${String(dt.getMonth() + 1).padStart(2, "0")}`;
 }
+const normTool = (t: string) => t.trim().toLowerCase();
 
 // A popup dialog. Closes on Escape, on the X button, or on a tap outside the box.
 function Dialog({ title, onClose, children }: { title: string; onClose: () => void; children: ReactNode }) {
@@ -98,11 +98,11 @@ export default function VehicleDetail(props: {
   const isOwner = role === "owner";
   const isManager = role === "manager";
   const isDriver = role === "driver";
-  const canEditMoney = isOwner || isManager;
-  const showOtherRecords = isOwner;
+  // Owner and manager can fill in and edit records. Driver only views (and confirms his own entries).
+  const canManage = isOwner || isManager;
 
-  const barTiles = isOwner ? BAR : isManager ? BAR.filter((t) => MANAGER_TILES.includes(t.key)) : [];
-  const cols = barTiles.length + (isOwner ? 1 : 0);
+  const barTiles = canManage ? BAR : [];
+  const cols = barTiles.length + (canManage ? 1 : 0);
 
   const [debt, setDebt] = useState<DebtResponse | null>(null);
   const [returns, setReturns] = useState<IncomeRow[]>([]);
@@ -110,17 +110,20 @@ export default function VehicleDetail(props: {
   const [payments, setPayments] = useState<PaymentRow[]>([]);
   const [manual, setManual] = useState<ManualEntry[]>([]);
   const [services, setServices] = useState<ServiceRecord[]>([]);
+  const [allServices, setAllServices] = useState<ServiceRecord[]>([]);
   const [tyres, setTyres] = useState<TyreRecord[]>([]);
   const [insurances, setInsurances] = useState<InsuranceRecord[]>([]);
   const [more, setMore] = useState(false);
   const [form, setForm] = useState<Form | null>(null);
   const [error, setError] = useState("");
   const [notice, setNotice] = useState("");
+  const [historyTool, setHistoryTool] = useState<string | null>(null);
 
   const [fDay, setFDay] = useState(todayYMD());
   const [fAmount, setFAmount] = useState("");
   const [fNote, setFNote] = useState("");
   const [editingIncome, setEditingIncome] = useState<IncomeRow | null>(null);
+  const [editingService, setEditingService] = useState<ServiceRecord | null>(null);
   const [fPayType, setFPayType] = useState("TRA");
   const [fTool, setFTool] = useState("");
   const [fCount, setFCount] = useState("1");
@@ -147,6 +150,7 @@ export default function VehicleDetail(props: {
       setReturns(r.filter((x) => (x.record_month || x.day.slice(0, 7)) === month).sort((a, b) => b.day.localeCompare(a.day)));
       setLost(l.filter((x) => x.month === month));
       setPayments((p as PaymentRow[]).filter((x) => x.day.startsWith(month)));
+      setAllServices(s);
       setServices(s.filter((x) => x.day.startsWith(month)));
       setTyres(t.filter((x) => x.day.startsWith(month)));
       setInsurances(i.filter((x) => x.day.startsWith(month)));
@@ -162,6 +166,7 @@ export default function VehicleDetail(props: {
     setForm(null);
     setMore(false);
     setNotice("");
+    setHistoryTool(null);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [vehicle.id, month]);
 
@@ -171,6 +176,8 @@ export default function VehicleDetail(props: {
       await action();
       setNotice(ok);
       setForm(null);
+      setEditingService(null);
+      setEditingIncome(null);
       await load();
       onChanged();
     } catch (e) {
@@ -191,10 +198,25 @@ export default function VehicleDetail(props: {
     if (key === "delete") { removeVehicle(); return; }
     clearFields();
     setEditingIncome(null);
+    setEditingService(null);
     setFDay(todayYMD());
     setForm(key);
   }
-  const closeForm = () => { setForm(null); setEditingIncome(null); };
+  const closeForm = () => { setForm(null); setEditingIncome(null); setEditingService(null); };
+
+  // Opens the service form filled with an existing record, so it can be corrected.
+  function startEditService(x: ServiceRecord) {
+    setMore(false);
+    setNotice("");
+    setFDay(x.day);
+    setFTool(x.tool);
+    setFCount(String(x.count));
+    setFUnit(String(x.unit_price ?? 0));
+    setFSeller(x.seller ?? "");
+    setFNote(x.note ?? "");
+    setEditingService(x);
+    setForm("service");
+  }
 
   const wd = vehicle.working_days_count;
   const daily = vehicle.daily_target;
@@ -211,6 +233,17 @@ export default function VehicleDetail(props: {
   const daysLost = lost.reduce((a, l) => a + l.days, 0);
   const lossAmount = daysLost * daily;
 
+  // Service history for ONE tool on THIS vehicle (allServices is already limited to this bajaj).
+  const toolHistory = historyTool
+    ? allServices
+        .filter((x) => normTool(x.tool) === normTool(historyTool))
+        .sort((a, b) => b.day.localeCompare(a.day))
+    : [];
+  const toolTimes = toolHistory.length;
+  const toolPieces = toolHistory.reduce((a, x) => a + x.count, 0);
+  const toolCost = toolHistory.reduce((a, x) => a + x.total, 0);
+  const toolLast = toolHistory[0]?.day;
+
   function submitDebt(e: FormEvent) {
     e.preventDefault();
     run(() => addManualEntry(vehicle.id, "MANUAL_DEBT", fDay, Number(fAmount), fNote.trim()), "Deni limeongezwa.");
@@ -221,10 +254,15 @@ export default function VehicleDetail(props: {
   }
   function submitService(e: FormEvent, pack: boolean) {
     e.preventDefault();
-    run(() => createService(vehicle.id, {
+    const body = {
       day: fDay, tool: fTool.trim(), count: Number(fCount) || 1,
       unit_price: Number(fUnit) || 0, seller: fSeller.trim(), note: fNote.trim(),
-    }), pack ? "Service ya pamoja imehifadhiwa." : "Service imehifadhiwa.");
+    };
+    if (editingService) {
+      run(() => updateService(editingService.id, body), "Service imehaririwa.");
+      return;
+    }
+    run(() => createService(vehicle.id, body), pack ? "Service ya pamoja imehifadhiwa." : "Service imehifadhiwa.");
   }
   function submitInsurance(e: FormEvent) {
     e.preventDefault();
@@ -241,6 +279,7 @@ export default function VehicleDetail(props: {
     );
   }
   async function removeVehicle() {
+    if (!isOwner) return;
     if (!confirm(`Futa gari ${vehicle.name}? Historia yake yote itafutwa.`)) return;
     try { await deleteVehicle(vehicle.id); onDeleted(); }
     catch (e) { setError((e as Error).message); }
@@ -255,6 +294,7 @@ export default function VehicleDetail(props: {
 
   const paymentLabel = (k: string) => PAYMENT_TYPES.find((p) => p.key === k)?.label ?? k;
   const manualLabel = (k: string) => (k === "MANUAL_PAYMENT" ? "Malipo ya deni" : k === "CARRY_OVER" ? "Deni lililobaki" : "Deni");
+  const moreItems = MORE.filter((a) => !a.ownerOnly || isOwner);
 
   return (
     <div className="detail vd-root">
@@ -281,7 +321,7 @@ export default function VehicleDetail(props: {
       {error && <p className="error">{error}</p>}
       {notice && <p className="notice">{notice}</p>}
 
-      {isOwner && (
+      {canManage && (
         <section className="card week5">
           <label className="toggle">
             <span>Week 5:</span>
@@ -317,7 +357,7 @@ export default function VehicleDetail(props: {
               <div className="card"><h4>Ending Debt</h4><b className="red">{tsh(s.ending_debt)}</b></div>
             </div>
             <label className="toggle carry">
-              <input type="checkbox" checked={s.carry_over_on} disabled={!isOwner}
+              <input type="checkbox" checked={s.carry_over_on} disabled={!canManage}
                 onChange={(e) => run(() => setCarry(vehicle.id, month, e.target.checked), "Carry over imebadilishwa.")} />
               <span>Deni la mwezi huu lipelekwe mwezi unaofuata (Carry over)</span>
             </label>
@@ -368,10 +408,10 @@ export default function VehicleDetail(props: {
                 {r.confirmed_at ? " · Confirmed" : " · Pending"}
               </span>
               <b className="green">{r.is_excess ? "-" : "+"}{tsh(r.amount)}</b>
-              {canEditMoney && (
+              {canManage && (
                 <button className="edit-btn" onClick={() => { setEditingIncome(r); setForm("income"); setNotice(""); }}>Edit</button>
               )}
-              {canEditMoney && (
+              {canManage && (
                 <button className="danger" onClick={() => { if (confirm("Futa mapato haya?")) run(() => deleteIncome(r.id), "Mapato yamefutwa."); }}>Del</button>
               )}
               {isDriver && !r.confirmed_at && (
@@ -391,28 +431,32 @@ export default function VehicleDetail(props: {
               <span>{p.day} · {paymentLabel(p.payment_type)}{p.note ? ` · ${p.note}` : ""}
                 {p.confirmed_at ? " · Confirmed" : " · Pending"}</span>
               <b className="green">{tsh(p.amount)}</b>
-              {canEditMoney && <button className="danger" onClick={() => removeRecord("payment-records", p.id)}>Futa</button>}
+              {canManage && <button className="danger" onClick={() => removeRecord("payment-records", p.id)}>Futa</button>}
               {isDriver && !p.confirmed_at && <button className="confirm-btn" onClick={() => signPayment(p.id)}>Thibitisha</button>}
             </li>
           ))}
         </ul>
       </section>
 
-      {showOtherRecords && (
+      {/* Service records: visible to every role. Only owner and manager can edit or delete. */}
+      <section className="card">
+        <h3>Historia ya Service</h3>
+        <ul className="list">
+          {services.length === 0 && <li className="empty">No service records for this month</li>}
+          {services.map((x) => (
+            <li key={x.id}>
+              <span>{x.day} · {x.tool} × {x.count}{x.seller ? ` · ${x.seller}` : ""}</span>
+              <b className="blue">{tsh(x.total)}</b>
+              <button className="ghost" onClick={() => setHistoryTool(x.tool)}>📜 Historia</button>
+              {canManage && <button className="edit-btn" onClick={() => startEditService(x)}>Edit</button>}
+              {canManage && <button className="danger" onClick={() => removeRecord("service-records", x.id)}>Futa</button>}
+            </li>
+          ))}
+        </ul>
+      </section>
+
+      {canManage && (
         <>
-          <section className="card">
-            <h3>Historia ya Service</h3>
-            <ul className="list">
-              {services.length === 0 && <li className="empty">No service records for this month</li>}
-              {services.map((x) => (
-                <li key={x.id}>
-                  <span>{x.day} · {x.tool} × {x.count}{x.seller ? ` · ${x.seller}` : ""}</span>
-                  <b className="blue">{tsh(x.total)}</b>
-                  <button className="danger" onClick={() => removeRecord("service-records", x.id)}>Futa</button>
-                </li>
-              ))}
-            </ul>
-          </section>
           <section className="card">
             <h3>Historia ya Tairi</h3>
             <ul className="list">
@@ -451,7 +495,7 @@ export default function VehicleDetail(props: {
               <span className="vd-lbl">{t.label}</span>
             </button>
           ))}
-          {isOwner && (
+          {canManage && (
             <button className="vd-tile vd-plus" onClick={() => setMore(true)} aria-label="Vitendo zaidi">
               <span className="vd-ico">＋</span>
               <span className="vd-lbl">Zaidi</span>
@@ -461,14 +505,14 @@ export default function VehicleDetail(props: {
       )}
 
       {/* "+" sheet with the rest of the actions. */}
-      {more && isOwner && (
+      {more && canManage && (
         <>
           <div className="vd-overlay" style={{ background: "rgba(15,23,42,.4)" }} onMouseDown={() => setMore(false)} />
           <div className="vd-sheet" role="menu">
             <div className="vd-sheet-handle" />
             <div className="vd-sheet-title">{vehicle.name} · Vitendo zaidi</div>
             <div className="vd-sheet-grid">
-              {MORE.map((a) => (
+              {moreItems.map((a) => (
                 <button key={a.label} className={"vd-sheet-item" + (a.red ? " red" : "")} onClick={() => open(a.key)}>
                   <span className="vd-ico">{a.icon}</span>
                   <span>{a.label}</span>
@@ -479,9 +523,33 @@ export default function VehicleDetail(props: {
         </>
       )}
 
+      {/* Per-tool history for this bajaj only. */}
+      {historyTool && (
+        <Dialog title={`Historia ya ${historyTool}`} onClose={() => setHistoryTool(null)}>
+          <div className="hist-summary">
+            <p><b>Imefungwa mara:</b> {toolTimes}</p>
+            <p><b>Jumla ya vipande:</b> {toolPieces}</p>
+            <p><b>Jumla ya gharama:</b> {tsh(toolCost)}</p>
+            <p><b>Mara ya mwisho:</b> {toolLast ? shortDate(toolLast) : "—"}</p>
+          </div>
+          <ul className="list">
+            {toolHistory.length === 0 && <li className="empty">Hakuna rekodi ya kifaa hiki</li>}
+            {toolHistory.map((x) => (
+              <li key={x.id}>
+                <span>{shortDate(x.day)} · × {x.count}{x.seller ? ` · ${x.seller}` : ""}{x.note ? ` · ${x.note}` : ""}</span>
+                <b className="blue">{tsh(x.total)}</b>
+              </li>
+            ))}
+          </ul>
+          <div className="vd-actions">
+            <button type="button" className="ghost" onClick={() => setHistoryTool(null)}>Funga</button>
+          </div>
+        </Dialog>
+      )}
+
       {/* Forms open as popup dialogs. */}
       {form && (
-        <Dialog title={FORM_TITLE[form]} onClose={closeForm}>
+        <Dialog title={editingService ? "Hariri Service" : FORM_TITLE[form]} onClose={closeForm}>
           {form === "income" && (
             <IncomeForm
               key={editingIncome?.id ?? "new"}
@@ -526,7 +594,7 @@ export default function VehicleDetail(props: {
           )}
           {(form === "service" || form === "servicePack") && (
             <form onSubmit={(e) => submitService(e, form === "servicePack")}>
-              <h3>{form === "servicePack" ? "Ongeza Service ya Pamoja" : "Add Service"}</h3>
+              <h3>{editingService ? "Hariri Service" : form === "servicePack" ? "Ongeza Service ya Pamoja" : "Add Service"}</h3>
               <label>Tarehe ya Malipo<input type="date" value={fDay} onChange={(e) => setFDay(e.target.value)} required /></label>
               <ToolInput vehicleIds={allVehicles.map((v) => v.id)} value={fTool} onChange={setFTool} day={fDay} required />
               <label>Idadi<input type="number" inputMode="numeric" value={fCount} onChange={(e) => setFCount(e.target.value)} min={1} required /></label>
@@ -535,7 +603,9 @@ export default function VehicleDetail(props: {
               <label>Maelezo<input value={fNote} onChange={(e) => setFNote(e.target.value)} placeholder="Maelezo ya ziada" /></label>
               <p className="hint">Jumla: {tsh((Number(fCount) || 0) * (Number(fUnit) || 0))}</p>
               <div className="vd-actions">
-                <button type="submit">{form === "servicePack" ? "Hifadhi kwa Vyombo Vyote" : "Hifadhi"}</button>
+                <button type="submit">
+                  {editingService ? "Hifadhi Mabadiliko" : form === "servicePack" ? "Hifadhi kwa Vyombo Vyote" : "Hifadhi"}
+                </button>
                 <button type="button" className="ghost" onClick={closeForm}>Sitisha / Cancel</button>
               </div>
             </form>
