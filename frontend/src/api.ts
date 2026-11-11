@@ -1,10 +1,12 @@
 import type { DebtResponse, ExpenseSummary, InsuranceRecord, LostDays, PaymentRecord, PersonalExpense, ReturnRecord, ServiceRecord, TeamMember, TyreRecord, Vehicle } from "./types";
 
-// Kosa la mtandao (simu haipati server, timeout, au Cloudflare haifiki Render).
+// Kosa la mtandao. `detail` inaeleza kosa halisi la browser (kwa uchunguzi).
 export class NetworkError extends Error {
-  constructor() {
+  detail: string;
+  constructor(detail = "") {
     super("Hakuna mtandao. Angalia muunganisho wako kisha jaribu tena.");
     this.name = "NetworkError";
+    this.detail = detail;
   }
 }
 
@@ -20,23 +22,36 @@ export class ApiError extends Error {
 
 export const isNetworkError = (e: unknown): boolean => e instanceof NetworkError;
 
-// Rudia ombi mara 3 ukikata muunganisho, lakini KWA GET/HEAD tu.
-// POST/PATCH/DELETE hazirudiwi, ili rekodi za malipo zisiingie mara mbili.
+// GET/HEAD: rudia mara 3 na timeout ya sekunde 30 kwa kila jaribio.
+// POST/PATCH/DELETE: jaribio moja tu, bila timeout, ili malipo yasiingie mara mbili.
+const GET_TIMEOUT_MS = 30000;
 const _fetch = window.fetch.bind(window);
+
 window.fetch = async (input, init) => {
   const method = (init?.method ?? (input instanceof Request ? input.method : "GET")).toUpperCase();
-  const attempts = method === "GET" || method === "HEAD" ? 3 : 1;
+  const isSafe = method === "GET" || method === "HEAD";
+  const attempts = isSafe ? 3 : 1;
+  let lastErr: unknown = null;
 
   for (let i = 0; i < attempts; i++) {
+    const ctrl = isSafe ? new AbortController() : null;
+    const timer = ctrl ? setTimeout(() => ctrl.abort(), GET_TIMEOUT_MS) : null;
     try {
-      return await _fetch(input, init);
-    } catch {
+      return await _fetch(input, ctrl ? { ...init, signal: ctrl.signal } : init);
+    } catch (err) {
+      lastErr = err;
+      console.error("[AdyBajaj Network]", { method, attempt: i + 1, error: err });
       if (i < attempts - 1) {
         await new Promise((r) => setTimeout(r, 1000 * (i + 1)));
       }
+    } finally {
+      if (timer) clearTimeout(timer);
     }
   }
-  throw new NetworkError();
+
+  throw new NetworkError(
+    lastErr instanceof Error ? `${lastErr.name}: ${lastErr.message}` : String(lastErr),
+  );
 };
 
 const TOKEN_KEY = "adybajaj_token";
