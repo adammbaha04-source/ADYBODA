@@ -194,6 +194,9 @@ export const createService = (vehicleId: number, body: { day: string; tool: stri
 export const updateTyre = (id: number, data: { retired_on?: string | null; tyre_number?: string; amount?: number; note?: string }) =>
   request<TyreRecord>(`/tyre-records/${id}/`, { method: "PATCH", body: JSON.stringify(data) });
 
+export const updateService = (id: number, body: { day: string; tool: string; count: number; unit_price: number; seller: string; note: string }) =>
+  request<ServiceRecord>(`/service-records/${id}/`, { method: "PATCH", body: JSON.stringify(body) });
+
 export const createTyre = (vehicleId: number, day: string, tyreNumber: string, amount: number, note: string) =>
   request<TyreRecord>("/tyre-records/", { method: "POST", body: JSON.stringify({ vehicle: vehicleId, day, tyre_number: tyreNumber, amount, note }) });
 export const createInsurance = (vehicleId: number, day: string, insuranceType: string, amount: number, months: number, note: string) =>
