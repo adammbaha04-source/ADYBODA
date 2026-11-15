@@ -11,26 +11,18 @@ https://docs.djangoproject.com/en/6.1/ref/settings/
 """
 
 from pathlib import Path
+import os
+import dj_database_url
+from django.core.exceptions import ImproperlyConfigured
 
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent
 
 
-# Quick-start development settings - unsuitable for production
-# See https://docs.djangoproject.com/en/6.1/howto/deployment/checklist/
-
-# SECURITY WARNING: keep the secret key used in production secret!
-import os
-import dj_database_url
-from django.core.exceptions import ImproperlyConfigured
-
 # SECURITY WARNING: don't run with debug turned on in production!
-# Debug is OFF unless explicitly switched on (local development only).
 DEBUG = os.environ.get('DJANGO_DEBUG', '0') == '1'
 
-# The secret key must come from the environment in production. A fallback key is only
-# allowed while DEBUG is on, so a missing key on the server stops the app instead of
-# running with a publicly known key.
+# The secret key must come from the environment in production.
 _secret_key = os.environ.get('DJANGO_SECRET_KEY')
 if not _secret_key:
     if DEBUG:
@@ -88,23 +80,33 @@ TEMPLATES = [
 WSGI_APPLICATION = 'core.wsgi.application'
 
 
-# Database
-# https://docs.djangoproject.com/en/6.1/ref/settings/#databases
+# ==============================================================================
+# DATABASE CONFIGURATION (MAREKEBISHO KWA AJILI YA NEON + RENDER)
+# ==============================================================================
+# Tunatumia dj_database_url kusoma DATABASE_URL kutoka Render Environment.
+# conn_max_age=0 inasitisha Django kushikilia muunganisho uliokufa.
+# DISABLE_SERVER_SIDE_CURSORS ni lazima kwa PgBouncer ya Neon.
 
 DATABASES = {
     'default': dj_database_url.config(
         default='sqlite:///' + str(BASE_DIR / 'db.sqlite3'),
-        conn_max_age=600,
+        conn_max_age=0,          # MAREKEBISHO: Imebadilishwa kutoka 600 kuwaka 0
+        conn_health_checks=True, # Angalia afya ya muunganisho kabla ya kuitumia
     )
 }
-# Check the connection before reusing it. Render Postgres closes idle connections,
-# and without this check the next request can fail with OperationalError (HTTP 500).
-DATABASES['default']['CONN_HEALTH_CHECKS'] = True
+
+# Lazima kwa Neon Connection Pooling
+DATABASES['default']['DISABLE_SERVER_SIDE_CURSORS'] = True
+
+# Muda wa kusubiri Neon Database ikuamke (Cold Start)
+DATABASES['default']['OPTIONS'] = {
+    'connect_timeout': 10,  # Subiri sekunde 10 kabla ya kukata tamaa
+    'sslmode': 'require',   # Neon inahitaji SSL
+}
+# ==============================================================================
 
 
 # Password validation
-# https://docs.djangoproject.com/en/6.1/ref/settings/#auth-password-validators
-
 AUTH_PASSWORD_VALIDATORS = [
     {
         'NAME': 'django.contrib.auth.password_validation.UserAttributeSimilarityValidator',
@@ -122,26 +124,20 @@ AUTH_PASSWORD_VALIDATORS = [
 
 
 # Internationalization
-# https://docs.djangoproject.com/en/6.1/topics/i18n/
-
 LANGUAGE_CODE = 'en-us'
-
 TIME_ZONE = 'UTC'
-
 USE_I18N = True
-
 USE_TZ = True
 
 
 # Static files (CSS, JavaScript, Images)
-# https://docs.djangoproject.com/en/6.1/howto/static-files/
-
 STATIC_URL = 'static/'
 STATIC_ROOT = BASE_DIR / 'staticfiles'
 STORAGES = {
     'default': {'BACKEND': 'django.core.files.storage.FileSystemStorage'},
     'staticfiles': {'BACKEND': 'whitenoise.storage.CompressedManifestStaticFilesStorage'},
 }
+
 if not DEBUG:
     SECURE_PROXY_SSL_HEADER = ('HTTP_X_FORWARDED_PROTO', 'https')
     SECURE_SSL_REDIRECT = True
@@ -160,7 +156,6 @@ REST_FRAMEWORK = {
 
 
 # Write 500 errors (with the full traceback) to the Render logs.
-# Without this, Django with DEBUG=0 prints nothing useful to the logs.
 LOGGING = {
     'version': 1,
     'disable_existing_loggers': False,
