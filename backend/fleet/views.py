@@ -669,3 +669,22 @@ def register_owner(request):
                                business_name=str(d["business_name"])[:120], phone=str(d["phone"])[:20])
     token, _ = Token.objects.get_or_create(user=user)
     return Response({"token": token.key, "username": user.username}, status=201)
+
+# ==============================================================================
+# HEALTH CHECK VIEW (Kwa ajili ya Cron-Job kulinda Database isilale)
+# ==============================================================================
+from django.db import connection
+from rest_framework.decorators import api_view, permission_classes
+from rest_framework.permissions import AllowAny
+from rest_framework.response import Response
+
+@api_view(['GET'])
+@permission_classes([AllowAny])
+def health_check(request):
+    try:
+        with connection.cursor() as cursor:
+            cursor.execute("SELECT 1")
+            cursor.fetchone()
+        return Response({"status": "ok", "database": "awake"}, status=200)
+    except Exception as e:
+        return Response({"status": "error", "details": str(e)}, status=500)
