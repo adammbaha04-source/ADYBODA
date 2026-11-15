@@ -1,8 +1,22 @@
-import type { DebtResponse, ExpenseSummary, InsuranceRecord, LostDays, PaymentRecord, PersonalExpense, ReturnRecord, ServiceRecord, TeamMember, TyreRecord, Vehicle } from "./types";
 
-// Kosa la mtandao. `detail` inaeleza kosa halisi la browser (kwa uchunguzi).
+import type {
+  DebtResponse,
+  ExpenseSummary,
+  InsuranceRecord,
+  LostDays,
+  PaymentRecord,
+  PersonalExpense,
+  ReturnRecord,
+  ServiceRecord,
+  TeamMember,
+  TyreRecord,
+  Vehicle,
+} from "./types";
+
+// Kosa la mtandao. Detail inaeleza kosa halisi la browser.
 export class NetworkError extends Error {
   detail: string;
+
   constructor(detail = "") {
     super("Hakuna mtandao. Angalia muunganisho wako kisha jaribu tena.");
     this.name = "NetworkError";
@@ -10,9 +24,10 @@ export class NetworkError extends Error {
   }
 }
 
-// Kosa lenye hali ya HTTP (401, 400, 500...), ili UI iweze kuamua ujumbe sahihi.
+// Kosa lenye hali ya HTTP (401, 400, 500...).
 export class ApiError extends Error {
   status: number;
+
   constructor(message: string, status: number) {
     super(message);
     this.name = "ApiError";
@@ -20,29 +35,49 @@ export class ApiError extends Error {
   }
 }
 
-export const isNetworkError = (e: unknown): boolean => e instanceof NetworkError;
+export const isNetworkError = (e: unknown): boolean =>
+  e instanceof NetworkError;
 
-// GET/HEAD: rudia mara 3 na timeout ya sekunde 30 kwa kila jaribio.
-// POST/PATCH/DELETE: jaribio moja tu, bila timeout, ili malipo yasiingie mara mbili.
+// GET/HEAD: rudia mara 3 na timeout ya sekunde 30.
+// POST/PATCH/DELETE: jaribio moja tu ili kuzuia miamala kurudiwa.
 const GET_TIMEOUT_MS = 30000;
 const _fetch = window.fetch.bind(window);
 
 window.fetch = async (input, init) => {
-  const method = (init?.method ?? (input instanceof Request ? input.method : "GET")).toUpperCase();
+  const method = (
+    init?.method ??
+    (input instanceof Request ? input.method : "GET")
+  ).toUpperCase();
+
   const isSafe = method === "GET" || method === "HEAD";
   const attempts = isSafe ? 3 : 1;
+
   let lastErr: unknown = null;
 
   for (let i = 0; i < attempts; i++) {
     const ctrl = isSafe ? new AbortController() : null;
-    const timer = ctrl ? setTimeout(() => ctrl.abort(), GET_TIMEOUT_MS) : null;
+    const timer = ctrl
+      ? setTimeout(() => ctrl.abort(), GET_TIMEOUT_MS)
+      : null;
+
     try {
-      return await _fetch(input, ctrl ? { ...init, signal: ctrl.signal } : init);
+      return await _fetch(
+        input,
+        ctrl ? { ...init, signal: ctrl.signal } : init,
+      );
     } catch (err) {
       lastErr = err;
-      console.error("[AdyBajaj Network]", { method, attempt: i + 1, error: err });
+
+      console.error("[AdyBajaj Network]", {
+        method,
+        attempt: i + 1,
+        error: err,
+      });
+
       if (i < attempts - 1) {
-        await new Promise((r) => setTimeout(r, 1000 * (i + 1)));
+        await new Promise((resolve) =>
+          setTimeout(resolve, 1000 * (i + 1)),
+        );
       }
     } finally {
       if (timer) clearTimeout(timer);
@@ -50,7 +85,9 @@ window.fetch = async (input, init) => {
   }
 
   throw new NetworkError(
-    lastErr instanceof Error ? `${lastErr.name}: ${lastErr.message}` : String(lastErr),
+    lastErr instanceof Error
+      ? `${lastErr.name}: ${lastErr.message}`
+      : String(lastErr),
   );
 };
 
@@ -64,41 +101,97 @@ export function clearToken(): void {
   localStorage.removeItem(TOKEN_KEY);
 }
 
-export async function request<T>(path: string, init: RequestInit = {}): Promise<T> {
-  const headers: Record<string, string> = { "Content-Type": "application/json" };
+export async function request<T>(
+  path: string,
+  init: RequestInit = {},
+): Promise<T> {
+  const headers: Record<string, string> = {
+    "Content-Type": "application/json",
+  };
+
   const token = getToken();
-  if (token) headers["Authorization"] = `Token ${token}`;
-  const res = await fetch(`/api${path}`, { ...init, headers: { ...headers, ...(init.headers as Record<string, string>) } });
+
+  if (token) {
+    headers["Authorization"] = `Token ${token}`;
+  }
+
+  const res = await fetch(`/api${path}`, {
+    ...init,
+    headers: {
+      ...headers,
+      ...(init.headers as Record<string, string>),
+    },
+  });
+
   if (res.status === 401) {
     clearToken();
     throw new ApiError("Umetoka kwenye akaunti. Ingia tena.", 401);
   }
+
   if (!res.ok) {
     const body = await res.text();
     throw new ApiError(body || `Hitilafu ${res.status}`, res.status);
   }
-  if (res.status === 204) return undefined as T;
+
+  if (res.status === 204) {
+    return undefined as T;
+  }
+
   return (await res.json()) as T;
 }
 
-export async function login(username: string, password: string): Promise<void> {
-  const data = await request<{ token: string }>("/auth/token/", {
-    method: "POST",
-    body: JSON.stringify({ username, password }),
-  });
-  localStorage.setItem(TOKEN_KEY, data.token);
+// LOGIN: Jaribio la kwanza + retries mbili kwa network error pekee.
+export async function login(
+  username: string,
+  password: string,
+): Promise<void> {
+  const maxAttempts = 3;
+
+  for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+    try {
+      const data = await request<{ token: string }>("/auth/token/", {
+        method: "POST",
+        body: JSON.stringify({ username, password }),
+      });
+
+      localStorage.setItem(TOKEN_KEY, data.token);
+      return;
+    } catch (err) {
+      if (!(err instanceof NetworkError) || attempt === maxAttempts) {
+        throw err;
+      }
+
+      const delay = attempt * 1000;
+
+      console.warn(
+        `[AdyBajaj Login] Network retry ${attempt + 1}/${maxAttempts} in ${delay}ms`,
+      );
+
+      await new Promise((resolve) => setTimeout(resolve, delay));
+    }
+  }
 }
 
-export const listVehicles = () => request<Vehicle[]>("/vehicles/");
+export const listVehicles = () =>
+  request<Vehicle[]>("/vehicles/");
 
 export const getDebt = (vehicleId: number, month: string) =>
-  request<DebtResponse>(`/vehicles/${vehicleId}/debt/?month=${month}`);
+  request<DebtResponse>(
+    `/vehicles/${vehicleId}/debt/?month=${month}`,
+  );
 
 export type DebtBundle = DebtResponse & { vehicle_id: number };
-export const getDebtSummaries = (month: string) =>
-  request<DebtBundle[]>(`/vehicles/debt-summaries/?month=${month}`);
 
-export const setCarry = (vehicleId: number, month: string, carry: boolean) =>
+export const getDebtSummaries = (month: string) =>
+  request<DebtBundle[]>(
+    `/vehicles/debt-summaries/?month=${month}`,
+  );
+
+export const setCarry = (
+  vehicleId: number,
+  month: string,
+  carry: boolean,
+) =>
   request(`/vehicles/${vehicleId}/carry/`, {
     method: "POST",
     body: JSON.stringify({ month, carry }),
@@ -107,27 +200,54 @@ export const setCarry = (vehicleId: number, month: string, carry: boolean) =>
 export const listReturns = (vehicleId: number) =>
   request<ReturnRecord[]>(`/returns/?vehicle=${vehicleId}`);
 
-export const createReturn = (vehicleId: number, day: string, amount: number, isExcess: boolean) =>
+export const createReturn = (
+  vehicleId: number,
+  day: string,
+  amount: number,
+  isExcess: boolean,
+) =>
   request<ReturnRecord>("/returns/", {
     method: "POST",
-    body: JSON.stringify({ vehicle: vehicleId, day, amount, is_excess: isExcess }),
+    body: JSON.stringify({
+      vehicle: vehicleId,
+      day,
+      amount,
+      is_excess: isExcess,
+    }),
   });
 
-export const deleteReturn = (id: number) => request<void>(`/returns/${id}/`, { method: "DELETE" });
+export const deleteReturn = (id: number) =>
+  request<void>(`/returns/${id}/`, { method: "DELETE" });
 
-export const createVehicle = (name: string, dailyTarget: number, workingDaysCount: number, vehicleType = "Bajaj") =>
+export const createVehicle = (
+  name: string,
+  dailyTarget: number,
+  workingDaysCount: number,
+  vehicleType = "Bajaj",
+) =>
   request<Vehicle>("/vehicles/", {
     method: "POST",
-    body: JSON.stringify({ name, vehicle_type: vehicleType, daily_target: dailyTarget, working_days_count: workingDaysCount }),
+    body: JSON.stringify({
+      name,
+      vehicle_type: vehicleType,
+      daily_target: dailyTarget,
+      working_days_count: workingDaysCount,
+    }),
   });
 
 export const updateVehicle = (id: number, data: Partial<Vehicle>) =>
-  request<Vehicle>(`/vehicles/${id}/`, { method: "PATCH", body: JSON.stringify(data) });
+  request<Vehicle>(`/vehicles/${id}/`, {
+    method: "PATCH",
+    body: JSON.stringify(data),
+  });
 
 export const listLostDays = (vehicleId: number) =>
-  request<LostDays[]>(`/lost-days/`).then((rows) => rows.filter((r) => r.vehicle === vehicleId));
+  request<LostDays[]>("/lost-days/").then((rows) =>
+    rows.filter((r) => r.vehicle === vehicleId),
+  );
 
 // ----- Driver -----
+
 export interface DriverDetails {
   email?: string;
   residence?: string;
@@ -136,8 +256,6 @@ export interface DriverDetails {
   reason?: string;
 }
 
-// Badili dereva: creates a new driver period. Positional arguments stay the same,
-// so AddVehicleForm keeps working without changes.
 export const changeDriver = (
   vehicleId: number,
   driverName: string,
@@ -147,21 +265,40 @@ export const changeDriver = (
 ) =>
   request("/driver-periods/", {
     method: "POST",
-    body: JSON.stringify({ vehicle: vehicleId, driver_name: driverName, phone, from_date: fromDate, ...extra }),
+    body: JSON.stringify({
+      vehicle: vehicleId,
+      driver_name: driverName,
+      phone,
+      from_date: fromDate,
+      ...extra,
+    }),
   });
 
-// Hariri dereva: corrects the current driver period without creating a new one.
-export const updateDriverPeriod = (periodId: number, data: Record<string, string>) =>
-  request(`/driver-periods/${periodId}/`, { method: "PATCH", body: JSON.stringify(data) });
+export const updateDriverPeriod = (
+  periodId: number,
+  data: Record<string, string>,
+) =>
+  request(`/driver-periods/${periodId}/`, {
+    method: "PATCH",
+    body: JSON.stringify(data),
+  });
 
-export const addLostDays = (vehicleId: number, month: string, weekNumber: number, days: number) =>
+export const addLostDays = (
+  vehicleId: number,
+  month: string,
+  weekNumber: number,
+  days: number,
+) =>
   request("/lost-days/", {
     method: "POST",
-    body: JSON.stringify({ vehicle: vehicleId, month, week_number: weekNumber, days }),
+    body: JSON.stringify({
+      vehicle: vehicleId,
+      month,
+      week_number: weekNumber,
+      days,
+    }),
   });
 
-// Siku zilizopotea: one row per (vehicle, month, week). Updates the existing row when there is one,
-// so a second entry for the same week does not hit the unique constraint.
 export const saveLostDays = (
   vehicleId: number,
   month: string,
@@ -170,103 +307,370 @@ export const saveLostDays = (
   existingId?: number,
 ) =>
   existingId
-    ? request(`/lost-days/${existingId}/`, { method: "PATCH", body: JSON.stringify({ days }) })
+    ? request(`/lost-days/${existingId}/`, {
+        method: "PATCH",
+        body: JSON.stringify({ days }),
+      })
     : addLostDays(vehicleId, month, weekNumber, days);
 
-export const addManualEntry = (vehicleId: number, kind: string, day: string, amount: number, note: string) =>
+export const addManualEntry = (
+  vehicleId: number,
+  kind: string,
+  day: string,
+  amount: number,
+  note: string,
+) =>
   request("/manual-entries/", {
     method: "POST",
     body: JSON.stringify({ vehicle: vehicleId, kind, day, amount, note }),
   });
 
-export const deleteVehicle = (id: number) => request<void>(`/vehicles/${id}/`, { method: "DELETE" });
+export const deleteVehicle = (id: number) =>
+  request<void>(`/vehicles/${id}/`, { method: "DELETE" });
 
-// ----- records from the old app's forms -----
-export const listPayments = (vehicleId: number) => request<PaymentRecord[]>(`/payment-records/?vehicle=${vehicleId}`);
-export const listServices = (vehicleId: number) => request<ServiceRecord[]>(`/service-records/?vehicle=${vehicleId}`);
-export const listTyres = (vehicleId: number) => request<TyreRecord[]>(`/tyre-records/?vehicle=${vehicleId}`);
-export const listInsurances = (vehicleId: number) => request<InsuranceRecord[]>(`/insurance-records/?vehicle=${vehicleId}`);
+// ----- Records from old app forms -----
 
-export const createPayment = (vehicleId: number, day: string, paymentType: string, amount: number, note: string) =>
-  request<PaymentRecord>("/payment-records/", { method: "POST", body: JSON.stringify({ vehicle: vehicleId, day, payment_type: paymentType, amount, note }) });
-export const createService = (vehicleId: number, body: { day: string; tool: string; count: number; unit_price: number; seller: string; note: string }) =>
-  request<ServiceRecord>("/service-records/", { method: "POST", body: JSON.stringify({ vehicle: vehicleId, ...body }) });
-export const updateTyre = (id: number, data: { retired_on?: string | null; tyre_number?: string; amount?: number; note?: string }) =>
-  request<TyreRecord>(`/tyre-records/${id}/`, { method: "PATCH", body: JSON.stringify(data) });
+export const listPayments = (vehicleId: number) =>
+  request<PaymentRecord[]>(`/payment-records/?vehicle=${vehicleId}`);
 
-export const updateService = (id: number, body: { day: string; tool: string; count: number; unit_price: number; seller: string; note: string }) =>
-  request<ServiceRecord>(`/service-records/${id}/`, { method: "PATCH", body: JSON.stringify(body) });
+export const listServices = (vehicleId: number) =>
+  request<ServiceRecord[]>(`/service-records/?vehicle=${vehicleId}`);
 
-export const createTyre = (vehicleId: number, day: string, tyreNumber: string, amount: number, note: string) =>
-  request<TyreRecord>("/tyre-records/", { method: "POST", body: JSON.stringify({ vehicle: vehicleId, day, tyre_number: tyreNumber, amount, note }) });
-export const createInsurance = (vehicleId: number, day: string, insuranceType: string, amount: number, months: number, note: string) =>
-  request<InsuranceRecord>("/insurance-records/", { method: "POST", body: JSON.stringify({ vehicle: vehicleId, day, insurance_type: insuranceType, amount, months, note }) });
+export const listTyres = (vehicleId: number) =>
+  request<TyreRecord[]>(`/tyre-records/?vehicle=${vehicleId}`);
 
-export const deleteRecord = (path: "payment-records" | "service-records" | "tyre-records" | "insurance-records", id: number) =>
+export const listInsurances = (vehicleId: number) =>
+  request<InsuranceRecord[]>(`/insurance-records/?vehicle=${vehicleId}`);
+
+export const createPayment = (
+  vehicleId: number,
+  day: string,
+  paymentType: string,
+  amount: number,
+  note: string,
+) =>
+  request<PaymentRecord>("/payment-records/", {
+    method: "POST",
+    body: JSON.stringify({
+      vehicle: vehicleId,
+      day,
+      payment_type: paymentType,
+      amount,
+      note,
+    }),
+  });
+
+export const createService = (
+  vehicleId: number,
+  body: {
+    day: string;
+    tool: string;
+    count: number;
+    unit_price: number;
+    seller: string;
+    note: string;
+  },
+) =>
+  request<ServiceRecord>("/service-records/", {
+    method: "POST",
+    body: JSON.stringify({ vehicle: vehicleId, ...body }),
+  });
+
+export const updateTyre = (
+  id: number,
+  data: {
+    retired_on?: string | null;
+    tyre_number?: string;
+    amount?: number;
+    note?: string;
+  },
+) =>
+  request<TyreRecord>(`/tyre-records/${id}/`, {
+    method: "PATCH",
+    body: JSON.stringify(data),
+  });
+
+export const updateService = (
+  id: number,
+  body: {
+    day: string;
+    tool: string;
+    count: number;
+    unit_price: number;
+    seller: string;
+    note: string;
+  },
+) =>
+  request<ServiceRecord>(`/service-records/${id}/`, {
+    method: "PATCH",
+    body: JSON.stringify(body),
+  });
+
+export const createTyre = (
+  vehicleId: number,
+  day: string,
+  tyreNumber: string,
+  amount: number,
+  note: string,
+) =>
+  request<TyreRecord>("/tyre-records/", {
+    method: "POST",
+    body: JSON.stringify({
+      vehicle: vehicleId,
+      day,
+      tyre_number: tyreNumber,
+      amount,
+      note,
+    }),
+  });
+
+export const createInsurance = (
+  vehicleId: number,
+  day: string,
+  insuranceType: string,
+  amount: number,
+  months: number,
+  note: string,
+) =>
+  request<InsuranceRecord>("/insurance-records/", {
+    method: "POST",
+    body: JSON.stringify({
+      vehicle: vehicleId,
+      day,
+      insurance_type: insuranceType,
+      amount,
+      months,
+      note,
+    }),
+  });
+
+export const deleteRecord = (
+  path:
+    | "payment-records"
+    | "service-records"
+    | "tyre-records"
+    | "insurance-records",
+  id: number,
+) =>
   request<void>(`/${path}/${id}/`, { method: "DELETE" });
 
-// ----- Matumizi tab (personal expenses, Makato, summary) -----
-export const listExpenses = (month: string) => request<PersonalExpense[]>(`/personal-expenses/?month=${month}`);
-export const addExpense = (day: string, category: string, amount: number, note: string) =>
-  request<PersonalExpense>("/personal-expenses/", { method: "POST", body: JSON.stringify({ day, category, amount, note }) });
-export const addMakato = (day: string, makatoType: string, transactionAmount: number, note: string) =>
-  request<PersonalExpense>("/personal-expenses/", { method: "POST", body: JSON.stringify({ day, category: "makato", makato_type: makatoType, transaction_amount: transactionAmount, note }) });
-export const deleteExpense = (id: number) => request<void>(`/personal-expenses/${id}/`, { method: "DELETE" });
-export const getExpenseSummary = (month: string) => request<ExpenseSummary>(`/expense-summary/?month=${month}`);
+// ----- Matumizi tab -----
+
+export const listExpenses = (month: string) =>
+  request<PersonalExpense[]>(`/personal-expenses/?month=${month}`);
+
+export const addExpense = (
+  day: string,
+  category: string,
+  amount: number,
+  note: string,
+) =>
+  request<PersonalExpense>("/personal-expenses/", {
+    method: "POST",
+    body: JSON.stringify({ day, category, amount, note }),
+  });
+
+export const addMakato = (
+  day: string,
+  makatoType: string,
+  transactionAmount: number,
+  note: string,
+) =>
+  request<PersonalExpense>("/personal-expenses/", {
+    method: "POST",
+    body: JSON.stringify({
+      day,
+      category: "makato",
+      makato_type: makatoType,
+      transaction_amount: transactionAmount,
+      note,
+    }),
+  });
+
+export const deleteExpense = (id: number) =>
+  request<void>(`/personal-expenses/${id}/`, { method: "DELETE" });
+
+export const getExpenseSummary = (month: string) =>
+  request<ExpenseSummary>(`/expense-summary/?month=${month}`);
 
 // ----- Ripoti and Grafu -----
-export interface ReportTotals {
-  target: number; collected: number; excess: number; new_debt: number; debt_payments: number;
-  expenses: number; lost_days: number; lost_amount: number; personal: number; outstanding: number; profit: number;
-}
-export interface ReportMonth {
-  month: string; target: number; collected: number; excess: number; new_debt: number; debt_payments: number;
-  outstanding: number; expenses: number; lost_amount: number; lost_days: number; personal: number; profit: number;
-}
-export interface ReportVehicle {
-  id: number; name: string; type: string; driver: string; target: number; collected: number; excess: number;
-  outstanding: number; new_debt: number; debt_payments: number; lost_days: number; lost_amount: number;
-  service: number; expenses: number; profit: number;
-}
-export interface ReportData { from: string; to: string; vehicle_id: number | null; totals: ReportTotals; series: ReportMonth[]; vehicles: ReportVehicle[]; }
 
-export const getReport = (from: string, to: string, vehicleId: string) =>
-  request<ReportData>(`/reports/?from=${from}&to=${to}${vehicleId && vehicleId !== "ALL" ? `&vehicle=${vehicleId}` : ""}`);
+export interface ReportTotals {
+  target: number;
+  collected: number;
+  excess: number;
+  new_debt: number;
+  debt_payments: number;
+  expenses: number;
+  lost_days: number;
+  lost_amount: number;
+  personal: number;
+  outstanding: number;
+  profit: number;
+}
+
+export interface ReportMonth {
+  month: string;
+  target: number;
+  collected: number;
+  excess: number;
+  new_debt: number;
+  debt_payments: number;
+  outstanding: number;
+  expenses: number;
+  lost_amount: number;
+  lost_days: number;
+  personal: number;
+  profit: number;
+}
+
+export interface ReportVehicle {
+  id: number;
+  name: string;
+  type: string;
+  driver: string;
+  target: number;
+  collected: number;
+  excess: number;
+  outstanding: number;
+  new_debt: number;
+  debt_payments: number;
+  lost_days: number;
+  lost_amount: number;
+  service: number;
+  expenses: number;
+  profit: number;
+}
+
+export interface ReportData {
+  from: string;
+  to: string;
+  vehicle_id: number | null;
+  totals: ReportTotals;
+  series: ReportMonth[];
+  vehicles: ReportVehicle[];
+}
+
+export const getReport = (
+  from: string,
+  to: string,
+  vehicleId: string,
+) =>
+  request<ReportData>(
+    `/reports/?from=${from}&to=${to}${
+      vehicleId && vehicleId !== "ALL"
+        ? `&vehicle=${vehicleId}`
+        : ""
+    }`,
+  );
 
 // ----- Users (owner's team) -----
-export const listTeam = () => request<TeamMember[]>("/team/");
-export const createTeamMember = (body: { username: string; password: string; role: "manager" | "driver"; phone: string; vehicles: number[] }) =>
-  request("/team/", { method: "POST", body: JSON.stringify(body) });
-export const deleteTeamMember = (id: number) => request<void>(`/team/${id}/`, { method: "DELETE" });
 
-// ----- Profile, settings and changamoto (clean block) -----
+export const listTeam = () =>
+  request<TeamMember[]>("/team/");
+
+export const createTeamMember = (body: {
+  username: string;
+  password: string;
+  role: "manager" | "driver";
+  phone: string;
+  vehicles: number[];
+}) =>
+  request("/team/", {
+    method: "POST",
+    body: JSON.stringify(body),
+  });
+
+export const deleteTeamMember = (id: number) =>
+  request<void>(`/team/${id}/`, { method: "DELETE" });
+
+// ----- Profile, settings and changamoto -----
+
 export interface MeProfile {
-  username: string; email: string; role: string; business_owner: string;
-  full_name: string; business_name: string; phone: string; avatar: string;
-  theme: "light" | "dark"; background: string; accent: string;
+  username: string;
+  email: string;
+  role: string;
+  business_owner: string;
+  full_name: string;
+  business_name: string;
+  phone: string;
+  avatar: string;
+  theme: "light" | "dark";
+  background: string;
+  accent: string;
   vehicles: { id: number; name: string }[];
 }
-export const getMe = () => request<MeProfile>("/me/");
-export const patchMe = (data: Partial<Pick<MeProfile, "full_name" | "phone" | "avatar" | "theme" | "background" | "accent">>) =>
-  request<MeProfile>("/me/", { method: "PATCH", body: JSON.stringify(data) });
+
+export const getMe = () =>
+  request<MeProfile>("/me/");
+
+export const patchMe = (
+  data: Partial<
+    Pick<
+      MeProfile,
+      "full_name" | "phone" | "avatar" | "theme" | "background" | "accent"
+    >
+  >,
+) =>
+  request<MeProfile>("/me/", {
+    method: "PATCH",
+    body: JSON.stringify(data),
+  });
 
 export interface Challenge {
-  id: number; vehicle: number; vehicle_name: string; title: string; description: string;
-  status: "open" | "resolved"; created_at: string; resolved_at: string | null; created_by_name: string;
+  id: number;
+  vehicle: number;
+  vehicle_name: string;
+  title: string;
+  description: string;
+  status: "open" | "resolved";
+  created_at: string;
+  resolved_at: string | null;
+  created_by_name: string;
 }
+
 export const listChallenges = (status: string, vehicle: string) => {
-  const q = [status !== "ALL" ? `status=${status}` : "", vehicle !== "ALL" ? `vehicle=${vehicle}` : ""].filter(Boolean).join("&");
+  const q = [
+    status !== "ALL" ? `status=${status}` : "",
+    vehicle !== "ALL" ? `vehicle=${vehicle}` : "",
+  ]
+    .filter(Boolean)
+    .join("&");
+
   return request<Challenge[]>(`/challenges/${q ? "?" + q : ""}`);
 };
-export const createChallenge = (vehicle: number, title: string, description: string) =>
-  request<Challenge>("/challenges/", { method: "POST", body: JSON.stringify({ vehicle, title, description }) });
-export const solveChallenge = (id: number) => request<Challenge>(`/challenges/${id}/solve/`, { method: "POST" });
 
-export async function registerOwner(body: { full_name: string; business_name: string; phone: string; email: string; password: string }): Promise<void> {
-  const data = await request<{ token: string }>("/auth/register/", { method: "POST", body: JSON.stringify(body) });
+export const createChallenge = (
+  vehicle: number,
+  title: string,
+  description: string,
+) =>
+  request<Challenge>("/challenges/", {
+    method: "POST",
+    body: JSON.stringify({ vehicle, title, description }),
+  });
+
+export const solveChallenge = (id: number) =>
+  request<Challenge>(`/challenges/${id}/solve/`, {
+    method: "POST",
+  });
+
+export async function registerOwner(body: {
+  full_name: string;
+  business_name: string;
+  phone: string;
+  email: string;
+  password: string;
+}): Promise<void> {
+  const data = await request<{ token: string }>("/auth/register/", {
+    method: "POST",
+    body: JSON.stringify(body),
+  });
+
   localStorage.setItem(TOKEN_KEY, data.token);
 }
 
+// ----- Week plan -----
 
 export interface WeekPlan {
   week_number: number;
@@ -282,15 +686,26 @@ export interface WeekPlan {
 }
 
 export const getWeekPlan = (vehicleId: number, month: string) =>
-  request<{ month: string; weeks: WeekPlan[] }>(`/vehicles/${vehicleId}/week-plan/?month=${month}`);
+  request<{ month: string; weeks: WeekPlan[] }>(
+    `/vehicles/${vehicleId}/week-plan/?month=${month}`,
+  );
 
 export const saveWeekPlan = (
   vehicleId: number,
   body: {
-    month: string; week_number: number; active_days?: number[] | null; target?: number | null;
-    start_date?: string | null; end_date?: string | null; note?: string | null;
+    month: string;
+    week_number: number;
+    active_days?: number[] | null;
+    target?: number | null;
+    start_date?: string | null;
+    end_date?: string | null;
+    note?: string | null;
   },
-) => request<{ month: string; weeks: WeekPlan[] }>(`/vehicles/${vehicleId}/week-plan/`, {
-  method: "POST",
-  body: JSON.stringify(body),
-});
+) =>
+  request<{ month: string; weeks: WeekPlan[] }>(
+    `/vehicles/${vehicleId}/week-plan/`,
+    {
+      method: "POST",
+      body: JSON.stringify(body),
+    },
+  );
