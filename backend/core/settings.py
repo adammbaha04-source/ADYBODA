@@ -18,7 +18,6 @@ from django.core.exceptions import ImproperlyConfigured
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent
 
-
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = os.environ.get('DJANGO_DEBUG', '0') == '1'
 
@@ -32,12 +31,11 @@ if not _secret_key:
 SECRET_KEY = _secret_key
 
 ALLOWED_HOSTS = [h for h in os.environ.get('DJANGO_ALLOWED_HOSTS', 'localhost,127.0.0.1').split(',') if h]
-CSRF_TRUSTED_ORIGINS = [o for o in os.environ.get('DJANGO_CSRF_ORIGINS', '').split(',') if o]
-
 
 # Application definition
 
 INSTALLED_APPS = [
+    'corsheaders',  # <--- MUHIMU: Imewekwa hapa kwa ajili ya CORS
     'rest_framework',
     'rest_framework.authtoken',
     'fleet',
@@ -50,6 +48,7 @@ INSTALLED_APPS = [
 ]
 
 MIDDLEWARE = [
+    'corsheaders.middleware.CorsMiddleware',  # <--- MUHIMU: Lazima iwe juu kabla ya CommonMiddleware
     'django.middleware.security.SecurityMiddleware',
     'whitenoise.middleware.WhiteNoiseMiddleware',
     'django.contrib.sessions.middleware.SessionMiddleware',
@@ -83,25 +82,19 @@ WSGI_APPLICATION = 'core.wsgi.application'
 # ==============================================================================
 # DATABASE CONFIGURATION (MAREKEBISHO KWA AJILI YA NEON + RENDER)
 # ==============================================================================
-# Tunatumia dj_database_url kusoma DATABASE_URL kutoka Render Environment.
-# conn_max_age=0 inasitisha Django kushikilia muunganisho uliokufa.
-# DISABLE_SERVER_SIDE_CURSORS ni lazima kwa PgBouncer ya Neon.
-
 DATABASES = {
     'default': dj_database_url.config(
         default='sqlite:///' + str(BASE_DIR / 'db.sqlite3'),
-        conn_max_age=0,          # MAREKEBISHO: Imebadilishwa kutoka 600 kuwaka 0
-        conn_health_checks=True, # Angalia afya ya muunganisho kabla ya kuitumia
+        conn_max_age=0,          
+        conn_health_checks=True, 
     )
 }
 
-# Lazima kwa Neon Connection Pooling
 DATABASES['default']['DISABLE_SERVER_SIDE_CURSORS'] = True
 
-# Muda wa kusubiri Neon Database ikuamke (Cold Start)
 DATABASES['default']['OPTIONS'] = {
-    'connect_timeout': 10,  # Subiri sekunde 10 kabla ya kukata tamaa
-    'sslmode': 'require',   # Neon inahitaji SSL
+    'connect_timeout': 10,  
+    'sslmode': 'require',   
 }
 # ==============================================================================
 
@@ -138,11 +131,35 @@ STORAGES = {
     'staticfiles': {'BACKEND': 'whitenoise.storage.CompressedManifestStaticFilesStorage'},
 }
 
+# Default primary key field type (Inaondoa zile warnings kwenye logs)
+DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
+
+
 if not DEBUG:
     SECURE_PROXY_SSL_HEADER = ('HTTP_X_FORWARDED_PROTO', 'https')
     SECURE_SSL_REDIRECT = True
     SESSION_COOKIE_SECURE = True
     CSRF_COOKIE_SECURE = True
+
+
+# ==============================================================================
+# CORS NA CSRF SETTINGS (KWA AJILI YA MAWASILIANO NA CLOUDFLARE)
+# ==============================================================================
+# Ruhusu Frontend yako (Cloudflare) iwasiliane na Backend (Render)
+# BADILISHA link ya chini na link yako halisi ya Cloudflare ukishaimaliza.
+CORS_ALLOWED_ORIGINS = [
+    "https://adybajaj.pages.dev", # <-- BADILISHA HII IKIWA LINK YAKO NI TOFAUTI
+    "http://localhost:5173",      
+]
+
+CSRF_TRUSTED_ORIGINS = [
+    "https://adybajaj.pages.dev", # <-- BADILISHA HII
+    "https://adybajaj-api.onrender.com", 
+]
+
+# Kama hujui link yako ya Cloudflare kwa sasa, zima hiyo juu na ufungue hii ya chini kwa muda:
+# CORS_ALLOW_ALL_ORIGINS = True 
+# ==============================================================================
 
 
 REST_FRAMEWORK = {
@@ -153,7 +170,6 @@ REST_FRAMEWORK = {
     "DEFAULT_PERMISSION_CLASSES": ["rest_framework.permissions.IsAuthenticated"],
     "DEFAULT_PAGINATION_CLASS": None,
 }
-
 
 # Write 500 errors (with the full traceback) to the Render logs.
 LOGGING = {
