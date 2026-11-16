@@ -35,7 +35,7 @@ ALLOWED_HOSTS = [h for h in os.environ.get('DJANGO_ALLOWED_HOSTS', 'localhost,12
 # Application definition
 
 INSTALLED_APPS = [
-    'corsheaders',  # <--- MUHIMU: Imewekwa hapa kwa ajili ya CORS
+    'corsheaders',  # <--- MUHIMU KWA CORS
     'rest_framework',
     'rest_framework.authtoken',
     'fleet',
@@ -48,7 +48,7 @@ INSTALLED_APPS = [
 ]
 
 MIDDLEWARE = [
-    'corsheaders.middleware.CorsMiddleware',  # <--- MUHIMU: Lazima iwe juu kabla ya CommonMiddleware
+    'corsheaders.middleware.CorsMiddleware',  # <--- Lazima iwe juu kabisa
     'django.middleware.security.SecurityMiddleware',
     'whitenoise.middleware.WhiteNoiseMiddleware',
     'django.contrib.sessions.middleware.SessionMiddleware',
@@ -80,7 +80,7 @@ WSGI_APPLICATION = 'core.wsgi.application'
 
 
 # ==============================================================================
-# DATABASE CONFIGURATION (MAREKEBISHO KWA AJILI YA NEON + RENDER)
+# DATABASE CONFIGURATION (NEON + RENDER)
 # ==============================================================================
 DATABASES = {
     'default': dj_database_url.config(
@@ -131,7 +131,7 @@ STORAGES = {
     'staticfiles': {'BACKEND': 'whitenoise.storage.CompressedManifestStaticFilesStorage'},
 }
 
-# Default primary key field type (Inaondoa zile warnings kwenye logs)
+# Default primary key field type
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 
 
@@ -143,22 +143,17 @@ if not DEBUG:
 
 
 # ==============================================================================
-# CORS NA CSRF SETTINGS (KWA AJILI YA MAWASILIANO NA CLOUDFLARE)
+# CORS SETTINGS (KUFUNGULIWA KIKAMILIFU KWA MUDA KUPIMA)
 # ==============================================================================
-# Ruhusu Frontend yako (Cloudflare) iwasiliane na Backend (Render)
-# BADILISHA link ya chini na link yako halisi ya Cloudflare ukishaimaliza.
-CORS_ALLOWED_ORIGINS = [
-    "https://adybajaj.pages.dev", # <-- BADILISHA HII IKIWA LINK YAKO NI TOFAUTI
-    "http://localhost:5173",      
-]
+# Tunafungua kila kitu kwa muda ili kujua kama tatizo ni CORS
+CORS_ALLOW_ALL_ORIGINS = True 
+CORS_ALLOW_CREDENTIALS = True
 
+# CSRF Trusted Origins (Ili kuruhusu POST requests kama Login)
 CSRF_TRUSTED_ORIGINS = [
-    "https://adybajaj.pages.dev", # <-- BADILISHA HII
-    "https://adybajaj-api.onrender.com", 
+    "https://adybajaj-api.onrender.com",
+    "https://adybajaj.pages.dev", # Weka link yako halisi hapa
 ]
-
-# Kama hujui link yako ya Cloudflare kwa sasa, zima hiyo juu na ufungue hii ya chini kwa muda:
-# CORS_ALLOW_ALL_ORIGINS = True 
 # ==============================================================================
 
 
