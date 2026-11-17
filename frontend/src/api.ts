@@ -1,4 +1,3 @@
-
 import type {
   DebtResponse,
   ExpenseSummary,
@@ -41,6 +40,8 @@ export const isNetworkError = (e: unknown): boolean =>
 // GET/HEAD: rudia mara 3 na timeout ya sekunde 30.
 // POST/PATCH/DELETE: jaribio moja tu ili kuzuia miamala kurudiwa.
 const GET_TIMEOUT_MS = 30000;
+const POST_TIMEOUT_MS = 45000; // Tumeongeza muda hapa
+
 const _fetch = window.fetch.bind(window);
 
 window.fetch = async (input, init) => {
@@ -51,19 +52,18 @@ window.fetch = async (input, init) => {
 
   const isSafe = method === "GET" || method === "HEAD";
   const attempts = isSafe ? 3 : 1;
+  const timeoutMs = isSafe ? GET_TIMEOUT_MS : POST_TIMEOUT_MS;
 
   let lastErr: unknown = null;
 
   for (let i = 0; i < attempts; i++) {
-    const ctrl = isSafe ? new AbortController() : null;
-    const timer = ctrl
-      ? setTimeout(() => ctrl.abort(), GET_TIMEOUT_MS)
-      : null;
+    const ctrl = new AbortController();
+    const timer = setTimeout(() => ctrl.abort(), timeoutMs);
 
     try {
       return await _fetch(
         input,
-        ctrl ? { ...init, signal: ctrl.signal } : init,
+        { ...init, signal: ctrl.signal },
       );
     } catch (err) {
       lastErr = err;
@@ -80,7 +80,7 @@ window.fetch = async (input, init) => {
         );
       }
     } finally {
-      if (timer) clearTimeout(timer);
+      clearTimeout(timer);
     }
   }
 
@@ -129,8 +129,17 @@ export async function request<T>(
   }
 
   if (!res.ok) {
-    const body = await res.text();
-    throw new ApiError(body || `Hitilafu ${res.status}`, res.status);
+    let errorMessage = `Hitilafu ${res.status}`;
+    try {
+        const body = await res.text();
+        if (body) errorMessage = body;
+    } catch(e) {}
+    
+    if (res.status === 504 || res.status === 502) {
+        errorMessage = "Seva inachelewa kujibu (Timeout). Jaribu tena.";
+    }
+
+    throw new ApiError(errorMessage, res.status);
   }
 
   if (res.status === 204) {
