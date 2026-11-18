@@ -2,6 +2,7 @@ from pathlib import Path
 import os
 import dj_database_url
 from django.core.exceptions import ImproperlyConfigured
+from corsheaders.defaults import default_headers
 
 BASE_DIR = Path(__file__).resolve().parent.parent
 
@@ -65,14 +66,14 @@ WSGI_APPLICATION = 'core.wsgi.application'
 DATABASES = {
     'default': dj_database_url.config(
         default='sqlite:///' + str(BASE_DIR / 'db.sqlite3'),
-        conn_max_age=0,          
-        conn_health_checks=True, 
+        conn_max_age=0,
+        conn_health_checks=True,
     )
 }
 DATABASES['default']['DISABLE_SERVER_SIDE_CURSORS'] = True
 DATABASES['default']['OPTIONS'] = {
-    'connect_timeout': 10,  
-    'sslmode': 'require',   
+    'connect_timeout': 10,
+    'sslmode': 'require',
 }
 
 AUTH_PASSWORD_VALIDATORS = [
@@ -103,12 +104,14 @@ if not DEBUG:
     CSRF_COOKIE_SECURE = True
 
 # CORS SETTINGS - Kufungua kila kitu kwa sasa
-CORS_ALLOW_ALL_ORIGINS = True 
+CORS_ALLOW_ALL_ORIGINS = True
 CORS_ALLOW_CREDENTIALS = True
+# Frontend inatuma header ya Cache-Control, hivyo lazima iruhusiwe kwenye preflight
+CORS_ALLOW_HEADERS = list(default_headers) + ["cache-control"]
 
 CSRF_TRUSTED_ORIGINS = [
     "https://adybajaj-api.onrender.com",
-    "https://adybajaj.pages.dev", 
+    "https://adyboda.pages.dev",
 ]
 
 REST_FRAMEWORK = {
