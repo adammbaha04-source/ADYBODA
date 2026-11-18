@@ -3,7 +3,7 @@ services:
     name: adybajaj-api
     runtime: python
     rootDir: backend
-    plan: free
+    plan: starter
     buildCommand: ./build.sh
     startCommand: gunicorn core.wsgi:application
     envVars:
