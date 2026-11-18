@@ -1,21 +1,10 @@
 import type {
-  DebtResponse,
-  ExpenseSummary,
-  InsuranceRecord,
-  LostDays,
-  PaymentRecord,
-  PersonalExpense,
-  ReturnRecord,
-  ServiceRecord,
-  TeamMember,
-  TyreRecord,
-  Vehicle,
+  DebtResponse, ExpenseSummary, InsuranceRecord, LostDays, PaymentRecord,
+  PersonalExpense, ReturnRecord, ServiceRecord, TeamMember, TyreRecord, Vehicle,
 } from "./types";
 
-// Kosa la mtandao. Detail inaeleza kosa halisi la browser.
 export class NetworkError extends Error {
   detail: string;
-
   constructor(detail = "") {
     super("Hakuna mtandao. Angalia muunganisho wako kisha jaribu tena.");
     this.name = "NetworkError";
@@ -23,10 +12,8 @@ export class NetworkError extends Error {
   }
 }
 
-// Kosa lenye hali ya HTTP (401, 400, 500...).
 export class ApiError extends Error {
   status: number;
-
   constructor(message: string, status: number) {
     super(message);
     this.name = "ApiError";
@@ -34,20 +21,14 @@ export class ApiError extends Error {
   }
 }
 
-export const isNetworkError = (e: unknown): boolean =>
-  e instanceof NetworkError;
+export const isNetworkError = (e: unknown): boolean => e instanceof NetworkError;
 
 const GET_TIMEOUT_MS = 30000;
 const POST_TIMEOUT_MS = 45000;
-
 const _fetch = window.fetch.bind(window);
 
 window.fetch = async (input, init) => {
-  const method = (
-    init?.method ??
-    (input instanceof Request ? input.method : "GET")
-  ).toUpperCase();
-
+  const method = (init?.method ?? (input instanceof Request ? input.method : "GET")).toUpperCase();
   const isSafe = method === "GET" || method === "HEAD";
   const attempts = isSafe ? 3 : 1;
   const timeoutMs = isSafe ? GET_TIMEOUT_MS : POST_TIMEOUT_MS;
@@ -59,66 +40,41 @@ window.fetch = async (input, init) => {
     const timer = setTimeout(() => ctrl.abort(), timeoutMs);
 
     try {
-      return await _fetch(
-        input,
-        { ...init, signal: ctrl.signal },
-      );
+      return await _fetch(input, { ...init, signal: ctrl.signal });
     } catch (err) {
       lastErr = err;
-      console.error("[AdyBajaj Network]", { method, attempt: i + 1, error: err });
-
-      if (i < attempts - 1) {
-        await new Promise((resolve) => setTimeout(resolve, 1000 * (i + 1)));
-      }
+      if (i < attempts - 1) await new Promise((resolve) => setTimeout(resolve, 1000 * (i + 1)));
     } finally {
       clearTimeout(timer);
     }
   }
 
-  throw new NetworkError(
-    lastErr instanceof Error ? `${lastErr.name}: ${lastErr.message}` : String(lastErr),
-  );
+  throw new NetworkError(lastErr instanceof Error ? `${lastErr.name}: ${lastErr.message}` : String(lastErr));
 };
 
 const TOKEN_KEY = "adybajaj_token";
+export function getToken(): string | null { return localStorage.getItem(TOKEN_KEY); }
+export function clearToken(): void { localStorage.removeItem(TOKEN_KEY); }
 
-export function getToken(): string | null {
-  return localStorage.getItem(TOKEN_KEY);
-}
-
-export function clearToken(): void {
-  localStorage.removeItem(TOKEN_KEY);
-}
-
-export async function request<T>(
-  path: string,
-  init: RequestInit = {},
-): Promise<T> {
+export async function request<T>(path: string, init: RequestInit = {}): Promise<T> {
   const headers: Record<string, string> = {
     "Content-Type": "application/json",
-    "Cache-Control": "no-cache", // Lazimisha kutotumia cache
-    "Pragma": "no-cache",
+    "Cache-Control": "no-cache",
   };
 
   const token = getToken();
+  if (token) headers["Authorization"] = `Token ${token}`;
 
-  if (token) {
-    headers["Authorization"] = `Token ${token}`;
-  }
-
-  // HAPA NDIO MAREKEBISHO MAKUBWA: 
-  // Tunaongeza muda wa sasa kwenye URL ili kulazimisha muunganisho mpya
+  // Cache Buster: Inalazimisha mtandao mpya kila mara
   const timestamp = new Date().getTime();
   const separator = path.includes("?") ? "&" : "?";
   const urlWithBuster = `/api${path}${separator}_t=${timestamp}`;
 
   const res = await fetch(urlWithBuster, {
     ...init,
-    cache: "no-store", // Zuia browser kutumia connection ya zamani
-    headers: {
-      ...headers,
-      ...(init.headers as Record<string, string>),
-    },
+    cache: "no-store",
+    keepalive: false,
+    headers: { ...headers, ...(init.headers as Record<string, string>) },
   });
 
   if (res.status === 401) {
@@ -129,57 +85,37 @@ export async function request<T>(
   if (!res.ok) {
     let errorMessage = `Hitilafu ${res.status}`;
     try {
-        const body = await res.text();
-        if (body) errorMessage = body;
+      const body = await res.text();
+      if (body) errorMessage = body;
     } catch(e) {}
-    
     if (res.status === 504 || res.status === 502) {
-        errorMessage = "Seva inachelewa kujibu (Timeout). Jaribu tena.";
+      errorMessage = "Seva inachelewa kujibu. Jaribu tena.";
     }
-
     throw new ApiError(errorMessage, res.status);
   }
 
-  if (res.status === 204) {
-    return undefined as T;
-  }
-
+  if (res.status === 204) return undefined as T;
   return (await res.json()) as T;
 }
 
-// LOGIN: Jaribio la kwanza + retries mbili kwa network error pekee.
-export async function login(
-  username: string,
-  password: string,
-): Promise<void> {
+export async function login(username: string, password: string): Promise<void> {
   const maxAttempts = 3;
-
   for (let attempt = 1; attempt <= maxAttempts; attempt++) {
     try {
       const data = await request<{ token: string }>("/auth/token/", {
         method: "POST",
         body: JSON.stringify({ username, password }),
       });
-
       localStorage.setItem(TOKEN_KEY, data.token);
       return;
     } catch (err) {
-      if (!(err instanceof NetworkError) || attempt === maxAttempts) {
-        throw err;
-      }
-
-      const delay = attempt * 1000;
-
-      console.warn(
-        `[AdyBajaj Login] Network retry ${attempt + 1}/${maxAttempts} in ${delay}ms`,
-      );
-
-      await new Promise((resolve) => setTimeout(resolve, delay));
+      if (!(err instanceof NetworkError) || attempt === maxAttempts) throw err;
+      await new Promise((resolve) => setTimeout(resolve, attempt * 1000));
     }
   }
 }
 
-// (Sehemu zingine zote za api.ts zinaendelea kama zilivyo hapa chini...)
+// Sehemu zilizobaki zinaendelea kama zilivyo...
 export const listVehicles = () => request<Vehicle[]>("/vehicles/");
 export const getDebt = (vehicleId: number, month: string) => request<DebtResponse>(`/vehicles/${vehicleId}/debt/?month=${month}`);
 export type DebtBundle = DebtResponse & { vehicle_id: number };
@@ -192,14 +128,7 @@ export const createVehicle = (name: string, dailyTarget: number, workingDaysCoun
 export const updateVehicle = (id: number, data: Partial<Vehicle>) => request<Vehicle>(`/vehicles/${id}/`, { method: "PATCH", body: JSON.stringify(data) });
 export const listLostDays = (vehicleId: number) => request<LostDays[]>("/lost-days/").then((rows) => rows.filter((r) => r.vehicle === vehicleId));
 
-export interface DriverDetails {
-  email?: string;
-  residence?: string;
-  guarantor_name?: string;
-  guarantor_phone?: string;
-  reason?: string;
-}
-
+export interface DriverDetails { email?: string; residence?: string; guarantor_name?: string; guarantor_phone?: string; reason?: string; }
 export const changeDriver = (vehicleId: number, driverName: string, phone: string, fromDate: string, extra: DriverDetails = {}) => request("/driver-periods/", { method: "POST", body: JSON.stringify({ vehicle: vehicleId, driver_name: driverName, phone, from_date: fromDate, ...extra }) });
 export const updateDriverPeriod = (periodId: number, data: Record<string, string>) => request(`/driver-periods/${periodId}/`, { method: "PATCH", body: JSON.stringify(data) });
 export const addLostDays = (vehicleId: number, month: string, weekNumber: number, days: number) => request("/lost-days/", { method: "POST", body: JSON.stringify({ vehicle: vehicleId, month, week_number: weekNumber, days }) });
