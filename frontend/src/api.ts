@@ -3,6 +3,9 @@ import type {
   PersonalExpense, ReturnRecord, ServiceRecord, TeamMember, TyreRecord, Vehicle,
 } from "./types";
 
+// Base URL ya backend. Inachukuliwa kutoka VITE_API_URL wakati wa build.
+const API_BASE = ((import.meta.env.VITE_API_URL as string | undefined) ?? "").replace(/\/$/, "");
+
 export class NetworkError extends Error {
   detail: string;
   constructor(detail = "") {
@@ -68,7 +71,7 @@ export async function request<T>(path: string, init: RequestInit = {}): Promise<
   // Cache Buster: Inalazimisha mtandao mpya kila mara
   const timestamp = new Date().getTime();
   const separator = path.includes("?") ? "&" : "?";
-  const urlWithBuster = `/api${path}${separator}_t=${timestamp}`;
+  const urlWithBuster = `${API_BASE}/api${path}${separator}_t=${timestamp}`;
 
   const res = await fetch(urlWithBuster, {
     ...init,
