@@ -1,6 +1,6 @@
 from django.urls import path
 from rest_framework.routers import DefaultRouter
-from rest_framework.authtoken import views as auth_views  # <-- IMPORT MPYA
+from rest_framework.authtoken import views as auth_views  # <--- Muhimu kwa Login
 from fleet import views
 from fleet.report_pdf_views import ReportPdfView
 
@@ -24,7 +24,7 @@ urlpatterns = router.urls + [
     path("me/", views.MeProfileView.as_view()), 
     path("auth/register/", views.register_owner), 
     
-    # HAPA NDIO PA KUWEKA URL YA LOGIN:
+    # Hii ni URL ya Login (Ilikuwa haipo awali)
     path("auth/token/", auth_views.obtain_auth_token), 
     
     path("challenges/", views.ChallengeViewSet.as_view({"get": "list", "post": "create"})), 
@@ -32,6 +32,6 @@ urlpatterns = router.urls + [
     path("team/", views.TeamViewSet.as_view({"get": "list", "post": "create"})), 
     path("team/<int:pk>/", views.TeamViewSet.as_view({"delete": "destroy"})),
     
-    # Health check kwa ajili ya Cron-job (Tulishaiweka)
+    # Health check kwa Cron-job
     path("health/", views.health_check, name="health_check"),
 ]
