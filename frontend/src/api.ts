@@ -4,7 +4,7 @@ import type {
 } from "./types";
 
 // Base URL ya backend. Inachukuliwa kutoka VITE_API_URL wakati wa build.
-const API_BASE = ((import.meta.env.VITE_API_URL as string | undefined) ?? "").replace(/\/$/, "");
+const API_BASE = ((import.meta as unknown as { env?: { VITE_API_URL?: string } }).env?.VITE_API_URL ?? "").replace(/\/$/, "");
 
 export class NetworkError extends Error {
   detail: string;
