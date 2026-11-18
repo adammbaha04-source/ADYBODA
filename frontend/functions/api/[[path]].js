@@ -1,84 +1,46 @@
 const BACKEND = "https://adybajaj-api.onrender.com";
-const UPSTREAM_TIMEOUT_MS = 45000; // Tumeongeza muda hapa
+const UPSTREAM_TIMEOUT_MS = 45000;
 
 export async function onRequest(context) {
   const { request } = context;
   const url = new URL(request.url);
 
-  // 1. Test Cloudflare-to-Render connectivity
   if (url.pathname === "/api/_ping") {
     try {
-      const upstream = await fetch(
-        BACKEND + "/api/auth/token/",
-        {
-          method: "GET",
-          headers: { Accept: "application/json" },
-          redirect: "manual",
-          signal: AbortSignal.timeout(20000),
-        }
-      );
-
-      const reachable =
-        upstream.status === 405 ||
-        (upstream.status >= 200 && upstream.status < 500);
-
-      return Response.json(
-        {
-          function: "ok",
-          upstream: reachable ? "reachable" : "error",
-          upstream_status: upstream.status,
-        },
-        { status: reachable ? 200 : 502 }
-      );
+      const upstream = await fetch(BACKEND + "/api/health/", { method: "GET" });
+      return Response.json({ upstream_status: upstream.status });
     } catch (err) {
-      const timedOut = err?.name === "TimeoutError";
-      return Response.json(
-        {
-          function: "ok",
-          upstream: "unreachable",
-          error: String(err?.message || err),
-          timed_out: timedOut,
-        },
-        { status: timedOut ? 504 : 502 }
-      );
+      return Response.json({ error: String(err) }, { status: 502 });
     }
   }
 
-  // 2. Forward normal API requests to Render
   const target = BACKEND + url.pathname + url.search;
   const headers = new Headers(request.headers);
   headers.delete("host");
 
-  const hasBody = request.method !== "GET" && request.method !== "HEAD";
+  // Usisome body kama ni OPTIONS (CORS preflight)
+  const hasBody = ["POST", "PUT", "PATCH", "DELETE"].includes(request.method);
   const bodyData = hasBody ? await request.arrayBuffer() : undefined;
 
   try {
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), UPSTREAM_TIMEOUT_MS);
+
     const response = await fetch(target, {
       method: request.method,
       headers: headers,
       body: bodyData,
       redirect: "manual",
-      signal: AbortSignal.timeout(UPSTREAM_TIMEOUT_MS),
+      signal: controller.signal,
     });
 
+    clearTimeout(timeoutId);
     return response;
-
   } catch (err) {
-    const timedOut = err?.name === "TimeoutError";
-    const message = String(err?.message || err);
-
-    console.error("[Cloudflare Proxy Error]", {
-      method: request.method,
-      path: url.pathname,
-      timedOut,
-      message,
-    });
-
+    const isAborted = err?.name === "AbortError";
     return Response.json(
-      {
-        detail: (timedOut ? "Upstream timeout: " : "Proxy error: ") + message,
-      },
-      { status: timedOut ? 504 : 502 }
+      { detail: (isAborted ? "Upstream timeout" : "Proxy error") + ": " + String(err?.message || err) },
+      { status: isAborted ? 504 : 502 }
     );
   }
 }
