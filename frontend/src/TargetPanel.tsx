@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { getWeekPlan, saveWeekPlan, updateVehicle, type WeekPlan } from "./api";
 import { tsh } from "./format";
 import type { Vehicle } from "./types";
+import "./target-panel.css";
 
 const DAYS = ["Jumatatu", "Jumanne", "Jumatano", "Alhamisi", "Ijumaa", "Jumamosi", "Jumapili"];
 
@@ -9,10 +10,11 @@ function sameDays(a: number[], b: number[]): boolean {
   return [...a].sort((x, y) => x - y).join() === [...b].sort((x, y) => x - y).join();
 }
 
-export default function TargetPanel({ vehicle, month: startMonth, onSaved }: {
+export default function TargetPanel({ vehicle, month: startMonth, onSaved, onCancel }: {
   vehicle: Vehicle;
   month: string;
   onSaved: () => void;
+  onCancel: () => void;
 }) {
   const baseDays = vehicle.active_days ?? Array.from({ length: vehicle.working_days_count }, (_, i) => i);
 
@@ -34,6 +36,12 @@ export default function TargetPanel({ vehicle, month: startMonth, onSaved }: {
   const shownTarget = manual.trim() ? Number(manual) : autoTarget;
   const mainTarget = dailyNum * vehicle.working_days_count;
   const reduced = manual.trim() !== "" && Number(manual) < mainTarget;
+
+  // Working days that were planned but are switched off this week.
+  const skipped = baseDays.filter((d) => !days.includes(d));
+  const skippedNames = skipped.map((d) => DAYS[d]).filter(Boolean).join(", ");
+  // A reason is required whenever a day is skipped or the target is lowered.
+  const needsReason = skipped.length > 0 || reduced;
 
   async function loadPlan(m: string) {
     try {
@@ -64,7 +72,12 @@ export default function TargetPanel({ vehicle, month: startMonth, onSaved }: {
   async function saveWeek() {
     setErr(""); setMsg("");
     if (days.length === 0) { setErr("Chagua angalau siku moja ya kufanya kazi."); return; }
-    if (reduced && !note.trim()) { setErr("Andika sababu ya target kupungua (mf. garage, mgonjwa, amekamatwa na police)."); return; }
+    if (needsReason && !note.trim()) {
+      setErr(skipped.length > 0
+        ? "Andika sababu ya siku zilizoachwa (mf. mgonjwa, garage, amekamatwa na police)."
+        : "Andika sababu ya target kupungua (mf. garage, mgonjwa, amekamatwa na police).");
+      return;
+    }
     if (startDate && endDate && endDate < startDate) { setErr("Tarehe ya mwisho iwe baada ya tarehe ya kuanza."); return; }
     try {
       const r = await saveWeekPlan(vehicle.id, {
@@ -117,25 +130,24 @@ export default function TargetPanel({ vehicle, month: startMonth, onSaved }: {
     <div className="target-panel">
       <h4>Set Target</h4>
 
-      <label>Month
-        <input type="month" value={month} onChange={(e) => setMonth(e.target.value)} />
-      </label>
-
-      <label>Week
-        <select className="tp-week" value={week} onChange={(e) => setWeek(Number(e.target.value))}>
-          {weeks.map((w) => (
-            <option key={w.week_number} value={w.week_number}>Wiki {w.week_number}</option>
-          ))}
-        </select>
-      </label>
-
-      <label>Start Date
-        <input type="date" value={startDate} onChange={(e) => setStartDate(e.target.value)} />
-      </label>
-
-      <label>End Date
-        <input type="date" value={endDate} onChange={(e) => setEndDate(e.target.value)} />
-      </label>
+      <div className="tp-grid">
+        <label>Month
+          <input type="month" value={month} onChange={(e) => setMonth(e.target.value)} />
+        </label>
+        <label>Week
+          <select value={week} onChange={(e) => setWeek(Number(e.target.value))}>
+            {weeks.map((w) => (
+              <option key={w.week_number} value={w.week_number}>Wiki {w.week_number}</option>
+            ))}
+          </select>
+        </label>
+        <label>Start Date
+          <input type="date" value={startDate} onChange={(e) => setStartDate(e.target.value)} />
+        </label>
+        <label>End Date
+          <input type="date" value={endDate} onChange={(e) => setEndDate(e.target.value)} />
+        </label>
+      </div>
 
       <h4>Working Days</h4>
       <div className="tp-days">
@@ -145,33 +157,44 @@ export default function TargetPanel({ vehicle, month: startMonth, onSaved }: {
           </button>
         ))}
       </div>
-      <p className="hint">Working days this week: {days.length}</p>
+      <p className="tp-hint">Working days this week: {days.length}</p>
+      {skipped.length > 0 && (
+        <p className="tp-warn">Siku hazijafanya kazi wiki hii: {skippedNames}</p>
+      )}
 
-      <label>Day Target (TSh)
-        <input type="number" inputMode="numeric" min={1} value={daily} onChange={(e) => setDaily(e.target.value)} />
-      </label>
+      <div className="tp-grid">
+        <label>Day Target (TSh)
+          <input type="number" inputMode="numeric" min={1} value={daily} onChange={(e) => setDaily(e.target.value)} />
+        </label>
+        <label>Week Target (TSh)
+          <input type="number" inputMode="numeric" min={1}
+            placeholder={`Automatic: ${tsh(autoTarget)}`}
+            value={manual} onChange={(e) => setManual(e.target.value)} />
+        </label>
+      </div>
 
-      <label>Week Target (TSh)
-        <input type="number" inputMode="numeric" min={1}
-          placeholder={`Automatic: ${tsh(autoTarget)}`}
-          value={manual} onChange={(e) => setManual(e.target.value)} />
-      </label>
-      <p className="hint">Week target: <b>{tsh(shownTarget)}</b></p>
-      {reduced && (
-        <label>Sababu ya target kupungua
+      <div className="tp-summary">
+        <span>Week target</span>
+        <b>{tsh(shownTarget)}</b>
+      </div>
+
+      {needsReason && (
+        <label className="tp-full">
+          {skipped.length > 0 ? "Sababu ya siku zilizoachwa" : "Sababu ya target kupungua"}
           <textarea rows={2} maxLength={300} value={note} onChange={(e) => setNote(e.target.value)}
             placeholder="Mf. garage, mgonjwa, amekamatwa na police" />
         </label>
       )}
 
-      <div className="btn-row">
-        <button type="button" onClick={saveWeek}>Save week {week}</button>
-        <button type="button" className="ghost" onClick={resetWeek}>Reset automatic</button>
-        <button type="button" className="ghost" onClick={saveDayTarget}>Save day target</button>
-      </div>
-
       {msg && <p className="notice">{msg}</p>}
       {err && <p className="error">{err}</p>}
+
+      <div className="tp-actions">
+        <button type="button" className="tp-primary" onClick={saveWeek}>Save week {week}</button>
+        <button type="button" onClick={resetWeek}>Reset automatic</button>
+        <button type="button" onClick={saveDayTarget}>Save day target</button>
+        <button type="button" className="tp-wide" onClick={onCancel}>Sitisha / Cancel</button>
+      </div>
     </div>
   );
 }
