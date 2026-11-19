@@ -70,7 +70,7 @@ class ReturnSerializer(serializers.ModelSerializer):
 class LostDaysSerializer(serializers.ModelSerializer):
     class Meta:
         model = LostDays
-        fields = ["id", "vehicle", "month", "week_number", "days"]
+        fields = ["id", "vehicle", "month", "week_number", "days", "note"]
         read_only_fields = ["vehicle"]
 
 
