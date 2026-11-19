@@ -73,6 +73,7 @@ class LostDays(models.Model):
     month = models.CharField(max_length=7)                    # "2026-09"
     week_number = models.PositiveSmallIntegerField()
     days = models.PositiveSmallIntegerField()
+    note = models.CharField(max_length=300, blank=True, default="")  # sababu ya siku zilizopotea
 
     class Meta:
         unique_together = [("vehicle", "month", "week_number")]
