@@ -50,7 +50,6 @@ const BAR: { key: Form; label: string; icon: string }[] = [
 // Opened from the + tile (owner and manager). Delete is owner only.
 const MORE: { key: Form | "saveMonth" | "delete"; label: string; icon: string; red?: boolean; ownerOnly?: boolean }[] = [
   { key: "debt", label: "Add Debt", icon: "📝" },
-  { key: "lost", label: "Siku zilizopotea", icon: "📅" },
   { key: "insurance", label: "Insurance", icon: "🛡️" },
   { key: "edit", label: "Set Targets & Edit", icon: "🎯" },
   { key: "saveMonth", label: "Save Month", icon: "💾" },
