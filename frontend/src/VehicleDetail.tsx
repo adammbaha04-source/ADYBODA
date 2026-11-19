@@ -2,10 +2,11 @@ import { useEffect, useState, type FormEvent, type ReactNode } from "react";
 import {
   addManualEntry, createInsurance, createPayment, createService,
   deleteRecord, deleteVehicle, getDebt, listInsurances, listLostDays, listPayments,
-  listServices, listTyres, saveLostDays, setCarry, updateService, updateVehicle,
+  listServices, listTyres, setCarry, updateService, updateVehicle,
 } from "./api";
 import { confirmIncome, deleteIncome, listIncome, type IncomeRow } from "./incomeApi";
 import { confirmManualEntry, confirmPayment, listManualEntries, type ManualEntry, type PaymentRow } from "./roleApi";
+import { deleteLostDays, saveLostDaysFull, updateRecord } from "./recordApi";
 import IncomeForm from "./IncomeForm";
 import WeekTable from "./WeekTable";
 import TargetPanel from "./TargetPanel";
@@ -17,7 +18,8 @@ import type { Role } from "./roles";
 import type { DebtEntry, DebtResponse, InsuranceRecord, LostDays, ServiceRecord, TyreRecord, Vehicle } from "./types";
 import "./vehicle-detail.css";
 
-type Form = "income" | "service" | "servicePack" | "payment" | "debt" | "tyre" | "insurance" | "edit" | "lost";
+type Form = "income" | "service" | "servicePack" | "payment" | "debt" | "tyre" | "insurance" | "edit" | "lost" | "recordEdit";
+type EditKind = "payment" | "tyre" | "insurance";
 
 const PAYMENT_TYPES = [
   { key: "TRA", label: "TRA Taxes" },
@@ -37,6 +39,7 @@ const FORM_TITLE: Record<Form, string> = {
   debt: "Add Debt",
   edit: "Set Targets & Edit Vehicle",
   lost: "Siku zilizopotea",
+  recordEdit: "Hariri Rekodi",
 };
 
 // Bottom bar tiles. Owner and manager see all five; driver sees none.
@@ -51,6 +54,7 @@ const BAR: { key: Form; label: string; icon: string }[] = [
 const MORE: { key: Form | "saveMonth" | "delete"; label: string; icon: string; red?: boolean; ownerOnly?: boolean }[] = [
   { key: "debt", label: "Add Debt", icon: "📝" },
   { key: "insurance", label: "Insurance", icon: "🛡️" },
+  { key: "lost", label: "Siku zilizopotea", icon: "⏸️" },
   { key: "edit", label: "Set Targets & Edit", icon: "🎯" },
   { key: "saveMonth", label: "Save Month", icon: "💾" },
   { key: "delete", label: "Delete Vehicle", icon: "🗑️", red: true, ownerOnly: true },
@@ -66,6 +70,8 @@ function shiftMonth(m: string, d: number): string {
   return `${dt.getFullYear()}-${String(dt.getMonth() + 1).padStart(2, "0")}`;
 }
 const normTool = (t: string) => t.trim().toLowerCase();
+// Reads an optional note field from a record without changing the shared types.
+const noteOf = (x: object): string => String((x as { note?: string | null }).note ?? "");
 
 // A popup dialog. Closes on Escape, on the X button, or on a tap outside the box.
 function Dialog({ title, onClose, children }: { title: string; onClose: () => void; children: ReactNode }) {
@@ -123,6 +129,9 @@ export default function VehicleDetail(props: {
   const [fNote, setFNote] = useState("");
   const [editingIncome, setEditingIncome] = useState<IncomeRow | null>(null);
   const [editingService, setEditingService] = useState<ServiceRecord | null>(null);
+  const [editKind, setEditKind] = useState<EditKind | null>(null);
+  const [editId, setEditId] = useState<number | null>(null);
+  const [editLostId, setEditLostId] = useState<number | null>(null);
   const [fPayType, setFPayType] = useState("TRA");
   const [fTool, setFTool] = useState("");
   const [fCount, setFCount] = useState("1");
@@ -147,7 +156,7 @@ export default function VehicleDetail(props: {
       ]);
       setDebt(d);
       setReturns(r.filter((x) => (x.record_month || x.day.slice(0, 7)) === month).sort((a, b) => b.day.localeCompare(a.day)));
-      setLost(l.filter((x) => x.month === month));
+      setLost(l.filter((x) => x.month === month).sort((a, b) => a.week_number - b.week_number));
       setPayments((p as PaymentRow[]).filter((x) => x.day.startsWith(month)));
       setAllServices(s);
       setServices(s.filter((x) => x.day.startsWith(month)));
@@ -174,14 +183,21 @@ export default function VehicleDetail(props: {
       setError("");
       await action();
       setNotice(ok);
-      setForm(null);
-      setEditingService(null);
-      setEditingIncome(null);
+      resetEditing();
       await load();
       onChanged();
     } catch (e) {
       setError((e as Error).message);
     }
+  }
+
+  function resetEditing() {
+    setForm(null);
+    setEditingService(null);
+    setEditingIncome(null);
+    setEditKind(null);
+    setEditId(null);
+    setEditLostId(null);
   }
 
   function clearFields() {
@@ -198,10 +214,13 @@ export default function VehicleDetail(props: {
     clearFields();
     setEditingIncome(null);
     setEditingService(null);
+    setEditKind(null);
+    setEditId(null);
+    setEditLostId(null);
     setFDay(todayYMD());
     setForm(key);
   }
-  const closeForm = () => { setForm(null); setEditingIncome(null); setEditingService(null); };
+  const closeForm = () => resetEditing();
 
   // Opens the service form filled with an existing record, so it can be corrected.
   function startEditService(x: ServiceRecord) {
@@ -215,6 +234,54 @@ export default function VehicleDetail(props: {
     setFNote(x.note ?? "");
     setEditingService(x);
     setForm("service");
+  }
+
+  function startEditPayment(p: PaymentRow) {
+    setMore(false);
+    setNotice("");
+    setFDay(p.day);
+    setFPayType(p.payment_type);
+    setFAmount(String(p.amount));
+    setFNote(p.note ?? "");
+    setEditKind("payment");
+    setEditId(p.id);
+    setForm("recordEdit");
+  }
+
+  function startEditTyre(x: TyreRecord) {
+    setMore(false);
+    setNotice("");
+    setFDay(x.day);
+    setFTyre(x.tyre_number ?? "");
+    setFAmount(String(x.amount));
+    setFNote(noteOf(x));
+    setEditKind("tyre");
+    setEditId(x.id);
+    setForm("recordEdit");
+  }
+
+  function startEditInsurance(x: InsuranceRecord) {
+    setMore(false);
+    setNotice("");
+    setFDay(x.day);
+    setFInsType(x.insurance_type ?? "");
+    setFAmount(String(x.amount));
+    setFMonths(String(x.months ?? 12));
+    setFNote(noteOf(x));
+    setEditKind("insurance");
+    setEditId(x.id);
+    setForm("recordEdit");
+  }
+
+  // Opens the lost-days form for one row, with its days and reason filled in.
+  function startEditLost(l: LostDays) {
+    setMore(false);
+    setNotice("");
+    setFWeek(String(l.week_number));
+    setFLostDays(String(l.days));
+    setFNote(noteOf(l));
+    setEditLostId(l.id);
+    setForm("lost");
   }
 
   const wd = vehicle.working_days_count;
@@ -267,15 +334,45 @@ export default function VehicleDetail(props: {
     e.preventDefault();
     run(() => createInsurance(vehicle.id, fDay, fInsType.trim(), Number(fAmount) || 0, Number(fMonths) || 12, fNote.trim()), "Bima imehifadhiwa.");
   }
-  // Siku zilizopotea: updates the week's row if it already exists, otherwise creates it.
+  // Edits an existing payment, tyre or insurance record.
+  function submitRecordEdit(e: FormEvent) {
+    e.preventDefault();
+    const id = editId;
+    const kind = editKind;
+    if (id == null || kind == null) return;
+    const day = fDay;
+    const amount = Number(fAmount) || 0;
+    const note = fNote.trim();
+    if (kind === "payment") {
+      run(() => updateRecord("payment-records", id, { day, payment_type: fPayType, amount, note }), "Malipo yamehaririwa.");
+      return;
+    }
+    if (kind === "tyre") {
+      run(() => updateRecord("tyre-records", id, { day, tyre_number: fTyre.trim(), amount, note }), "Tairi imehaririwa.");
+      return;
+    }
+    run(
+      () => updateRecord("insurance-records", id, { day, insurance_type: fInsType.trim(), amount, months: Number(fMonths) || 12, note }),
+      "Bima imehaririwa.",
+    );
+  }
+  // Siku zilizopotea: creates the week's row, or updates it when editing or when the week already has one.
   function submitLost(e: FormEvent) {
     e.preventDefault();
     const week = Number(fWeek);
+    const days = Number(fLostDays);
+    const note = fNote.trim();
+    const editing = editLostId;
+    if (editing != null) {
+      run(() => updateRecord("lost-days", editing, { week_number: week, days, note }), "Siku zimehaririwa.");
+      return;
+    }
     const existing = lost.find((l) => l.week_number === week);
-    run(
-      () => saveLostDays(vehicle.id, month, week, Number(fLostDays), existing?.id),
-      "Siku zimehifadhiwa.",
-    );
+    run(() => saveLostDaysFull(vehicle.id, month, week, days, note, existing?.id), "Siku zimehifadhiwa.");
+  }
+  function removeLost(id: number) {
+    if (!confirm("Futa rekodi hii ya siku zilizopotea?")) return;
+    run(() => deleteLostDays(id), "Siku zimefutwa.");
   }
   async function removeVehicle() {
     if (!isOwner) return;
@@ -430,8 +527,24 @@ export default function VehicleDetail(props: {
               <span>{p.day} · {paymentLabel(p.payment_type)}{p.note ? ` · ${p.note}` : ""}
                 {p.confirmed_at ? " · Confirmed" : " · Pending"}</span>
               <b className="green">{tsh(p.amount)}</b>
+              {canManage && <button className="edit-btn" onClick={() => startEditPayment(p)}>Edit</button>}
               {canManage && <button className="danger" onClick={() => removeRecord("payment-records", p.id)}>Futa</button>}
               {isDriver && !p.confirmed_at && <button className="confirm-btn" onClick={() => signPayment(p.id)}>Thibitisha</button>}
+            </li>
+          ))}
+        </ul>
+      </section>
+
+      {/* Lost days: visible to every role. Owner and manager can edit or delete, and the reason is shown. */}
+      <section className="card">
+        <h3>Historia ya Siku Zilizopotea</h3>
+        <ul className="list">
+          {lost.length === 0 && <li className="empty">Hakuna siku zilizopotea mwezi huu</li>}
+          {lost.map((l) => (
+            <li key={l.id}>
+              <span>Wiki {l.week_number} · siku {l.days}{noteOf(l) ? ` · ${noteOf(l)}` : ""}</span>
+              {canManage && <button className="edit-btn" onClick={() => startEditLost(l)}>Edit</button>}
+              {canManage && <button className="danger" onClick={() => removeLost(l.id)}>Futa</button>}
             </li>
           ))}
         </ul>
@@ -464,6 +577,7 @@ export default function VehicleDetail(props: {
                 <li key={x.id}>
                   <span>{x.day} · {x.tyre_number || "Tairi"}</span>
                   <b className="blue">{tsh(x.amount)}</b>
+                  <button className="edit-btn" onClick={() => startEditTyre(x)}>Edit</button>
                   <button className="danger" onClick={() => removeRecord("tyre-records", x.id)}>Futa</button>
                 </li>
               ))}
@@ -477,6 +591,7 @@ export default function VehicleDetail(props: {
                 <li key={x.id}>
                   <span>{x.day} · {x.insurance_type || "Bima"} · miezi {x.months}</span>
                   <b className="blue">{tsh(x.amount)}</b>
+                  <button className="edit-btn" onClick={() => startEditInsurance(x)}>Edit</button>
                   <button className="danger" onClick={() => removeRecord("insurance-records", x.id)}>Futa</button>
                 </li>
               ))}
@@ -579,6 +694,34 @@ export default function VehicleDetail(props: {
               </div>
             </form>
           )}
+          {form === "recordEdit" && editKind && (
+            <form onSubmit={submitRecordEdit}>
+              <h3>{editKind === "payment" ? "Hariri Malipo" : editKind === "tyre" ? "Hariri Tairi" : "Hariri Bima"}</h3>
+              <label>Tarehe<input type="date" value={fDay} onChange={(e) => setFDay(e.target.value)} required /></label>
+              {editKind === "payment" && (
+                <label>Aina ya Malipo
+                  <select value={fPayType} onChange={(e) => setFPayType(e.target.value)}>
+                    {PAYMENT_TYPES.map((p) => <option key={p.key} value={p.key}>{p.label}</option>)}
+                  </select>
+                </label>
+              )}
+              {editKind === "tyre" && (
+                <label>Namba ya Tairi<input value={fTyre} onChange={(e) => setFTyre(e.target.value)} /></label>
+              )}
+              {editKind === "insurance" && (
+                <>
+                  <label>Aina ya Bima<input value={fInsType} onChange={(e) => setFInsType(e.target.value)} /></label>
+                  <label>Muda (Miezi)<input type="number" inputMode="numeric" min={1} value={fMonths} onChange={(e) => setFMonths(e.target.value)} /></label>
+                </>
+              )}
+              <label>Kiasi (TSh)<input type="number" inputMode="numeric" min={0} value={fAmount} onChange={(e) => setFAmount(e.target.value)} required /></label>
+              <label>Maelezo<input value={fNote} onChange={(e) => setFNote(e.target.value)} placeholder="Maelezo ya ziada" /></label>
+              <div className="vd-actions">
+                <button type="submit">Hifadhi Mabadiliko</button>
+                <button type="button" className="ghost" onClick={closeForm}>Sitisha / Cancel</button>
+              </div>
+            </form>
+          )}
           {form === "debt" && (
             <form onSubmit={submitDebt}>
               <h3>Add Debt</h3>
@@ -633,7 +776,7 @@ export default function VehicleDetail(props: {
           )}
           {form === "lost" && (
             <form onSubmit={submitLost}>
-              <h3>Siku zilizopotea</h3>
+              <h3>{editLostId != null ? "Hariri Siku zilizopotea" : "Siku zilizopotea"}</h3>
               <label>Wiki
                 <select value={fWeek} onChange={(e) => setFWeek(e.target.value)}>
                   {(vehicle.include_week5 ? [1, 2, 3, 4, 5] : [1, 2, 3, 4]).map((w) => (
@@ -645,7 +788,11 @@ export default function VehicleDetail(props: {
                 <input type="number" inputMode="numeric" min={1} max={7} value={fLostDays}
                   onChange={(e) => setFLostDays(e.target.value)} required />
               </label>
-              <p className="hint">Mwezi: {monthLabel(month)}. Ikiwa wiki hiyo ina rekodi, itabadilishwa.</p>
+              <label>Sababu (kwa nini hazikufanya kazi)
+                <input value={fNote} onChange={(e) => setFNote(e.target.value)} maxLength={300}
+                  placeholder="Mf. mgonjwa, garage, amekamatwa na police" />
+              </label>
+              <p className="hint">Mwezi: {monthLabel(month)}. Ikiwa wiki hiyo tayari ina rekodi, itabadilishwa.</p>
               <div className="vd-actions">
                 <button type="submit">Hifadhi</button>
                 <button type="button" className="ghost" onClick={closeForm}>Sitisha / Cancel</button>
@@ -653,9 +800,8 @@ export default function VehicleDetail(props: {
             </form>
           )}
           {form === "edit" && (
-            <TargetPanel vehicle={vehicle} month={month} onSaved={() => { load(); onChanged(); }} />
+            <TargetPanel vehicle={vehicle} month={month} onSaved={() => { load(); onChanged(); }} onCancel={closeForm} />
           )}
-          {form === "edit" && <button className="ghost" onClick={closeForm}>Sitisha / Cancel</button>}
         </Dialog>
       )}
     </div>
