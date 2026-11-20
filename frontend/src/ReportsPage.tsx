@@ -1,7 +1,7 @@
 import { useEffect, useState, type ReactNode } from "react";
 import GraphsView from "./GraphsView";
 import { monthLabel, tsh } from "./format";
-import { downloadReportPdf, getReportV3, type ReportV3 } from "./reportApi";
+import { downloadReportPdf, getInsights, getReportV3, type ReportV3 } from "./reportApi";
 import type { Vehicle } from "./types";
 import "./report.css";
 import "./reports-controls.css";
@@ -72,12 +72,18 @@ export default function ReportsPage({
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
   const [pdfBusy, setPdfBusy] = useState(false);
+  const [aiBusy, setAiBusy] = useState(false);
+  const [aiText, setAiText] = useState("");
+  const [aiErr, setAiErr] = useState("");
 
   // Year for Quarterly and Yearly reports comes from the selected month.
   const year = Number(month.slice(0, 4)) || thisYear();
   const [from, to] = rangeFor(kind, month, year, cFrom, cTo);
 
   useEffect(() => {
+    // A new period means the old AI analysis no longer matches the numbers on screen.
+    setAiText("");
+    setAiErr("");
     if (from > to) { setError("Mwezi wa kuanzia lazima uwe kabla ya mwezi wa kumalizia."); return; }
     setLoading(true);
     getReportV3(from, to, vehicle)
@@ -91,6 +97,22 @@ export default function ReportsPage({
     try { await downloadReportPdf(from, to, vehicle); setError(""); }
     catch (e) { setError((e as Error).message); }
     finally { setPdfBusy(false); }
+  }
+
+  // Sends the report already on screen to the AI. Only the owner can use it; the server rejects other roles.
+  async function askAi() {
+    if (!data) return;
+    setAiBusy(true);
+    setAiErr("");
+    setAiText("");
+    try {
+      const r = await getInsights(data);
+      setAiText(r.insights);
+    } catch (e) {
+      setAiErr((e as Error).message);
+    } finally {
+      setAiBusy(false);
+    }
   }
 
   function downloadCsv() {
@@ -184,6 +206,7 @@ export default function ReportsPage({
             <button className="btn-add" onClick={pdf} disabled={!data || pdfBusy}>{pdfBusy ? "Inaandaa PDF..." : "Download PDF"}</button>
             <button className="btn-add alt" onClick={downloadCsv} disabled={!data}>Download CSV</button>
             <button className="btn-add alt" onClick={() => window.print()} disabled={!data}>Print</button>
+            <button className="btn-add alt" onClick={askAi} disabled={!data || aiBusy}>{aiBusy ? "AI inachambua..." : "🤖 Uchambuzi wa AI"}</button>
           </div>
         )}
         {loading && <p className="hint">Inapakia...</p>}
@@ -338,6 +361,20 @@ export default function ReportsPage({
             <p>Profit = total income − total expenses. Loss of target is tracked separately: loss = theoretical target − real target, and its % is loss ÷ theoretical target. Debt is only income below the real target.</p>
           </footer>
         </article>
+      )}
+
+      {mode === "report" && (aiBusy || aiText || aiErr) && (
+        <section className="card no-print">
+          <h3>🤖 Uchambuzi wa AI</h3>
+          {aiBusy && <p className="hint">AI inasoma ripoti...</p>}
+          {aiErr && <p className="error">{aiErr}</p>}
+          {aiText && (
+            <>
+              <div style={{ whiteSpace: "pre-wrap", lineHeight: 1.7 }}>{aiText}</div>
+              <p className="hint">Namba zote zimetoka kwenye ripoti ya app. AI imeandika ushauri tu.</p>
+            </>
+          )}
+        </section>
       )}
 
       {data && mode === "graphs" && (
