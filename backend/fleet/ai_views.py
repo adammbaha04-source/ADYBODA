@@ -65,7 +65,12 @@ class InsightsView(APIView):
             with urllib.request.urlopen(req, timeout=30) as resp:
                 data = json.loads(resp.read().decode("utf-8"))
             text = data["choices"][0]["message"]["content"].strip()
-        except (urllib.error.URLError, TimeoutError, KeyError, IndexError, ValueError):
+        except urllib.error.HTTPError as e:
+            print("GROQ_ERROR", e.code, e.read().decode("utf-8", "ignore")[:300], flush=True)
+            return Response({"detail": "Uchambuzi wa AI haukupatikana kwa sasa. Jaribu tena."},
+                            status=status.HTTP_502_BAD_GATEWAY)
+        except (urllib.error.URLError, TimeoutError, KeyError, IndexError, ValueError) as e:
+            print("GROQ_ERROR", type(e).__name__, e, flush=True)
             return Response({"detail": "Uchambuzi wa AI haukupatikana kwa sasa. Jaribu tena."},
                             status=status.HTTP_502_BAD_GATEWAY)
 
