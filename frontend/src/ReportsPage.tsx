@@ -3,6 +3,7 @@ import GraphsView from "./GraphsView";
 import { monthLabel, tsh } from "./format";
 import { downloadReportPdf, getInsights, getReportV3, type ReportV3 } from "./reportApi";
 import type { Vehicle } from "./types";
+import AIChart from "./AIChart"; // <-- IMPORT MPYA
 import "./report.css";
 import "./reports-controls.css";
 
@@ -376,6 +377,9 @@ export default function ReportsPage({
           )}
         </section>
       )}
+
+      {/* SEHEMU MPYA YA CHATI */}
+      {data && mode === "report" && <AIChart report={data} />}
 
       {data && mode === "graphs" && (
         <GraphsView data={data} expCats={expCats} period={periodText} />
