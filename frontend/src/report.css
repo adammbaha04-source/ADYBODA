@@ -69,13 +69,6 @@
   .rpt-debt { grid-template-columns:repeat(4,1fr); }
   .rpt-vcards { grid-template-columns:1fr 1fr; }
 }
-@media print {
-  @page { size:A4; margin:12mm; }
-  body * { visibility:hidden; }
-  .rpt, .rpt * { visibility:visible; }
-  .rpt { position:absolute; left:0; top:0; width:100%; margin:0; padding:0; box-shadow:none; border-radius:0; }
-  .rpt-h, .rpt-table, .rpt-vcard, .rpt-kpi, .rpt-insights { break-inside:avoid; }
-}
 .rpt-title { font-size:22px; font-weight:900; margin:18px 0 10px; color:#0f172a; }
 .rpt-kpis-2 { margin-top:10px; }
 .rpt-table .green { color:#059669; } .rpt-table .red { color:#dc2626; }
@@ -96,3 +89,17 @@
 .rpt-scroll { overflow-x:auto; -webkit-overflow-scrolling:touch; }
 .rpt-scroll .rpt-table { min-width:640px; }
 .rpt-scroll .rpt-mtable { min-width:900px; }
+
+/* ===== Print: report flows as normal page content (no absolute positioning) ===== */
+@media print {
+  @page { size:A4; margin:12mm; }
+  html, body, #root, .app, .reports, .rpt-scroll {
+    height:auto !important; min-height:0 !important; overflow:visible !important;
+    position:static !important; background:#fff !important; background-image:none !important;
+  }
+  .app > *:not(.reports), .reports > *:not(.rpt),
+  .no-print, .appbar, .drawer, .backdrop, .tabs { display:none !important; }
+  .rpt { position:static !important; width:100% !important; margin:0 !important; padding:0 !important;
+    box-shadow:none !important; border-radius:0 !important; background:#fff !important; color:#0f172a !important; }
+  .rpt-h, .rpt-table, .rpt-vcard, .rpt-kpi, .rpt-insights { break-inside:avoid; }
+}
