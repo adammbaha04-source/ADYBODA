@@ -40,7 +40,6 @@ export interface ChartResponse {
   model: string;
 }
 
-// Same base URL as request() in api.ts (VITE_API_URL, the Render backend).
 const API_BASE = ((import.meta as unknown as { env?: { VITE_API_URL?: string } }).env?.VITE_API_URL ?? "").replace(/\/$/, "");
 
 const qs = (from: string, to: string, vehicleId: string) =>
@@ -49,18 +48,15 @@ const qs = (from: string, to: string, vehicleId: string) =>
 export const getReportV3 = (from: string, to: string, vehicleId: string) =>
   request<ReportV3>(`/reports/?${qs(from, to, vehicleId)}`);
 
-// AI commentary on the report the app already computed. The AI only writes text; numbers are not recalculated.
 export const getInsights = (report: ReportV3) =>
   request<InsightsResponse>("/ai/insights/", { method: "POST", body: JSON.stringify({ report }) });
 
-// Hii ni function ya kutuma swali kwenda kwenye AI kupata jibu la maandishi na chati
 export const getAIChart = (question: string, report: ReportV3) =>
   request<ChartResponse>("/ai/chart/", { 
     method: "POST", 
     body: JSON.stringify({ question, report }) 
   });
 
-// The PDF needs the login token, so it is fetched from the backend and saved as a file on the phone.
 export async function downloadReportPdf(from: string, to: string, vehicleId: string): Promise<void> {
   const token = getToken();
   const res = await fetch(`${API_BASE}/api/reports/pdf/?${qs(from, to, vehicleId)}&_t=${Date.now()}`, {
@@ -71,7 +67,6 @@ export async function downloadReportPdf(from: string, to: string, vehicleId: str
     const text = await res.text();
     throw new Error(text && text.length < 300 ? text : `Hitilafu ${res.status} wakati wa kutengeneza PDF.`);
   }
-  // Guard against an HTML page (e.g. the frontend host answering instead of the API).
   const type = res.headers.get("content-type") ?? "";
   if (!type.includes("application/pdf")) {
     throw new Error("Seva haikurudisha PDF. Angalia VITE_API_URL na deploy ya backend.");
