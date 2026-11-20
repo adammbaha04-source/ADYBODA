@@ -24,6 +24,7 @@ export interface ReportV3 {
   vehicles: ReportVehicleV3[]; personal_categories: PersonalCategory[];
   business_name: string; generated: string;
 }
+export interface InsightsResponse { insights: string; model: string; }
 
 // Same base URL as request() in api.ts (VITE_API_URL, the Render backend).
 const API_BASE = ((import.meta as unknown as { env?: { VITE_API_URL?: string } }).env?.VITE_API_URL ?? "").replace(/\/$/, "");
@@ -33,6 +34,10 @@ const qs = (from: string, to: string, vehicleId: string) =>
 
 export const getReportV3 = (from: string, to: string, vehicleId: string) =>
   request<ReportV3>(`/reports/?${qs(from, to, vehicleId)}`);
+
+// AI commentary on the report the app already computed. The AI only writes text; numbers are not recalculated.
+export const getInsights = (report: ReportV3) =>
+  request<InsightsResponse>("/ai/insights/", { method: "POST", body: JSON.stringify({ report }) });
 
 // The PDF needs the login token, so it is fetched from the backend and saved as a file on the phone.
 export async function downloadReportPdf(from: string, to: string, vehicleId: string): Promise<void> {
