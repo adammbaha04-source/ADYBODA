@@ -26,7 +26,6 @@ export interface ReportV3 {
 }
 export interface InsightsResponse { insights: string; model: string; }
 
-// Hii ni interface mpya kwa ajili ya ChatBot (text + chart)
 export interface ChartResponse {
   result: {
     text: string;
