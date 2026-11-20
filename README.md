@@ -1,2 +1,2 @@
 # ADYBODA
-Payments tracker
+Payments tracker.
