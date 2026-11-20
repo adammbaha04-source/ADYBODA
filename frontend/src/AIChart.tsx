@@ -18,7 +18,6 @@ interface Message {
   chart?: any;
 }
 
-// Kazi ya kubadilisha **maneno** kuwa <strong>maneno</strong>
 const formatText = (text: string) => {
   return text.split(/(\*\*.*?\*\*)/g).map((part, i) => {
     if (part.startsWith("**") && part.endsWith("**")) {
@@ -48,7 +47,6 @@ export default function AIChart({ report }: AIChartProps) {
 
     try {
       const res = await getAIChart(userQ, report);
-      // Tunachukua text na chart kutoka kwenye response mpya
       const aiText = res.result.text || "Samahani, sikuweza kupata jibu.";
       
       let chartPayload = null;
@@ -91,18 +89,15 @@ export default function AIChart({ report }: AIChartProps) {
 
   return (
     <>
-      {/* Kitufe cha duara */}
       <button onClick={() => setIsOpen(true)} style={{ position: "fixed", bottom: "20px", right: "20px", width: "60px", height: "60px", borderRadius: "50%", background: "#007bff", color: "white", fontSize: "24px", border: "none", boxShadow: "0 4px 12px rgba(0,0,0,0.3)", zIndex: 1000, display: "flex", alignItems: "center", justifyContent: "center" }}>
         🤖
       </button>
 
-      {/* Chat Interface */}
       {isOpen && (
         <div style={{ position: "fixed", top: 0, left: 0, width: "100%", height: "100%", background: "rgba(0,0,0,0.6)", zIndex: 1001, display: "flex", alignItems: "center", justifyContent: "center", padding: "0" }}>
           
           <div style={{ background: "#f4f7f6", width: "100%", maxWidth: "600px", height: "100%", maxHeight: "100vh", display: "flex", flexDirection: "column", position: "relative" }}>
             
-            {/* Kichwa cha Chat */}
             <div style={{ background: "#0056b3", color: "white", padding: "1rem", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
               <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
                 <span style={{ fontSize: "24px" }}>🤖</span>
@@ -114,7 +109,6 @@ export default function AIChart({ report }: AIChartProps) {
               <button onClick={() => setIsOpen(false)} style={{ background: "none", border: "none", color: "white", fontSize: "24px", cursor: "pointer" }}>✖</button>
             </div>
 
-            {/* Sehemu ya Ujumbe */}
             <div style={{ flex: 1, overflowY: "auto", padding: "1rem", display: "flex", flexDirection: "column", gap: "1rem" }}>
               {messages.length === 0 && (
                 <div style={{ textAlign: "center", color: "#666", marginTop: "2rem" }}>
@@ -156,7 +150,6 @@ export default function AIChart({ report }: AIChartProps) {
               <div ref={bottomRef} />
             </div>
 
-            {/* Sehemu ya Kuandika */}
             <div style={{ padding: "1rem", background: "white", borderTop: "1px solid #eee", display: "flex", gap: "0.5rem" }}>
               <input
                 type="text"
