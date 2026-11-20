@@ -3,7 +3,7 @@ import GraphsView from "./GraphsView";
 import { monthLabel, tsh } from "./format";
 import { downloadReportPdf, getInsights, getReportV3, type ReportV3 } from "./reportApi";
 import type { Vehicle } from "./types";
-import AIChart from "./AIChart"; // <-- IMPORT MPYA
+import AIChart from "./AIChart";
 import "./report.css";
 import "./reports-controls.css";
 
@@ -62,7 +62,7 @@ export default function ReportsPage({
 }: {
   mode: "report" | "graphs";
   vehicles: Vehicle[];
-  month: string;                       // the single month selector lives on the Dashboard
+  month: string;
   onMonthChange: (m: string) => void;
 }) {
   const [kind, setKind] = useState<Kind>("month");
@@ -77,12 +77,10 @@ export default function ReportsPage({
   const [aiText, setAiText] = useState("");
   const [aiErr, setAiErr] = useState("");
 
-  // Year for Quarterly and Yearly reports comes from the selected month.
   const year = Number(month.slice(0, 4)) || thisYear();
   const [from, to] = rangeFor(kind, month, year, cFrom, cTo);
 
   useEffect(() => {
-    // A new period means the old AI analysis no longer matches the numbers on screen.
     setAiText("");
     setAiErr("");
     if (from > to) { setError("Mwezi wa kuanzia lazima uwe kabla ya mwezi wa kumalizia."); return; }
@@ -100,7 +98,6 @@ export default function ReportsPage({
     finally { setPdfBusy(false); }
   }
 
-  // Sends the report already on screen to the AI. Only the owner can use it; the server rejects other roles.
   async function askAi() {
     if (!data) return;
     setAiBusy(true);
@@ -108,7 +105,8 @@ export default function ReportsPage({
     setAiText("");
     try {
       const r = await getInsights(data);
-      setAiText(r.insights);
+      // Hii inaondoa alama za ** (Markdown) ili maandishi yaonekane vizuri
+      setAiText(r.insights.replace(/\*\*/g, ""));
     } catch (e) {
       setAiErr((e as Error).message);
     } finally {
@@ -378,8 +376,8 @@ export default function ReportsPage({
         </section>
       )}
 
-      {/* SEHEMU MPYA YA CHATI */}
-      {data && mode === "report" && <AIChart report={data} />}
+      {/* HAPA NDIPO CHATI INAPOWEKWA - Nimeondoa kigezo cha 'mode === report' ili ionekane wakati wote data ikiwa tayari */}
+      {data && <AIChart report={data} />}
 
       {data && mode === "graphs" && (
         <GraphsView data={data} expCats={expCats} period={periodText} />
