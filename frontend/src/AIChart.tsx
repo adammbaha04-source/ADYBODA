@@ -47,10 +47,12 @@ export default function AIChart({ report }: AIChartProps) {
 
     try {
       const res = await getAIChart(userQ, report);
-      const aiText = res.result.text || "Samahani, sikuweza kupata jibu.";
+      
+      // ULINZI: Kama backend imerudisha muundo tofauti, tunachukua kilichopo
+      const aiText = res.result?.text || "Samahani, sikuweza kupata majibu ya maandishi. Lakini hapa kuna data.";
       
       let chartPayload = null;
-      if (res.result.chart) {
+      if (res.result?.chart) {
          chartPayload = {
             labels: res.result.chart.labels,
             datasets: res.result.chart.datasets.map((d: any, index: number) => ({
@@ -67,7 +69,8 @@ export default function AIChart({ report }: AIChartProps) {
 
       setMessages((prev) => [...prev, { role: "ai", text: aiText, chart: chartPayload }]);
     } catch (e) {
-      setMessages((prev) => [...prev, { role: "ai", text: "Kuna hitilafu imetokea. Jaribu tena." }]);
+      console.error(e);
+      setMessages((prev) => [...prev, { role: "ai", text: "Kuna hitilafu kwenye mtandao au seva. Tafadhali jaribu tena baada ya muda mfupi." }]);
     } finally {
       setLoading(false);
     }
