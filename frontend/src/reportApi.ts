@@ -26,6 +26,17 @@ export interface ReportV3 {
 }
 export interface InsightsResponse { insights: string; model: string; }
 
+// Hii ni interface mpya kwa ajili ya chati
+export interface ChartResponse {
+  chart: {
+    type: "bar" | "line" | "pie" | "doughnut";
+    title: string;
+    labels: string[];
+    datasets: { label: string; data: number[] }[];
+  };
+  model: string;
+}
+
 // Same base URL as request() in api.ts (VITE_API_URL, the Render backend).
 const API_BASE = ((import.meta as unknown as { env?: { VITE_API_URL?: string } }).env?.VITE_API_URL ?? "").replace(/\/$/, "");
 
@@ -38,6 +49,13 @@ export const getReportV3 = (from: string, to: string, vehicleId: string) =>
 // AI commentary on the report the app already computed. The AI only writes text; numbers are not recalculated.
 export const getInsights = (report: ReportV3) =>
   request<InsightsResponse>("/ai/insights/", { method: "POST", body: JSON.stringify({ report }) });
+
+// Hii ni function mpya ya kutuma swali kwenda kwenye AI kupata chati
+export const getAIChart = (question: string, report: ReportV3) =>
+  request<ChartResponse>("/ai/chart/", { 
+    method: "POST", 
+    body: JSON.stringify({ question, report }) 
+  });
 
 // The PDF needs the login token, so it is fetched from the backend and saved as a file on the phone.
 export async function downloadReportPdf(from: string, to: string, vehicleId: string): Promise<void> {
