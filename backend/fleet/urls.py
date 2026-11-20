@@ -3,6 +3,7 @@ from rest_framework.routers import DefaultRouter
 from rest_framework.authtoken import views as auth_views  # <--- Muhimu kwa Login
 from fleet import views
 from fleet.ai_views import InsightsView
+from fleet.ai_chart_views import ChartView
 from fleet.report_pdf_views import ReportPdfView
 
 router = DefaultRouter()
@@ -23,6 +24,7 @@ urlpatterns = router.urls + [
     path("reports/", views.ReportView.as_view()),
     path("reports/pdf/", ReportPdfView.as_view()),
     path("ai/insights/", InsightsView.as_view()),
+    path("ai/chart/", ChartView.as_view()),
     path("me/", views.MeProfileView.as_view()),
     path("auth/register/", views.register_owner),
 
