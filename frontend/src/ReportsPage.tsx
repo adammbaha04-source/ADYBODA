@@ -31,7 +31,6 @@ const reportTitleFor = (kind: Kind) => {
   return "Quarterly Report";
 };
 
-// Turns the chosen period into the from/to months the API expects.
 function rangeFor(kind: Kind, month: string, year: number, cFrom: string, cTo: string): [string, string] {
   if (kind === "month") return [month, month];
   if (kind === "year") return [`${year}-01`, `${year}-12`];
@@ -105,7 +104,6 @@ export default function ReportsPage({
     setAiText("");
     try {
       const r = await getInsights(data);
-      // Hii inaondoa alama za ** (Markdown) ili maandishi yaonekane vizuri
       setAiText(r.insights.replace(/\*\*/g, ""));
     } catch (e) {
       setAiErr((e as Error).message);
@@ -376,7 +374,7 @@ export default function ReportsPage({
         </section>
       )}
 
-      {/* HAPA NDIPO CHATI INAPOWEKWA - Nimeondoa kigezo cha 'mode === report' ili ionekane wakati wote data ikiwa tayari */}
+      {/* KITUFE CHA DUARA NA CHATI INAPOWEKWA HAPA */}
       {data && <AIChart report={data} />}
 
       {data && mode === "graphs" && (
