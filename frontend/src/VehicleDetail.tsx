@@ -76,18 +76,30 @@ const noteOf = (x: object): string => String((x as { note?: string | null }).not
 // A popup dialog. Closes on Escape, on the X button, or on a tap outside the box.
 function Dialog({ title, onClose, children }: { title: string; onClose: () => void; children: ReactNode }) {
   useEffect(() => {
-    const onKey = (e: KeyboardEvent) => { if (e.key === "Escape") onClose(); };
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") onClose();
+    };
     window.addEventListener("keydown", onKey);
     const prev = document.body.style.overflow;
     document.body.style.overflow = "hidden";
-    return () => { window.removeEventListener("keydown", onKey); document.body.style.overflow = prev; };
+    return () => {
+      window.removeEventListener("keydown", onKey);
+      document.body.style.overflow = prev;
+    };
   }, [onClose]);
   return (
-    <div className="vd-overlay" onMouseDown={(e) => { if (e.target === e.currentTarget) onClose(); }}>
+    <div
+      className="vd-overlay"
+      onMouseDown={(e) => {
+        if (e.target === e.currentTarget) onClose();
+      }}
+    >
       <div className="vd-modal" role="dialog" aria-modal="true" aria-label={title}>
         <div className="vd-modal-head">
           <h3>{title}</h3>
-          <button className="vd-x" aria-label="Funga" onClick={onClose}>✕</button>
+          <button className="vd-x" aria-label="Funga" onClick={onClose}>
+            ✕
+          </button>
         </div>
         <div className="vd-modal-body">{children}</div>
       </div>
@@ -96,8 +108,14 @@ function Dialog({ title, onClose, children }: { title: string; onClose: () => vo
 }
 
 export default function VehicleDetail(props: {
-  vehicle: Vehicle; allVehicles: Vehicle[]; role: Role; month: string;
-  onBack: () => void; onChanged: () => void; onDeleted: () => void; onMonthChange: (m: string) => void;
+  vehicle: Vehicle;
+  allVehicles: Vehicle[];
+  role: Role;
+  month: string;
+  onBack: () => void;
+  onChanged: () => void;
+  onDeleted: () => void;
+  onMonthChange: (m: string) => void;
 }) {
   const { vehicle, allVehicles, role, month, onBack, onChanged, onDeleted, onMonthChange } = props;
   const isOwner = role === "owner";
@@ -150,12 +168,21 @@ export default function VehicleDetail(props: {
   async function load() {
     try {
       const [d, r, l, p, s, t, i, m] = await Promise.all([
-        getDebt(vehicle.id, month), listIncome(vehicle.id), listLostDays(vehicle.id),
-        listPayments(vehicle.id), listServices(vehicle.id), listTyres(vehicle.id), listInsurances(vehicle.id),
+        getDebt(vehicle.id, month),
+        listIncome(vehicle.id),
+        listLostDays(vehicle.id),
+        listPayments(vehicle.id),
+        listServices(vehicle.id),
+        listTyres(vehicle.id),
+        listInsurances(vehicle.id),
         listManualEntries(vehicle.id),
       ]);
       setDebt(d);
-      setReturns(r.filter((x) => (x.record_month || x.day.slice(0, 7)) === month).sort((a, b) => b.day.localeCompare(a.day)));
+      setReturns(
+        r
+          .filter((x) => (x.record_month || x.day.slice(0, 7)) === month)
+          .sort((a, b) => b.day.localeCompare(a.day)),
+      );
       setLost(l.filter((x) => x.month === month).sort((a, b) => a.week_number - b.week_number));
       setPayments((p as PaymentRow[]).filter((x) => x.day.startsWith(month)));
       setAllServices(s);
@@ -178,6 +205,15 @@ export default function VehicleDetail(props: {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [vehicle.id, month]);
 
+  function resetEditing() {
+    setForm(null);
+    setEditingService(null);
+    setEditingIncome(null);
+    setEditKind(null);
+    setEditId(null);
+    setEditLostId(null);
+  }
+
   async function run(action: () => Promise<unknown>, ok: string) {
     try {
       setError("");
@@ -191,26 +227,31 @@ export default function VehicleDetail(props: {
     }
   }
 
-  function resetEditing() {
-    setForm(null);
-    setEditingService(null);
-    setEditingIncome(null);
-    setEditKind(null);
-    setEditId(null);
-    setEditLostId(null);
-  }
-
   function clearFields() {
-    setFAmount(""); setFNote(""); setFTool(""); setFCount("1"); setFUnit("");
-    setFSeller(""); setFTyre(""); setFInsType(""); setFMonths("12");
-    setFWeek("1"); setFLostDays("1");
+    setFAmount("");
+    setFNote("");
+    setFTool("");
+    setFCount("1");
+    setFUnit("");
+    setFSeller("");
+    setFTyre("");
+    setFInsType("");
+    setFMonths("12");
+    setFWeek("1");
+    setFLostDays("1");
   }
 
   function open(key: Form | "saveMonth" | "delete") {
     setMore(false);
     setNotice("");
-    if (key === "saveMonth") { setNotice(PLACEHOLDER); return; }
-    if (key === "delete") { removeVehicle(); return; }
+    if (key === "saveMonth") {
+      setNotice(PLACEHOLDER);
+      return;
+    }
+    if (key === "delete") {
+      removeVehicle();
+      return;
+    }
     clearFields();
     setEditingIncome(null);
     setEditingService(null);
@@ -314,26 +355,44 @@ export default function VehicleDetail(props: {
     e.preventDefault();
     run(() => addManualEntry(vehicle.id, "MANUAL_DEBT", fDay, Number(fAmount), fNote.trim()), "Deni limeongezwa.");
   }
+
   function submitPayment(e: FormEvent) {
     e.preventDefault();
-    run(() => createPayment(vehicle.id, fDay, fPayType, Number(fAmount), fNote.trim()), "Malipo yamehifadhiwa.");
+    run(
+      () => createPayment(vehicle.id, fDay, fPayType, Number(fAmount), fNote.trim()),
+      "Malipo yamehifadhiwa.",
+    );
   }
+
   function submitService(e: FormEvent, pack: boolean) {
     e.preventDefault();
     const body = {
-      day: fDay, tool: fTool.trim(), count: Number(fCount) || 1,
-      unit_price: Number(fUnit) || 0, seller: fSeller.trim(), note: fNote.trim(),
+      day: fDay,
+      tool: fTool.trim(),
+      count: Number(fCount) || 1,
+      unit_price: Number(fUnit) || 0,
+      seller: fSeller.trim(),
+      note: fNote.trim(),
     };
     if (editingService) {
       run(() => updateService(editingService.id, body), "Service imehaririwa.");
       return;
     }
-    run(() => createService(vehicle.id, body), pack ? "Service ya pamoja imehifadhiwa." : "Service imehifadhiwa.");
+    run(
+      () => createService(vehicle.id, body),
+      pack ? "Service ya pamoja imehifadhiwa." : "Service imehifadhiwa.",
+    );
   }
+
   function submitInsurance(e: FormEvent) {
     e.preventDefault();
-    run(() => createInsurance(vehicle.id, fDay, fInsType.trim(), Number(fAmount) || 0, Number(fMonths) || 12, fNote.trim()), "Bima imehifadhiwa.");
+    run(
+      () =>
+        createInsurance(vehicle.id, fDay, fInsType.trim(), Number(fAmount) || 0, Number(fMonths) || 12, fNote.trim()),
+      "Bima imehifadhiwa.",
+    );
   }
+
   // Edits an existing payment, tyre or insurance record.
   function submitRecordEdit(e: FormEvent) {
     e.preventDefault();
@@ -344,19 +403,33 @@ export default function VehicleDetail(props: {
     const amount = Number(fAmount) || 0;
     const note = fNote.trim();
     if (kind === "payment") {
-      run(() => updateRecord("payment-records", id, { day, payment_type: fPayType, amount, note }), "Malipo yamehaririwa.");
+      run(
+        () => updateRecord("payment-records", id, { day, payment_type: fPayType, amount, note }),
+        "Malipo yamehaririwa.",
+      );
       return;
     }
     if (kind === "tyre") {
-      run(() => updateRecord("tyre-records", id, { day, tyre_number: fTyre.trim(), amount, note }), "Tairi imehaririwa.");
+      run(
+        () => updateRecord("tyre-records", id, { day, tyre_number: fTyre.trim(), amount, note }),
+        "Tairi imehaririwa.",
+      );
       return;
     }
     run(
-      () => updateRecord("insurance-records", id, { day, insurance_type: fInsType.trim(), amount, months: Number(fMonths) || 12, note }),
+      () =>
+        updateRecord("insurance-records", id, {
+          day,
+          insurance_type: fInsType.trim(),
+          amount,
+          months: Number(fMonths) || 12,
+          note,
+        }),
       "Bima imehaririwa.",
     );
   }
-  // Siku zilizopotea: creates the week's row, or updates it when editing or when the week already has one.
+
+  // Siku zilizopotea: updates the row being edited, otherwise creates it or updates the week's existing row.
   function submitLost(e: FormEvent) {
     e.preventDefault();
     const week = Number(fWeek);
@@ -370,47 +443,74 @@ export default function VehicleDetail(props: {
     const existing = lost.find((l) => l.week_number === week);
     run(() => saveLostDaysFull(vehicle.id, month, week, days, note, existing?.id), "Siku zimehifadhiwa.");
   }
+
   function removeLost(id: number) {
     if (!confirm("Futa rekodi hii ya siku zilizopotea?")) return;
     run(() => deleteLostDays(id), "Siku zimefutwa.");
   }
+
   async function removeVehicle() {
     if (!isOwner) return;
     if (!confirm(`Futa gari ${vehicle.name}? Historia yake yote itafutwa.`)) return;
-    try { await deleteVehicle(vehicle.id); onDeleted(); }
-    catch (e) { setError((e as Error).message); }
+    try {
+      await deleteVehicle(vehicle.id);
+      onDeleted();
+    } catch (e) {
+      setError((e as Error).message);
+    }
   }
+
   function removeRecord(path: "payment-records" | "service-records" | "tyre-records" | "insurance-records", id: number) {
     if (!confirm("Futa rekodi hii?")) return;
     run(() => deleteRecord(path, id), "Rekodi imefutwa.");
   }
-  function signIncome(id: number) { run(() => confirmIncome(id), "Mapato yamethibitishwa."); }
-  function signPayment(id: number) { run(() => confirmPayment(id), "Malipo yamethibitishwa."); }
-  function signManual(id: number) { run(() => confirmManualEntry(id), "Deni limethibitishwa."); }
+
+  function signIncome(id: number) {
+    run(() => confirmIncome(id), "Mapato yamethibitishwa.");
+  }
+  function signPayment(id: number) {
+    run(() => confirmPayment(id), "Malipo yamethibitishwa.");
+  }
+  function signManual(id: number) {
+    run(() => confirmManualEntry(id), "Deni limethibitishwa.");
+  }
 
   const paymentLabel = (k: string) => PAYMENT_TYPES.find((p) => p.key === k)?.label ?? k;
-  const manualLabel = (k: string) => (k === "MANUAL_PAYMENT" ? "Malipo ya deni" : k === "CARRY_OVER" ? "Deni lililobaki" : "Deni");
+  const manualLabel = (k: string) =>
+    k === "MANUAL_PAYMENT" ? "Malipo ya deni" : k === "CARRY_OVER" ? "Deni lililobaki" : "Deni";
   const moreItems = MORE.filter((a) => !a.ownerOnly || isOwner);
 
   return (
     <div className="detail vd-root">
       <div className="detail-top">
-        <button className="back" onClick={onBack}>← Rudi Nyuma</button>
+        <button className="back" onClick={onBack}>
+          ← Rudi Nyuma
+        </button>
       </div>
 
       <div className="vd-mnav-row">
-        <button className="vd-mnav" onClick={() => onMonthChange(prevMonth)} aria-label={`Mwezi uliopita: ${monthLabel(prevMonth)}`}>
+        <button
+          className="vd-mnav"
+          onClick={() => onMonthChange(prevMonth)}
+          aria-label={`Mwezi uliopita: ${monthLabel(prevMonth)}`}
+        >
           ‹ <span>{monthLabel(prevMonth)}</span>
         </button>
         <div className="vd-mnav-cur">{monthLabel(month)}</div>
-        <button className="vd-mnav" disabled={month >= currentYM}
-          onClick={() => onMonthChange(nextMonth)} aria-label={`Mwezi unaofuata: ${monthLabel(nextMonth)}`}>
+        <button
+          className="vd-mnav"
+          disabled={month >= currentYM}
+          onClick={() => onMonthChange(nextMonth)}
+          aria-label={`Mwezi unaofuata: ${monthLabel(nextMonth)}`}
+        >
           <span>{monthLabel(nextMonth)}</span> ›
         </button>
       </div>
 
       <section className="card title-card">
-        <h3>{vehicle.name} <span className="badge type">{vehicle.vehicle_type.toUpperCase()}</span></h3>
+        <h3>
+          {vehicle.name} <span className="badge type">{vehicle.vehicle_type.toUpperCase()}</span>
+        </h3>
         <p className="driver">{monthLabel(month)}</p>
       </section>
 
@@ -421,8 +521,13 @@ export default function VehicleDetail(props: {
         <section className="card week5">
           <label className="toggle">
             <span>Week 5:</span>
-            <input type="checkbox" checked={vehicle.include_week5}
-              onChange={(e) => run(() => updateVehicle(vehicle.id, { include_week5: e.target.checked }), "Week 5 imebadilishwa.")} />
+            <input
+              type="checkbox"
+              checked={vehicle.include_week5}
+              onChange={(e) =>
+                run(() => updateVehicle(vehicle.id, { include_week5: e.target.checked }), "Week 5 imebadilishwa.")
+              }
+            />
             <b>{vehicle.include_week5 ? "ON (5 weeks)" : "OFF (4 weeks)"}</b>
           </label>
         </section>
@@ -431,12 +536,32 @@ export default function VehicleDetail(props: {
       <section className="card summary-block">
         <h4 className="sum-title">Mwezi wa {monthLabel(month)}</h4>
         <div className="kv-grid">
-          <div><span>WEEKLY TARGET</span><b className="blue">{tsh(weekly)}</b></div>
-          <div><span>WORKING DAYS/WEEK</span><b className="purple">{wd}/{wd}</b></div>
-          <div><span>MONTHLY TARGET</span><b className="blue">{tsh(monthTarget)}</b></div>
-          <div><span>TOTAL INCOME</span><b className="green">{tsh(totalIncome)}</b></div>
-          <div><span>DAYS LOST</span><b className="red">{daysLost}</b></div>
-          <div><span>LOSS AMOUNT</span><b className="red">{tsh(lossAmount)}</b></div>
+          <div>
+            <span>WEEKLY TARGET</span>
+            <b className="blue">{tsh(weekly)}</b>
+          </div>
+          <div>
+            <span>WORKING DAYS/WEEK</span>
+            <b className="purple">
+              {wd}/{wd}
+            </b>
+          </div>
+          <div>
+            <span>MONTHLY TARGET</span>
+            <b className="blue">{tsh(monthTarget)}</b>
+          </div>
+          <div>
+            <span>TOTAL INCOME</span>
+            <b className="green">{tsh(totalIncome)}</b>
+          </div>
+          <div>
+            <span>DAYS LOST</span>
+            <b className="red">{daysLost}</b>
+          </div>
+          <div>
+            <span>LOSS AMOUNT</span>
+            <b className="red">{tsh(lossAmount)}</b>
+          </div>
         </div>
       </section>
 
@@ -445,20 +570,46 @@ export default function VehicleDetail(props: {
         {s ? (
           <>
             <div className="grid">
-              <div className="card"><h4>Starting Debt</h4><b className="orange">{tsh(s.starting_debt)}</b></div>
-              <div className="card"><h4>Debt Addition</h4><b className="red">{tsh(s.debt_added)}</b></div>
-              <div className="card"><h4>Debt Payment</h4><b className="green">{tsh(s.payments)}</b></div>
-              <div className="card"><h4>Weekly Target</h4><b className="blue">{tsh(s.weekly_target)}</b></div>
-              <div className="card"><h4>Weeks in Month</h4><b className="purple">{weeksCount}</b></div>
-              <div className="card"><h4>Ending Debt</h4><b className="red">{tsh(s.ending_debt)}</b></div>
+              <div className="card">
+                <h4>Starting Debt</h4>
+                <b className="orange">{tsh(s.starting_debt)}</b>
+              </div>
+              <div className="card">
+                <h4>Debt Addition</h4>
+                <b className="red">{tsh(s.debt_added)}</b>
+              </div>
+              <div className="card">
+                <h4>Debt Payment</h4>
+                <b className="green">{tsh(s.payments)}</b>
+              </div>
+              <div className="card">
+                <h4>Weekly Target</h4>
+                <b className="blue">{tsh(s.weekly_target)}</b>
+              </div>
+              <div className="card">
+                <h4>Weeks in Month</h4>
+                <b className="purple">{weeksCount}</b>
+              </div>
+              <div className="card">
+                <h4>Ending Debt</h4>
+                <b className="red">{tsh(s.ending_debt)}</b>
+              </div>
             </div>
             <label className="toggle carry">
-              <input type="checkbox" checked={s.carry_over_on} disabled={!canManage}
-                onChange={(e) => run(() => setCarry(vehicle.id, month, e.target.checked), "Carry over imebadilishwa.")} />
+              <input
+                type="checkbox"
+                checked={s.carry_over_on}
+                disabled={!canManage}
+                onChange={(e) =>
+                  run(() => setCarry(vehicle.id, month, e.target.checked), "Carry over imebadilishwa.")
+                }
+              />
               <span>Deni la mwezi huu lipelekwe mwezi unaofuata (Carry over)</span>
             </label>
           </>
-        ) : <p className="empty">Inapakia...</p>}
+        ) : (
+          <p className="empty">Inapakia...</p>
+        )}
       </section>
 
       <section className="card">
@@ -473,21 +624,32 @@ export default function VehicleDetail(props: {
             {manual.length === 0 && <li className="empty">Hakuna deni la mkono mwezi huu</li>}
             {manual.map((m) => (
               <li key={m.id}>
-                <span>{shortDate(m.day)} · {manualLabel(m.kind)}{m.note ? ` · ${m.note}` : ""}
-                  {m.confirmed_at ? " · Confirmed" : " · Pending"}</span>
+                <span>
+                  {shortDate(m.day)} · {manualLabel(m.kind)}
+                  {m.note ? ` · ${m.note}` : ""}
+                  {m.confirmed_at ? " · Confirmed" : " · Pending"}
+                </span>
                 <b className="orange">{tsh(m.amount)}</b>
-                {!m.confirmed_at && <button className="confirm-btn" onClick={() => signManual(m.id)}>Thibitisha</button>}
+                {!m.confirmed_at && (
+                  <button className="confirm-btn" onClick={() => signManual(m.id)}>
+                    Thibitisha
+                  </button>
+                )}
               </li>
             ))}
           </ul>
         </section>
       )}
 
-
       <section className="card">
         <h3>Muhtasari wa Wiki za Mwezi</h3>
-        <WeekTable entries={entries} returns={returns} month={month} workingDays={wd}
-          lostDays={lost.map((l) => ({ week_number: l.week_number, days: l.days }))} />
+        <WeekTable
+          entries={entries}
+          returns={returns}
+          month={month}
+          workingDays={wd}
+          lostDays={lost.map((l) => ({ week_number: l.week_number, days: l.days }))}
+        />
       </section>
 
       <section className="card">
@@ -499,19 +661,42 @@ export default function VehicleDetail(props: {
               <span>
                 {shortDate(r.day)} · {r.is_excess ? "Malipo ya Ziada" : "Income"}
                 {r.week_number ? ` · Wiki ${r.week_number}` : ""}
-                {r.period_start && r.period_end ? ` (${shortDate(r.period_start)} - ${shortDate(r.period_end)})` : ""}
+                {r.period_start && r.period_end
+                  ? ` (${shortDate(r.period_start)} - ${shortDate(r.period_end)})`
+                  : ""}
                 {r.note ? ` · ${r.note}` : ""}
                 {r.confirmed_at ? " · Confirmed" : " · Pending"}
               </span>
-              <b className="green">{r.is_excess ? "-" : "+"}{tsh(r.amount)}</b>
+              <b className="green">
+                {r.is_excess ? "-" : "+"}
+                {tsh(r.amount)}
+              </b>
               {canManage && (
-                <button className="edit-btn" onClick={() => { setEditingIncome(r); setForm("income"); setNotice(""); }}>Edit</button>
+                <button
+                  className="edit-btn"
+                  onClick={() => {
+                    setEditingIncome(r);
+                    setForm("income");
+                    setNotice("");
+                  }}
+                >
+                  Edit
+                </button>
               )}
               {canManage && (
-                <button className="danger" onClick={() => { if (confirm("Futa mapato haya?")) run(() => deleteIncome(r.id), "Mapato yamefutwa."); }}>Del</button>
+                <button
+                  className="danger"
+                  onClick={() => {
+                    if (confirm("Futa mapato haya?")) run(() => deleteIncome(r.id), "Mapato yamefutwa.");
+                  }}
+                >
+                  Del
+                </button>
               )}
               {isDriver && !r.confirmed_at && (
-                <button className="confirm-btn" onClick={() => signIncome(r.id)}>Thibitisha</button>
+                <button className="confirm-btn" onClick={() => signIncome(r.id)}>
+                  Thibitisha
+                </button>
               )}
             </li>
           ))}
@@ -524,12 +709,27 @@ export default function VehicleDetail(props: {
           {payments.length === 0 && <li className="empty">No payment records for this month</li>}
           {payments.map((p) => (
             <li key={p.id}>
-              <span>{p.day} · {paymentLabel(p.payment_type)}{p.note ? ` · ${p.note}` : ""}
-                {p.confirmed_at ? " · Confirmed" : " · Pending"}</span>
+              <span>
+                {p.day} · {paymentLabel(p.payment_type)}
+                {p.note ? ` · ${p.note}` : ""}
+                {p.confirmed_at ? " · Confirmed" : " · Pending"}
+              </span>
               <b className="green">{tsh(p.amount)}</b>
-              {canManage && <button className="edit-btn" onClick={() => startEditPayment(p)}>Edit</button>}
-              {canManage && <button className="danger" onClick={() => removeRecord("payment-records", p.id)}>Futa</button>}
-              {isDriver && !p.confirmed_at && <button className="confirm-btn" onClick={() => signPayment(p.id)}>Thibitisha</button>}
+              {canManage && (
+                <button className="edit-btn" onClick={() => startEditPayment(p)}>
+                  Edit
+                </button>
+              )}
+              {canManage && (
+                <button className="danger" onClick={() => removeRecord("payment-records", p.id)}>
+                  Futa
+                </button>
+              )}
+              {isDriver && !p.confirmed_at && (
+                <button className="confirm-btn" onClick={() => signPayment(p.id)}>
+                  Thibitisha
+                </button>
+              )}
             </li>
           ))}
         </ul>
@@ -542,9 +742,20 @@ export default function VehicleDetail(props: {
           {lost.length === 0 && <li className="empty">Hakuna siku zilizopotea mwezi huu</li>}
           {lost.map((l) => (
             <li key={l.id}>
-              <span>Wiki {l.week_number} · siku {l.days}{noteOf(l) ? ` · ${noteOf(l)}` : ""}</span>
-              {canManage && <button className="edit-btn" onClick={() => startEditLost(l)}>Edit</button>}
-              {canManage && <button className="danger" onClick={() => removeLost(l.id)}>Futa</button>}
+              <span>
+                Wiki {l.week_number} · siku {l.days}
+                {noteOf(l) ? ` · ${noteOf(l)}` : ""}
+              </span>
+              {canManage && (
+                <button className="edit-btn" onClick={() => startEditLost(l)}>
+                  Edit
+                </button>
+              )}
+              {canManage && (
+                <button className="danger" onClick={() => removeLost(l.id)}>
+                  Futa
+                </button>
+              )}
             </li>
           ))}
         </ul>
@@ -557,11 +768,24 @@ export default function VehicleDetail(props: {
           {services.length === 0 && <li className="empty">No service records for this month</li>}
           {services.map((x) => (
             <li key={x.id}>
-              <span>{x.day} · {x.tool} × {x.count}{x.seller ? ` · ${x.seller}` : ""}</span>
+              <span>
+                {x.day} · {x.tool} × {x.count}
+                {x.seller ? ` · ${x.seller}` : ""}
+              </span>
               <b className="blue">{tsh(x.total)}</b>
-              <button className="ghost" onClick={() => setHistoryTool(x.tool)}>📜 Historia</button>
-              {canManage && <button className="edit-btn" onClick={() => startEditService(x)}>Edit</button>}
-              {canManage && <button className="danger" onClick={() => removeRecord("service-records", x.id)}>Futa</button>}
+              <button className="ghost" onClick={() => setHistoryTool(x.tool)}>
+                📜 Historia
+              </button>
+              {canManage && (
+                <button className="edit-btn" onClick={() => startEditService(x)}>
+                  Edit
+                </button>
+              )}
+              {canManage && (
+                <button className="danger" onClick={() => removeRecord("service-records", x.id)}>
+                  Futa
+                </button>
+              )}
             </li>
           ))}
         </ul>
@@ -575,10 +799,16 @@ export default function VehicleDetail(props: {
               {tyres.length === 0 && <li className="empty">No tyre records for this month</li>}
               {tyres.map((x) => (
                 <li key={x.id}>
-                  <span>{x.day} · {x.tyre_number || "Tairi"}</span>
+                  <span>
+                    {x.day} · {x.tyre_number || "Tairi"}
+                  </span>
                   <b className="blue">{tsh(x.amount)}</b>
-                  <button className="edit-btn" onClick={() => startEditTyre(x)}>Edit</button>
-                  <button className="danger" onClick={() => removeRecord("tyre-records", x.id)}>Futa</button>
+                  <button className="edit-btn" onClick={() => startEditTyre(x)}>
+                    Edit
+                  </button>
+                  <button className="danger" onClick={() => removeRecord("tyre-records", x.id)}>
+                    Futa
+                  </button>
                 </li>
               ))}
             </ul>
@@ -589,10 +819,16 @@ export default function VehicleDetail(props: {
               {insurances.length === 0 && <li className="empty">No insurance records for this month</li>}
               {insurances.map((x) => (
                 <li key={x.id}>
-                  <span>{x.day} · {x.insurance_type || "Bima"} · miezi {x.months}</span>
+                  <span>
+                    {x.day} · {x.insurance_type || "Bima"} · miezi {x.months}
+                  </span>
                   <b className="blue">{tsh(x.amount)}</b>
-                  <button className="edit-btn" onClick={() => startEditInsurance(x)}>Edit</button>
-                  <button className="danger" onClick={() => removeRecord("insurance-records", x.id)}>Futa</button>
+                  <button className="edit-btn" onClick={() => startEditInsurance(x)}>
+                    Edit
+                  </button>
+                  <button className="danger" onClick={() => removeRecord("insurance-records", x.id)}>
+                    Futa
+                  </button>
                 </li>
               ))}
             </ul>
@@ -627,7 +863,11 @@ export default function VehicleDetail(props: {
             <div className="vd-sheet-title">{vehicle.name} · Vitendo zaidi</div>
             <div className="vd-sheet-grid">
               {moreItems.map((a) => (
-                <button key={a.label} className={"vd-sheet-item" + (a.red ? " red" : "")} onClick={() => open(a.key)}>
+                <button
+                  key={a.label}
+                  className={"vd-sheet-item" + (a.red ? " red" : "")}
+                  onClick={() => open(a.key)}
+                >
                   <span className="vd-ico">{a.icon}</span>
                   <span>{a.label}</span>
                 </button>
@@ -641,22 +881,36 @@ export default function VehicleDetail(props: {
       {historyTool && (
         <Dialog title={`Historia ya ${historyTool}`} onClose={() => setHistoryTool(null)}>
           <div className="hist-summary">
-            <p><b>Imefungwa mara:</b> {toolTimes}</p>
-            <p><b>Jumla ya vipande:</b> {toolPieces}</p>
-            <p><b>Jumla ya gharama:</b> {tsh(toolCost)}</p>
-            <p><b>Mara ya mwisho:</b> {toolLast ? shortDate(toolLast) : "—"}</p>
+            <p>
+              <b>Imefungwa mara:</b> {toolTimes}
+            </p>
+            <p>
+              <b>Jumla ya vipande:</b> {toolPieces}
+            </p>
+            <p>
+              <b>Jumla ya gharama:</b> {tsh(toolCost)}
+            </p>
+            <p>
+              <b>Mara ya mwisho:</b> {toolLast ? shortDate(toolLast) : "—"}
+            </p>
           </div>
           <ul className="list">
             {toolHistory.length === 0 && <li className="empty">Hakuna rekodi ya kifaa hiki</li>}
             {toolHistory.map((x) => (
               <li key={x.id}>
-                <span>{shortDate(x.day)} · × {x.count}{x.seller ? ` · ${x.seller}` : ""}{x.note ? ` · ${x.note}` : ""}</span>
+                <span>
+                  {shortDate(x.day)} · × {x.count}
+                  {x.seller ? ` · ${x.seller}` : ""}
+                  {x.note ? ` · ${x.note}` : ""}
+                </span>
                 <b className="blue">{tsh(x.total)}</b>
               </li>
             ))}
           </ul>
           <div className="vd-actions">
-            <button type="button" className="ghost" onClick={() => setHistoryTool(null)}>Funga</button>
+            <button type="button" className="ghost" onClick={() => setHistoryTool(null)}>
+              Funga
+            </button>
           </div>
         </Dialog>
       )}
@@ -672,135 +926,341 @@ export default function VehicleDetail(props: {
               includeWeek5={vehicle.include_week5}
               defaultMonth={month}
               editing={editingIncome}
-              onSaved={() => { closeForm(); setNotice("Mapato yamehifadhiwa."); load(); onChanged(); }}
+              onSaved={() => {
+                closeForm();
+                setNotice("Mapato yamehifadhiwa.");
+                load();
+                onChanged();
+              }}
               onCancel={closeForm}
             />
           )}
+
           {form === "payment" && (
             <form onSubmit={submitPayment}>
               <h3>Add Payment</h3>
-              <label>Aina ya Malipo
+              <label>
+                Aina ya Malipo
                 <select value={fPayType} onChange={(e) => setFPayType(e.target.value)}>
-                  {PAYMENT_TYPES.map((p) => <option key={p.key} value={p.key}>{p.label}</option>)}
+                  {PAYMENT_TYPES.map((p) => (
+                    <option key={p.key} value={p.key}>
+                      {p.label}
+                    </option>
+                  ))}
                 </select>
               </label>
-              <label>Tarehe ya Malipo<input type="date" value={fDay} onChange={(e) => setFDay(e.target.value)} required /></label>
-              <label>Kiasi (TSh)<input type="number" inputMode="numeric" value={fAmount} onChange={(e) => setFAmount(e.target.value)} required min={1} /></label>
-              <label>Maelezo<input value={fNote} onChange={(e) => setFNote(e.target.value)} placeholder="Maelezo ya ziada" /></label>
+              <label>
+                Tarehe ya Malipo
+                <input type="date" value={fDay} onChange={(e) => setFDay(e.target.value)} required />
+              </label>
+              <label>
+                Kiasi (TSh)
+                <input
+                  type="number"
+                  inputMode="numeric"
+                  value={fAmount}
+                  onChange={(e) => setFAmount(e.target.value)}
+                  required
+                  min={1}
+                />
+              </label>
+              <label>
+                Maelezo
+                <input value={fNote} onChange={(e) => setFNote(e.target.value)} placeholder="Maelezo ya ziada" />
+              </label>
               {fPayType !== "debt_payment" && <p className="hint">Aina hii ni gharama tu. Haipunguzi deni.</p>}
               <div className="vd-actions">
                 <button type="submit">Hifadhi</button>
-                <button type="button" className="ghost" onClick={closeForm}>Sitisha / Cancel</button>
+                <button type="button" className="ghost" onClick={closeForm}>
+                  Sitisha / Cancel
+                </button>
               </div>
             </form>
           )}
+
           {form === "recordEdit" && editKind && (
             <form onSubmit={submitRecordEdit}>
-              <h3>{editKind === "payment" ? "Hariri Malipo" : editKind === "tyre" ? "Hariri Tairi" : "Hariri Bima"}</h3>
-              <label>Tarehe<input type="date" value={fDay} onChange={(e) => setFDay(e.target.value)} required /></label>
+              <h3>
+                {editKind === "payment" ? "Hariri Malipo" : editKind === "tyre" ? "Hariri Tairi" : "Hariri Bima"}
+              </h3>
+              <label>
+                Tarehe
+                <input type="date" value={fDay} onChange={(e) => setFDay(e.target.value)} required />
+              </label>
               {editKind === "payment" && (
-                <label>Aina ya Malipo
+                <label>
+                  Aina ya Malipo
                   <select value={fPayType} onChange={(e) => setFPayType(e.target.value)}>
-                    {PAYMENT_TYPES.map((p) => <option key={p.key} value={p.key}>{p.label}</option>)}
+                    {PAYMENT_TYPES.map((p) => (
+                      <option key={p.key} value={p.key}>
+                        {p.label}
+                      </option>
+                    ))}
                   </select>
                 </label>
               )}
               {editKind === "tyre" && (
-                <label>Namba ya Tairi<input value={fTyre} onChange={(e) => setFTyre(e.target.value)} /></label>
+                <label>
+                  Namba ya Tairi
+                  <input value={fTyre} onChange={(e) => setFTyre(e.target.value)} />
+                </label>
               )}
               {editKind === "insurance" && (
                 <>
-                  <label>Aina ya Bima<input value={fInsType} onChange={(e) => setFInsType(e.target.value)} /></label>
-                  <label>Muda (Miezi)<input type="number" inputMode="numeric" min={1} value={fMonths} onChange={(e) => setFMonths(e.target.value)} /></label>
+                  <label>
+                    Aina ya Bima
+                    <input value={fInsType} onChange={(e) => setFInsType(e.target.value)} />
+                  </label>
+                  <label>
+                    Muda (Miezi)
+                    <input
+                      type="number"
+                      inputMode="numeric"
+                      min={1}
+                      value={fMonths}
+                      onChange={(e) => setFMonths(e.target.value)}
+                    />
+                  </label>
                 </>
               )}
-              <label>Kiasi (TSh)<input type="number" inputMode="numeric" min={0} value={fAmount} onChange={(e) => setFAmount(e.target.value)} required /></label>
-              <label>Maelezo<input value={fNote} onChange={(e) => setFNote(e.target.value)} placeholder="Maelezo ya ziada" /></label>
+              <label>
+                Kiasi (TSh)
+                <input
+                  type="number"
+                  inputMode="numeric"
+                  min={0}
+                  value={fAmount}
+                  onChange={(e) => setFAmount(e.target.value)}
+                  required
+                />
+              </label>
+              <label>
+                Maelezo
+                <input value={fNote} onChange={(e) => setFNote(e.target.value)} placeholder="Maelezo ya ziada" />
+              </label>
               <div className="vd-actions">
                 <button type="submit">Hifadhi Mabadiliko</button>
-                <button type="button" className="ghost" onClick={closeForm}>Sitisha / Cancel</button>
+                <button type="button" className="ghost" onClick={closeForm}>
+                  Sitisha / Cancel
+                </button>
               </div>
             </form>
           )}
+
           {form === "debt" && (
             <form onSubmit={submitDebt}>
               <h3>Add Debt</h3>
-              <label>Tarehe ya Record<input type="date" value={fDay} onChange={(e) => setFDay(e.target.value)} required /></label>
-              <label>Kiasi (TSh)<input type="number" inputMode="numeric" value={fAmount} onChange={(e) => setFAmount(e.target.value)} required min={1} /></label>
-              <label>Maelezo<input value={fNote} onChange={(e) => setFNote(e.target.value)} placeholder="Maelezo ya ziada" /></label>
+              <label>
+                Tarehe ya Record
+                <input type="date" value={fDay} onChange={(e) => setFDay(e.target.value)} required />
+              </label>
+              <label>
+                Kiasi (TSh)
+                <input
+                  type="number"
+                  inputMode="numeric"
+                  value={fAmount}
+                  onChange={(e) => setFAmount(e.target.value)}
+                  required
+                  min={1}
+                />
+              </label>
+              <label>
+                Maelezo
+                <input value={fNote} onChange={(e) => setFNote(e.target.value)} placeholder="Maelezo ya ziada" />
+              </label>
               <div className="vd-actions">
                 <button type="submit">Hifadhi</button>
-                <button type="button" className="ghost" onClick={closeForm}>Sitisha / Cancel</button>
+                <button type="button" className="ghost" onClick={closeForm}>
+                  Sitisha / Cancel
+                </button>
               </div>
             </form>
           )}
+
           {(form === "service" || form === "servicePack") && (
             <form onSubmit={(e) => submitService(e, form === "servicePack")}>
-              <h3>{editingService ? "Hariri Service" : form === "servicePack" ? "Ongeza Service ya Pamoja" : "Add Service"}</h3>
-              <label>Tarehe ya Malipo<input type="date" value={fDay} onChange={(e) => setFDay(e.target.value)} required /></label>
-              <ToolInput vehicleIds={allVehicles.map((v) => v.id)} value={fTool} onChange={setFTool} day={fDay} required />
-              <label>Idadi<input type="number" inputMode="numeric" value={fCount} onChange={(e) => setFCount(e.target.value)} min={1} required /></label>
-              <label>Bei ya Kimoja (TSh)<input type="number" inputMode="numeric" value={fUnit} onChange={(e) => setFUnit(e.target.value)} min={0} /></label>
-              <label>Muuzaji<input value={fSeller} onChange={(e) => setFSeller(e.target.value)} placeholder="Jina la muuzaji" /></label>
-              <label>Maelezo<input value={fNote} onChange={(e) => setFNote(e.target.value)} placeholder="Maelezo ya ziada" /></label>
+              <h3>
+                {editingService
+                  ? "Hariri Service"
+                  : form === "servicePack"
+                    ? "Ongeza Service ya Pamoja"
+                    : "Add Service"}
+              </h3>
+              <label>
+                Tarehe ya Malipo
+                <input type="date" value={fDay} onChange={(e) => setFDay(e.target.value)} required />
+              </label>
+              <ToolInput
+                vehicleIds={allVehicles.map((v) => v.id)}
+                value={fTool}
+                onChange={setFTool}
+                day={fDay}
+                required
+              />
+              <label>
+                Idadi
+                <input
+                  type="number"
+                  inputMode="numeric"
+                  value={fCount}
+                  onChange={(e) => setFCount(e.target.value)}
+                  min={1}
+                  required
+                />
+              </label>
+              <label>
+                Bei ya Kimoja (TSh)
+                <input
+                  type="number"
+                  inputMode="numeric"
+                  value={fUnit}
+                  onChange={(e) => setFUnit(e.target.value)}
+                  min={0}
+                />
+              </label>
+              <label>
+                Muuzaji
+                <input value={fSeller} onChange={(e) => setFSeller(e.target.value)} placeholder="Jina la muuzaji" />
+              </label>
+              <label>
+                Maelezo
+                <input value={fNote} onChange={(e) => setFNote(e.target.value)} placeholder="Maelezo ya ziada" />
+              </label>
               <p className="hint">Jumla: {tsh((Number(fCount) || 0) * (Number(fUnit) || 0))}</p>
               <div className="vd-actions">
                 <button type="submit">
-                  {editingService ? "Hifadhi Mabadiliko" : form === "servicePack" ? "Hifadhi kwa Vyombo Vyote" : "Hifadhi"}
+                  {editingService
+                    ? "Hifadhi Mabadiliko"
+                    : form === "servicePack"
+                      ? "Hifadhi kwa Vyombo Vyote"
+                      : "Hifadhi"}
                 </button>
-                <button type="button" className="ghost" onClick={closeForm}>Sitisha / Cancel</button>
+                <button type="button" className="ghost" onClick={closeForm}>
+                  Sitisha / Cancel
+                </button>
               </div>
             </form>
           )}
+
           {form === "tyre" && (
             <RetireTyreDialog
               vehicle={vehicle}
               allVehicles={allVehicles}
               defaultDay={fDay}
-              onDone={(msg) => { closeForm(); setNotice(msg); load(); onChanged(); }}
+              onDone={(msg) => {
+                closeForm();
+                setNotice(msg);
+                load();
+                onChanged();
+              }}
             />
           )}
+
           {form === "insurance" && (
             <form onSubmit={submitInsurance}>
               <h3>Add Insurance</h3>
-              <label>Tarehe ya Malipo<input type="date" value={fDay} onChange={(e) => setFDay(e.target.value)} required /></label>
-              <label>Kiasi (TSh)<input type="number" inputMode="numeric" value={fAmount} onChange={(e) => setFAmount(e.target.value)} min={0} /></label>
-              <label>Aina ya Bima<input value={fInsType} onChange={(e) => setFInsType(e.target.value)} placeholder="Comprehensive, Third Party" /></label>
-              <label>Muda (Miezi)<input type="number" inputMode="numeric" value={fMonths} onChange={(e) => setFMonths(e.target.value)} min={1} /></label>
-              <label>Maelezo<input value={fNote} onChange={(e) => setFNote(e.target.value)} placeholder="Maelezo ya ziada" /></label>
+              <label>
+                Tarehe ya Malipo
+                <input type="date" value={fDay} onChange={(e) => setFDay(e.target.value)} required />
+              </label>
+              <label>
+                Kiasi (TSh)
+                <input
+                  type="number"
+                  inputMode="numeric"
+                  value={fAmount}
+                  onChange={(e) => setFAmount(e.target.value)}
+                  min={0}
+                />
+              </label>
+              <label>
+                Aina ya Bima
+                <input
+                  value={fInsType}
+                  onChange={(e) => setFInsType(e.target.value)}
+                  placeholder="Comprehensive, Third Party"
+                />
+              </label>
+              <label>
+                Muda (Miezi)
+                <input
+                  type="number"
+                  inputMode="numeric"
+                  value={fMonths}
+                  onChange={(e) => setFMonths(e.target.value)}
+                  min={1}
+                />
+              </label>
+              <label>
+                Maelezo
+                <input value={fNote} onChange={(e) => setFNote(e.target.value)} placeholder="Maelezo ya ziada" />
+              </label>
               <div className="vd-actions">
                 <button type="submit">Hifadhi</button>
-                <button type="button" className="ghost" onClick={closeForm}>Sitisha / Cancel</button>
+                <button type="button" className="ghost" onClick={closeForm}>
+                  Sitisha / Cancel
+                </button>
               </div>
             </form>
           )}
+
           {form === "lost" && (
             <form onSubmit={submitLost}>
               <h3>{editLostId != null ? "Hariri Siku zilizopotea" : "Siku zilizopotea"}</h3>
-              <label>Wiki
+              <label>
+                Wiki
                 <select value={fWeek} onChange={(e) => setFWeek(e.target.value)}>
                   {(vehicle.include_week5 ? [1, 2, 3, 4, 5] : [1, 2, 3, 4]).map((w) => (
-                    <option key={w} value={w}>Wiki {w}</option>
+                    <option key={w} value={w}>
+                      Wiki {w}
+                    </option>
                   ))}
                 </select>
               </label>
-              <label>Siku zilizopotea (1-7)
-                <input type="number" inputMode="numeric" min={1} max={7} value={fLostDays}
-                  onChange={(e) => setFLostDays(e.target.value)} required />
+              <label>
+                Siku zilizopotea (1-7)
+                <input
+                  type="number"
+                  inputMode="numeric"
+                  min={1}
+                  max={7}
+                  value={fLostDays}
+                  onChange={(e) => setFLostDays(e.target.value)}
+                  required
+                />
               </label>
-              <label>Sababu (kwa nini hazikufanya kazi)
-                <input value={fNote} onChange={(e) => setFNote(e.target.value)} maxLength={300}
-                  placeholder="Mf. mgonjwa, garage, amekamatwa na police" />
+              <label>
+                Sababu (kwa nini hazikufanya kazi)
+                <input
+                  value={fNote}
+                  onChange={(e) => setFNote(e.target.value)}
+                  maxLength={300}
+                  placeholder="Mf. mgonjwa, garage, amekamatwa na police"
+                />
               </label>
-              <p className="hint">Mwezi: {monthLabel(month)}. Ikiwa wiki hiyo tayari ina rekodi, itabadilishwa.</p>
+              <p className="hint">
+                Mwezi: {monthLabel(month)}. Ikiwa wiki hiyo tayari ina rekodi, itabadilishwa.
+              </p>
               <div className="vd-actions">
                 <button type="submit">Hifadhi</button>
-                <button type="button" className="ghost" onClick={closeForm}>Sitisha / Cancel</button>
+                <button type="button" className="ghost" onClick={closeForm}>
+                  Sitisha / Cancel
+                </button>
               </div>
             </form>
           )}
+
           {form === "edit" && (
-            <TargetPanel vehicle={vehicle} month={month} onSaved={() => { load(); onChanged(); }} onCancel={closeForm} />
+            <TargetPanel
+              vehicle={vehicle}
+              month={month}
+              onSaved={() => {
+                load();
+                onChanged();
+              }}
+              onCancel={closeForm}
+            />
           )}
         </Dialog>
       )}
