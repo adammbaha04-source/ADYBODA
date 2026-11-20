@@ -26,13 +26,16 @@ export interface ReportV3 {
 }
 export interface InsightsResponse { insights: string; model: string; }
 
-// Hii ni interface mpya kwa ajili ya chati
+// Hii ni interface mpya kwa ajili ya ChatBot (text + chart)
 export interface ChartResponse {
-  chart: {
-    type: "bar" | "line" | "pie" | "doughnut";
-    title: string;
-    labels: string[];
-    datasets: { label: string; data: number[] }[];
+  result: {
+    text: string;
+    chart: {
+      type: "bar" | "line" | "pie" | "doughnut";
+      title: string;
+      labels: string[];
+      datasets: { label: string; data: number[] }[];
+    } | null;
   };
   model: string;
 }
@@ -50,7 +53,7 @@ export const getReportV3 = (from: string, to: string, vehicleId: string) =>
 export const getInsights = (report: ReportV3) =>
   request<InsightsResponse>("/ai/insights/", { method: "POST", body: JSON.stringify({ report }) });
 
-// Hii ni function mpya ya kutuma swali kwenda kwenye AI kupata chati
+// Hii ni function ya kutuma swali kwenda kwenye AI kupata jibu la maandishi na chati
 export const getAIChart = (question: string, report: ReportV3) =>
   request<ChartResponse>("/ai/chart/", { 
     method: "POST", 
