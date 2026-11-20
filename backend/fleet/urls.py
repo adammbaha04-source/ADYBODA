@@ -2,6 +2,7 @@ from django.urls import path
 from rest_framework.routers import DefaultRouter
 from rest_framework.authtoken import views as auth_views  # <--- Muhimu kwa Login
 from fleet import views
+from fleet.ai_views import InsightsView
 from fleet.report_pdf_views import ReportPdfView
 
 router = DefaultRouter()
@@ -18,20 +19,21 @@ router.register("personal-expenses", views.PersonalExpenseViewSet, basename="per
 router.register("challenges", views.ChallengeViewSet, basename="challenge")
 
 urlpatterns = router.urls + [
-    path("expense-summary/", views.ExpenseSummaryView.as_view()), 
-    path("reports/", views.ReportView.as_view()), 
-    path("reports/pdf/", ReportPdfView.as_view()), 
-    path("me/", views.MeProfileView.as_view()), 
-    path("auth/register/", views.register_owner), 
-    
+    path("expense-summary/", views.ExpenseSummaryView.as_view()),
+    path("reports/", views.ReportView.as_view()),
+    path("reports/pdf/", ReportPdfView.as_view()),
+    path("ai/insights/", InsightsView.as_view()),
+    path("me/", views.MeProfileView.as_view()),
+    path("auth/register/", views.register_owner),
+
     # Hii ni URL ya Login (Ilikuwa haipo awali)
-    path("auth/token/", auth_views.obtain_auth_token), 
-    
-    path("challenges/", views.ChallengeViewSet.as_view({"get": "list", "post": "create"})), 
-    path("challenges/<int:pk>/solve/", views.ChallengeViewSet.as_view({"post": "solve"})), 
-    path("team/", views.TeamViewSet.as_view({"get": "list", "post": "create"})), 
+    path("auth/token/", auth_views.obtain_auth_token),
+
+    path("challenges/", views.ChallengeViewSet.as_view({"get": "list", "post": "create"})),
+    path("challenges/<int:pk>/solve/", views.ChallengeViewSet.as_view({"post": "solve"})),
+    path("team/", views.TeamViewSet.as_view({"get": "list", "post": "create"})),
     path("team/<int:pk>/", views.TeamViewSet.as_view({"delete": "destroy"})),
-    
+
     # Health check kwa Cron-job
     path("health/", views.health_check, name="health_check"),
 ]
