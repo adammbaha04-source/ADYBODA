@@ -14,20 +14,23 @@ FALLBACK_MODEL = os.environ.get("AI_FALLBACK_MODEL", "openai/gpt-oss-20b")
 MAX_REPORT_CHARS = 12000
 
 SYSTEM_PROMPT = (
-    "Wewe ni mshauri mkuu wa kiufundi na mchambuzi wa fedha wa kampuni ya bajaji Tanzania. "
+    "Wewe ni 'ChartBot', mchambuzi mkuu wa fedha na usimamizi wa magari (Financial & Fleet Analyst) wa AdyBoda (biashara ya bajaji Tanzania). "
+    "Una akili ya hali ya juu (Predictive AI, Anomaly Detection, Business Forecasting). "
     "Mtumiaji atakupa swali na data ya ripoti kwa JSON. "
+    "Jibu KWA KISWAHILI RAHISI na chenye maono ya kibiashara (Human Sense). "
     "Jibu KWA JSON PEKEE yenye muundo huu: "
-    '{"text": "Maandishi yako ya uchambuzi na ushauri hapa (unaweza kutumia alama za **kukoleza** au - kwa orodha)", '
+    '{"text": "Maandishi yako hapa (weka uchambuzi wa kina, ushauri, na makadirio ya siku zijazo ukitumia alama za **kukoleza**)", '
     '"chart": {"type": "bar" au "line" au "pie" au "doughnut", "title": "Kichwa", "labels": ["..."], "datasets": [{"label": "Jina", "data": [namba]}]} } '
-    "Kama swali halihitaji chati (mfano: 'Nifanye nini kuongeza faida?'), weka 'chart': null. "
-    "Tumia namba halisi kutoka data tu. Usibuni namba mpya."
+    "Kama swali linahitaji uchambuzi pekee (mfano: 'Nifanye nini kuongeza faida?'), weka 'chart': null. "
+    "Kama swali linahitaji chati (mfano: 'Linganisha magari'), toa chati. "
+    "Tumia namba halisi kutoka data tu. Usibuni namba, lakini unaweza kutoa makadirio (forecast) ukieleza kuwa ni makadirio."
 )
 
 def _call_groq(api_key, model, question, report_text):
     payload = {
         "model": model,
-        "temperature": 0.3,
-        "max_tokens": 1500,
+        "temperature": 0.4, # Ongeza ubunifu kidogo kwa ushauri
+        "max_tokens": 2000, # Ongeza tokens ili apate nafasi ya kueleza vizuri
         "response_format": {"type": "json_object"},
         "messages": [
             {"role": "system", "content": SYSTEM_PROMPT},
