@@ -13,6 +13,7 @@ import ReportsPage from "./ReportsPage";
 import UsersPage from "./UsersPage";
 import ProfilePage from "./ProfilePage";
 import SettingsPage from "./SettingsPage";
+import Analytics from "./Analytics"; // <-- IMPORT MPYA YA ANALYTICS
 import type { Vehicle } from "./types";
 
 // Pages that do not use the month/period card.
@@ -190,8 +191,11 @@ export default function Dashboard({ onLogout }: { onLogout: () => void }) {
         {view === "service" && <ServicePage vehicles={vehicles} month={month} />}
         {view === "debt" && <DebtPage vehicles={vehicles} month={month} />}
         {view === "changamoto" && <ChallengesPage vehicles={vehicles} role={role} />}
+        
+        {/* HAPA NDIPO ANALYTICS INAPOINGIA BADALA YA REPORTS ZA GRAFYS */}
+        {view === "grafu" && <Analytics vehicles={vehicles} month={month} />}
+        
         {view === "ripoti" && <ReportsPage mode="report" vehicles={vehicles} month={month} onMonthChange={setMonth} />}
-        {view === "grafu" && <ReportsPage mode="graphs" vehicles={vehicles} month={month} onMonthChange={setMonth} />}
         {view === "users" && <UsersPage vehicles={vehicles} />}
         {view === "profile" && <ProfilePage onChanged={(p) => applyAppearance(p)} />}
         {view === "settings" && <SettingsPage />}
