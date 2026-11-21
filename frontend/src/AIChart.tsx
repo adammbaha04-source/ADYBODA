@@ -6,6 +6,7 @@ import { Bar, Line, Pie, Doughnut } from "react-chartjs-2";
 import { getAIChart, type ReportV3 } from "./reportApi";
 import "./report.css";
 
+// KUSAJILI CHART.JS VIPENGELE
 ChartJS.register(CategoryScale, LinearScale, BarElement, LineElement, PointElement, ArcElement, Title, Tooltip, Legend);
 
 interface AIChartProps {
@@ -47,8 +48,6 @@ export default function AIChart({ report }: AIChartProps) {
 
     try {
       const res = await getAIChart(userQ, report);
-      
-      // ULINZI: Kama backend imerudisha muundo tofauti, tunachukua kilichopo
       const aiText = res.result?.text || "Samahani, sikuweza kupata majibu ya maandishi. Lakini hapa kuna data.";
       
       let chartPayload = null;
@@ -58,9 +57,23 @@ export default function AIChart({ report }: AIChartProps) {
             datasets: res.result.chart.datasets.map((d: any, index: number) => ({
               label: d.label,
               data: d.data,
-              backgroundColor: ["rgba(54, 162, 235, 0.7)", "rgba(255, 99, 132, 0.7)", "rgba(255, 206, 86, 0.7)", "rgba(75, 192, 192, 0.7)"][index % 4],
-              borderColor: ["rgba(54, 162, 235, 1)", "rgba(255, 99, 132, 1)", "rgba(255, 206, 86, 1)", "rgba(75, 192, 192, 1)"][index % 4],
+              // Rangi za kisasa zaidi (Gradient feel)
+              backgroundColor: [
+                "rgba(0, 123, 255, 0.8)",   // Blue
+                "rgba(40, 167, 69, 0.8)",   // Green
+                "rgba(255, 193, 7, 0.8)",   // Yellow
+                "rgba(220, 53, 69, 0.8)",   // Red
+                "rgba(23, 162, 184, 0.8)"   // Teal
+              ][index % 5],
+              borderColor: [
+                "rgba(0, 123, 255, 1)",
+                "rgba(40, 167, 69, 1)",
+                "rgba(255, 193, 7, 1)",
+                "rgba(220, 53, 69, 1)",
+                "rgba(23, 162, 184, 1)"
+              ][index % 5],
               borderWidth: 1,
+              borderRadius: 6, // Miondoko ya mistari (kwa bar chart)
             })),
             type: res.result.chart.type,
             title: res.result.chart.title
@@ -78,8 +91,16 @@ export default function AIChart({ report }: AIChartProps) {
 
   const renderChart = (chart: any) => {
     const options = {
-      responsive: true, maintainAspectRatio: false,
-      plugins: { legend: { position: "top" as const }, title: { display: true, text: chart.title, font: { size: 14 } } },
+      responsive: true, 
+      maintainAspectRatio: false,
+      plugins: { 
+        legend: { position: "top" as const, labels: { font: { family: "sans-serif", size: 12 } } }, 
+        title: { display: true, text: chart.title, font: { size: 15, family: "sans-serif", weight: "bold" as const }, padding: { bottom: 15 } } 
+      },
+      scales: chart.type === "bar" || chart.type === "line" ? {
+        y: { beginAtZero: true, grid: { color: "#f0f0f0" } },
+        x: { grid: { display: false } }
+      } : undefined
     };
     const data = { labels: chart.labels, datasets: chart.datasets };
     switch (chart.type) {
@@ -92,52 +113,79 @@ export default function AIChart({ report }: AIChartProps) {
 
   return (
     <>
-      <button onClick={() => setIsOpen(true)} style={{ position: "fixed", bottom: "20px", right: "20px", width: "60px", height: "60px", borderRadius: "50%", background: "#007bff", color: "white", fontSize: "24px", border: "none", boxShadow: "0 4px 12px rgba(0,0,0,0.3)", zIndex: 1000, display: "flex", alignItems: "center", justifyContent: "center" }}>
-        🤖
+      {/* KITUFE CHA DUARA (Floating Button) - Sasa kina Logo */}
+      <button 
+        onClick={() => setIsOpen(true)} 
+        style={{ 
+          position: "fixed", bottom: "20px", right: "20px", 
+          width: "60px", height: "60px", borderRadius: "50%", 
+          background: "#fff", border: "2px solid #0056b3", padding: "5px",
+          boxShadow: "0 4px 15px rgba(0,86,179,0.4)", zIndex: 1000, 
+          display: "flex", alignItems: "center", justifyContent: "center",
+          cursor: "pointer", overflow: "hidden"
+        }}
+      >
+        <img src="/logo.png" alt="ChatBot" style={{ width: "100%", height: "100%", objectFit: "contain" }} />
       </button>
 
+      {/* DIRISHA LA CHAT */}
       {isOpen && (
         <div style={{ position: "fixed", top: 0, left: 0, width: "100%", height: "100%", background: "rgba(0,0,0,0.6)", zIndex: 1001, display: "flex", alignItems: "center", justifyContent: "center", padding: "0" }}>
           
-          <div style={{ background: "#f4f7f6", width: "100%", maxWidth: "600px", height: "100%", maxHeight: "100vh", display: "flex", flexDirection: "column", position: "relative" }}>
+          <div style={{ background: "#f8f9fa", width: "100%", maxWidth: "600px", height: "100%", maxHeight: "100vh", display: "flex", flexDirection: "column", position: "relative" }}>
             
-            <div style={{ background: "#0056b3", color: "white", padding: "1rem", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-              <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
-                <span style={{ fontSize: "24px" }}>🤖</span>
+            {/* KICHWA CHA CHAT - Sasa kina Logo */}
+            <div style={{ background: "#0056b3", color: "white", padding: "1rem", display: "flex", justifyContent: "space-between", alignItems: "center", boxShadow: "0 2px 10px rgba(0,0,0,0.1)" }}>
+              <div style={{ display: "flex", alignItems: "center", gap: "12px" }}>
+                <div style={{ background: "white", borderRadius: "50%", width: "40px", height: "40px", display: "flex", alignItems: "center", justifyContent: "center", padding: "4px" }}>
+                  <img src="/logo.png" alt="Logo" style={{ width: "100%", height: "100%", objectFit: "contain" }} />
+                </div>
                 <div>
-                  <b style={{ fontSize: "18px" }}>ChartBot</b>
+                  <b style={{ fontSize: "18px", letterSpacing: "0.5px" }}>ChartBot</b>
                   <div style={{ fontSize: "12px", opacity: 0.8 }}>Msaidizi wako wa biashara</div>
                 </div>
               </div>
-              <button onClick={() => setIsOpen(false)} style={{ background: "none", border: "none", color: "white", fontSize: "24px", cursor: "pointer" }}>✖</button>
+              <button onClick={() => setIsOpen(false)} style={{ background: "none", border: "none", color: "white", fontSize: "24px", cursor: "pointer", opacity: 0.8 }}>✖</button>
             </div>
 
-            <div style={{ flex: 1, overflowY: "auto", padding: "1rem", display: "flex", flexDirection: "column", gap: "1rem" }}>
+            {/* SEHEMU YA UJUMBE */}
+            <div style={{ flex: 1, overflowY: "auto", padding: "1.5rem 1rem", display: "flex", flexDirection: "column", gap: "1.2rem" }}>
               {messages.length === 0 && (
-                <div style={{ textAlign: "center", color: "#666", marginTop: "2rem" }}>
-                  <h3>Karibu kwenye ChartBot!</h3>
-                  <p>Uliza swali lolote kuhusu ripoti yako. Mfano:</p>
-                  <ul style={{ listStyleType: "none", padding: 0, lineHeight: "2" }}>
-                    <li><i>"Nichambulie service za mwezi huu"</i></li>
-                    <li><i>"Nifanye nini kuongeza faida?"</i></li>
-                    <li><i>"Chora gharama za matairi"</i></li>
-                  </ul>
+                <div style={{ textAlign: "center", color: "#666", marginTop: "3rem", padding: "0 1rem" }}>
+                  <img src="/logo.png" alt="Logo" style={{ width: "80px", opacity: 0.8, marginBottom: "1rem" }} />
+                  <h3 style={{ color: "#333" }}>Karibu kwenye ChartBot!</h3>
+                  <p style={{ fontSize: "14px", lineHeight: "1.6" }}>Uliza swali lolote kuhusu ripoti yako. Mfano:</p>
+                  <div style={{ display: "flex", flexDirection: "column", gap: "10px", marginTop: "1.5rem" }}>
+                    <div style={{ background: "white", padding: "12px", borderRadius: "10px", fontSize: "14px", boxShadow: "0 2px 5px rgba(0,0,0,0.05)", border: "1px solid #eaeaea" }}>"Nichambulie service za mwezi huu"</div>
+                    <div style={{ background: "white", padding: "12px", borderRadius: "10px", fontSize: "14px", boxShadow: "0 2px 5px rgba(0,0,0,0.05)", border: "1px solid #eaeaea" }}>"Nifanye nini kuongeza faida?"</div>
+                    <div style={{ background: "white", padding: "12px", borderRadius: "10px", fontSize: "14px", boxShadow: "0 2px 5px rgba(0,0,0,0.05)", border: "1px solid #eaeaea" }}>"Chora gharama za matairi"</div>
+                  </div>
                 </div>
               )}
 
               {messages.map((msg, idx) => (
                 <div key={idx} style={{ display: "flex", flexDirection: "column", alignItems: msg.role === "user" ? "flex-end" : "flex-start" }}>
                   <div style={{
-                    background: msg.role === "user" ? "#007bff" : "white",
+                    background: msg.role === "user" ? "#0056b3" : "white",
                     color: msg.role === "user" ? "white" : "#333",
-                    padding: "0.8rem 1rem", borderRadius: "12px",
-                    maxWidth: "85%", boxShadow: "0 2px 4px rgba(0,0,0,0.1)",
-                    lineHeight: "1.5", whiteSpace: "pre-wrap"
+                    padding: "12px 16px", 
+                    borderRadius: msg.role === "user" ? "18px 18px 0 18px" : "18px 18px 18px 0",
+                    maxWidth: "85%", 
+                    boxShadow: "0 2px 5px rgba(0,0,0,0.08)",
+                    lineHeight: "1.5", 
+                    whiteSpace: "pre-wrap",
+                    fontSize: "15px"
                   }}>
                     {formatText(msg.text)}
                     
+                    {/* CHATI ILIYOBORESHWA */}
                     {msg.chart && (
-                      <div style={{ height: "250px", marginTop: "1rem", background: "#fff", padding: "0.5rem", borderRadius: "8px" }}>
+                      <div style={{ 
+                        marginTop: "1rem", background: "#fff", padding: "10px", 
+                        borderRadius: "12px", border: "1px solid #eee",
+                        boxShadow: "inset 0 0 10px rgba(0,0,0,0.02)",
+                        height: "260px", width: "100%", minWidth: "280px"
+                      }}>
                         {renderChart(msg.chart)}
                       </div>
                     )}
@@ -146,23 +194,35 @@ export default function AIChart({ report }: AIChartProps) {
               ))}
 
               {loading && (
-                <div style={{ display: "flex", alignItems: "center", gap: "5px", color: "#666", padding: "0.5rem" }}>
-                  <span className="spinner">⏳</span> ChartBot anachambua...
+                <div style={{ display: "flex", alignItems: "center", gap: "8px", color: "#666", padding: "0.5rem", fontSize: "14px" }}>
+                  <img src="/logo.png" alt="Loading" style={{ width: "20px", animation: "spin 1s linear infinite" }} /> 
+                  ChartBot anachambua...
                 </div>
               )}
               <div ref={bottomRef} />
             </div>
 
-            <div style={{ padding: "1rem", background: "white", borderTop: "1px solid #eee", display: "flex", gap: "0.5rem" }}>
+            {/* SEHEMU YA KUANDIKA */}
+            <div style={{ padding: "1rem", background: "white", borderTop: "1px solid #eee", display: "flex", gap: "0.8rem", alignItems: "center" }}>
               <input
                 type="text"
                 value={input}
                 onChange={(e) => setInput(e.target.value)}
                 placeholder="Andika swali lako hapa..."
-                style={{ flex: 1, padding: "0.8rem", borderRadius: "20px", border: "1px solid #ccc", outline: "none" }}
+                style={{ flex: 1, padding: "12px 18px", borderRadius: "25px", border: "1px solid #ddd", outline: "none", fontSize: "15px", background: "#f8f9fa" }}
                 onKeyDown={(e) => e.key === "Enter" && ask()}
               />
-              <button onClick={ask} disabled={loading || !input.trim()} style={{ background: "#007bff", color: "white", border: "none", borderRadius: "50%", width: "45px", height: "45px", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}>
+              <button 
+                onClick={ask} 
+                disabled={loading || !input.trim()} 
+                style={{ 
+                  background: loading || !input.trim() ? "#a0c4ff" : "#0056b3", 
+                  color: "white", border: "none", borderRadius: "50%", 
+                  width: "48px", height: "48px", cursor: loading ? "not-allowed" : "pointer", 
+                  display: "flex", alignItems: "center", justifyContent: "center", 
+                  fontSize: "20px", boxShadow: "0 2px 8px rgba(0,86,179,0.3)", transition: "0.2s"
+                }}
+              >
                 ➤
               </button>
             </div>
