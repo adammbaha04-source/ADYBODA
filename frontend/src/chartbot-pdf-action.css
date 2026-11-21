@@ -1,0 +1,62 @@
+.chartbot-pdf-action {
+  margin-top: 14px;
+  padding: 14px;
+  border: 1px solid #dbe4f0;
+  border-radius: 15px;
+  background: #f8fafc;
+}
+.chartbot-pdf-file {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-width: 0;
+}
+.chartbot-pdf-file-icon {
+  width: 46px;
+  height: 50px;
+  flex: 0 0 46px;
+  display: grid;
+  place-items: center;
+  border-radius: 10px;
+  color: #b91c1c;
+  background: #fee2e2;
+  font-size: 12px;
+  font-weight: 800;
+}
+.chartbot-pdf-file-info {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.chartbot-pdf-file-info strong {
+  color: #172554;
+  font-size: 14px;
+}
+.chartbot-pdf-file-info small {
+  color: #64748b;
+  font-size: 12px;
+}
+.chartbot-pdf-button {
+  width: 100%;
+  min-height: 44px;
+  margin-top: 13px;
+  border: 0;
+  border-radius: 11px;
+  padding: 10px 16px;
+  background: #0756ad;
+  color: #fff;
+  font: inherit;
+  font-weight: 700;
+  cursor: pointer;
+}
+.chartbot-pdf-button:disabled {
+  opacity: .65;
+  cursor: wait;
+}
+.chartbot-pdf-success {
+  display: block;
+  margin-top: 9px;
+  color: #047857;
+  font-size: 12px;
+}

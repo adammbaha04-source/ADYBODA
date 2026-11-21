@@ -14,8 +14,8 @@ import {
 import { Bar, Line, Pie, Doughnut } from "react-chartjs-2";
 import { getAIChart, downloadReportPdf, type ReportV3 } from "./reportApi";
 import "./report.css";
-import "./chartbot.css"; // Existing ChartBot styles
-import "./chartbot-pdf.css"; // PDF download card
+import "./chartbot.css";
+import "./chartbot-pdf-action.css";
 
 ChartJS.register(
   CategoryScale,
@@ -36,8 +36,8 @@ interface Message {
   role: "user" | "ai";
   text: string;
   chart?: any;
-  pdfAction?: boolean;
-  pdfState?: "idle" | "downloading" | "downloaded" | "error";
+  action?: "download-report-pdf";
+  pdfStatus?: "idle" | "loading" | "success" | "error";
 }
 
 const QUICK_PROMPTS = [
@@ -87,9 +87,13 @@ const COLORS = [
   "#8B5CF6",
 ];
 
-// PDF requests use the existing authenticated Django endpoint.
-const isPdfRequest = (question: string) =>
-  /\b(pdf|download|pakua|kupakua|nitengenezee ripoti|ripoti.*pdf|report.*pdf)\b/i.test(question);
+// PDF requests are app actions, not questions for the language model.
+// This first version exports the report currently selected on the Reports page.
+const isPdfRequest = (question: string): boolean =>
+  /\\b(pdf|pakua|kupakua|download|print|chapisha)\\b/i.test(question) ||
+  /(tengeneza|nitengenezee|nahitaji|nataka|nipe).{0,35}(ripoti|report).{0,20}(pdf)/i.test(question) ||
+  /(ripoti|report).{0,25}(ya|kwa).{0,25}(pdf)/i.test(question);
+
 
 const formatText = (text: string) => {
   return text.split(/(\*\*.*?\*\*)/g).map((part, i) => {
@@ -131,6 +135,44 @@ export default function AIChart({ report }: AIChartProps) {
     };
   }, [isOpen]);
 
+  async function handlePdfDownload(messageIndex: number) {
+    setMessages((prev) =>
+      prev.map((message, index) =>
+        index === messageIndex ? { ...message, pdfStatus: "loading" } : message
+      )
+    );
+
+    try {
+      await downloadReportPdf(
+        report.from,
+        report.to,
+        report.vehicle_id == null ? "ALL" : String(report.vehicle_id)
+      );
+      setMessages((prev) =>
+        prev.map((message, index) =>
+          index === messageIndex ? { ...message, pdfStatus: "success" } : message
+        )
+      );
+    } catch (error) {
+      console.error("CHARTBOT_PDF_EXPORT_FAILED", error);
+      const detail =
+        error instanceof Error && error.message
+          ? error.message
+          : "Imeshindikana kuandaa PDF. Hakikisha umeingia kama Owner na ujaribu tena.";
+      setMessages((prev) =>
+        prev.map((message, index) =>
+          index === messageIndex
+            ? {
+                ...message,
+                text: `Imeshindikana kupakua PDF. ${detail}`,
+                pdfStatus: "error",
+              }
+            : message
+        )
+      );
+    }
+  }
+
   async function ask(customQuestion?: string) {
     const q = (customQuestion ?? input).trim();
 
@@ -143,14 +185,16 @@ export default function AIChart({ report }: AIChartProps) {
       { role: "user", text: q },
     ]);
 
+    // Export is executed by the authenticated backend PDF endpoint.
+    // Groq is not asked to generate a file or invent PDF content.
     if (isPdfRequest(q)) {
       setMessages((prev) => [
         ...prev,
         {
           role: "ai",
-          text: `Nimeandaa PDF ya ripoti ya kipindi kilichochaguliwa kwenye ukurasa (${report.from} hadi ${report.to}). Bonyeza kitufe hapa chini. PDF itatengenezwa na seva kwa kutumia taarifa zilizopo kwenye akaunti yako.`,
-          pdfAction: true,
-          pdfState: "idle",
+          text: `Naweza kukuandalia PDF ya ripoti iliyochaguliwa kwenye ukurasa wa Reports: ${report.from} hadi ${report.to}. Bonyeza kitufe cha kupakua hapa chini. Kwa sasa hii ni ripoti kamili ya biashara, si ripoti maalumu ya service pekee.`,
+          action: "download-report-pdf",
+          pdfStatus: "idle",
         },
       ]);
       return;
@@ -206,27 +250,6 @@ export default function AIChart({ report }: AIChartProps) {
       ]);
     } finally {
       setLoading(false);
-    }
-  }
-
-  async function downloadPdf(messageIndex: number) {
-    setMessages((prev) => prev.map((m, i) =>
-      i === messageIndex ? { ...m, pdfState: "downloading" } : m
-    ));
-    try {
-      await downloadReportPdf(
-        report.from,
-        report.to,
-        report.vehicle_id == null ? "ALL" : String(report.vehicle_id)
-      );
-      setMessages((prev) => prev.map((m, i) =>
-        i === messageIndex ? { ...m, pdfState: "downloaded" } : m
-      ));
-    } catch (error) {
-      console.error("CHARTBOT_PDF_DOWNLOAD_ERROR", error);
-      setMessages((prev) => prev.map((m, i) =>
-        i === messageIndex ? { ...m, pdfState: "error" } : m
-      ));
     }
   }
 
@@ -519,29 +542,38 @@ export default function AIChart({ report }: AIChartProps) {
                         </div>
                       )}
 
-                      {msg.pdfAction && (
-                        <div className="chartbot-pdf-card">
-                          <div className="chartbot-pdf-icon">PDF</div>
-                          <div className="chartbot-pdf-details">
-                            <strong>Ripoti ya biashara</strong>
-                            <span>{report.from} — {report.to}</span>
-                            <small>PDF ya A4 yenye takwimu na grafu za ripoti iliyopo</small>
+                      {msg.action === "download-report-pdf" && (
+                        <div className="chartbot-pdf-action">
+                          <div className="chartbot-pdf-file">
+                            <span className="chartbot-pdf-file-icon">PDF</span>
+                            <span className="chartbot-pdf-file-info">
+                              <strong>Ripoti ya biashara</strong>
+                              <small>{report.from} — {report.to}</small>
+                              <small>
+                                {report.vehicle_id == null
+                                  ? "Magari yote"
+                                  : "Gari lililochaguliwa"}
+                              </small>
+                            </span>
                           </div>
                           <button
                             type="button"
-                            className="chartbot-pdf-download"
-                            onClick={() => downloadPdf(idx)}
-                            disabled={msg.pdfState === "downloading"}
+                            className="chartbot-pdf-button"
+                            onClick={() => handlePdfDownload(idx)}
+                            disabled={msg.pdfStatus === "loading"}
                           >
-                            {msg.pdfState === "downloading" ? "Inaandaliwa..." :
-                              msg.pdfState === "downloaded" ? "Pakua tena" :
-                              msg.pdfState === "error" ? "Jaribu tena" : "Pakua PDF"}
+                            {msg.pdfStatus === "loading"
+                              ? "Inaandaliwa..."
+                              : msg.pdfStatus === "success"
+                                ? "Pakua tena PDF"
+                                : msg.pdfStatus === "error"
+                                  ? "Jaribu tena"
+                                  : "Pakua PDF"}
                           </button>
-                          {msg.pdfState === "downloaded" && (
-                            <span className="chartbot-pdf-status success">PDF imetumwa kwenye downloads zako.</span>
-                          )}
-                          {msg.pdfState === "error" && (
-                            <span className="chartbot-pdf-status error">Imeshindikana. Hakikisha una ruhusa ya Owner na ujaribu tena.</span>
+                          {msg.pdfStatus === "success" && (
+                            <small className="chartbot-pdf-success">
+                              PDF imeandaliwa na kutumwa kwenye downloads.
+                            </small>
                           )}
                         </div>
                       )}
