@@ -50,10 +50,10 @@ export const getReportV3 = (from: string, to: string, vehicleId: string) =>
 export const getInsights = (report: ReportV3) =>
   request<InsightsResponse>("/ai/insights/", { method: "POST", body: JSON.stringify({ report }) });
 
-export const getAIChart = (question: string, report: ReportV3) =>
-  request<ChartResponse>("/ai/chart/", { 
-    method: "POST", 
-    body: JSON.stringify({ question, report }) 
+export const getAIChart = (question: string, _report?: ReportV3) =>
+  request<ChartResponse>("/ai/chart/", {
+    method: "POST",
+    body: JSON.stringify({ question })
   });
 
 export async function downloadReportPdf(from: string, to: string, vehicleId: string): Promise<void> {
