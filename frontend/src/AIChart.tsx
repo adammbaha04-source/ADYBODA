@@ -1,4 +1,3 @@
-
 import { useState, useRef, useEffect } from "react";
 import {
   Chart as ChartJS,
@@ -15,6 +14,7 @@ import {
 import { Bar, Line, Pie, Doughnut } from "react-chartjs-2";
 import { getAIChart, type ReportV3 } from "./reportApi";
 import "./report.css";
+import "./chartbot.css"; // <-- ONGEZA HII HAPA
 
 ChartJS.register(
   CategoryScale,
