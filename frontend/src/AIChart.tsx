@@ -12,9 +12,10 @@ import {
 } from "chart.js";
 
 import { Bar, Line, Pie, Doughnut } from "react-chartjs-2";
-import { getAIChart, type ReportV3 } from "./reportApi";
+import { getAIChart, downloadReportPdf, type ReportV3 } from "./reportApi";
 import "./report.css";
-import "./chartbot.css"; // <-- ONGEZA HII HAPA
+import "./chartbot.css"; // Existing ChartBot styles
+import "./chartbot-pdf.css"; // PDF download card
 
 ChartJS.register(
   CategoryScale,
@@ -35,6 +36,8 @@ interface Message {
   role: "user" | "ai";
   text: string;
   chart?: any;
+  pdfAction?: boolean;
+  pdfState?: "idle" | "downloading" | "downloaded" | "error";
 }
 
 const QUICK_PROMPTS = [
@@ -83,6 +86,10 @@ const COLORS = [
   "#EF4444",
   "#8B5CF6",
 ];
+
+// PDF requests use the existing authenticated Django endpoint.
+const isPdfRequest = (question: string) =>
+  /\b(pdf|download|pakua|kupakua|nitengenezee ripoti|ripoti.*pdf|report.*pdf)\b/i.test(question);
 
 const formatText = (text: string) => {
   return text.split(/(\*\*.*?\*\*)/g).map((part, i) => {
@@ -136,6 +143,19 @@ export default function AIChart({ report }: AIChartProps) {
       { role: "user", text: q },
     ]);
 
+    if (isPdfRequest(q)) {
+      setMessages((prev) => [
+        ...prev,
+        {
+          role: "ai",
+          text: `Nimeandaa PDF ya ripoti ya kipindi kilichochaguliwa kwenye ukurasa (${report.from} hadi ${report.to}). Bonyeza kitufe hapa chini. PDF itatengenezwa na seva kwa kutumia taarifa zilizopo kwenye akaunti yako.`,
+          pdfAction: true,
+          pdfState: "idle",
+        },
+      ]);
+      return;
+    }
+
     setLoading(true);
 
     try {
@@ -186,6 +206,27 @@ export default function AIChart({ report }: AIChartProps) {
       ]);
     } finally {
       setLoading(false);
+    }
+  }
+
+  async function downloadPdf(messageIndex: number) {
+    setMessages((prev) => prev.map((m, i) =>
+      i === messageIndex ? { ...m, pdfState: "downloading" } : m
+    ));
+    try {
+      await downloadReportPdf(
+        report.from,
+        report.to,
+        report.vehicle_id == null ? "ALL" : String(report.vehicle_id)
+      );
+      setMessages((prev) => prev.map((m, i) =>
+        i === messageIndex ? { ...m, pdfState: "downloaded" } : m
+      ));
+    } catch (error) {
+      console.error("CHARTBOT_PDF_DOWNLOAD_ERROR", error);
+      setMessages((prev) => prev.map((m, i) =>
+        i === messageIndex ? { ...m, pdfState: "error" } : m
+      ));
     }
   }
 
@@ -475,6 +516,33 @@ export default function AIChart({ report }: AIChartProps) {
                           <div className="chart-container">
                             {renderChart(msg.chart)}
                           </div>
+                        </div>
+                      )}
+
+                      {msg.pdfAction && (
+                        <div className="chartbot-pdf-card">
+                          <div className="chartbot-pdf-icon">PDF</div>
+                          <div className="chartbot-pdf-details">
+                            <strong>Ripoti ya biashara</strong>
+                            <span>{report.from} — {report.to}</span>
+                            <small>PDF ya A4 yenye takwimu na grafu za ripoti iliyopo</small>
+                          </div>
+                          <button
+                            type="button"
+                            className="chartbot-pdf-download"
+                            onClick={() => downloadPdf(idx)}
+                            disabled={msg.pdfState === "downloading"}
+                          >
+                            {msg.pdfState === "downloading" ? "Inaandaliwa..." :
+                              msg.pdfState === "downloaded" ? "Pakua tena" :
+                              msg.pdfState === "error" ? "Jaribu tena" : "Pakua PDF"}
+                          </button>
+                          {msg.pdfState === "downloaded" && (
+                            <span className="chartbot-pdf-status success">PDF imetumwa kwenye downloads zako.</span>
+                          )}
+                          {msg.pdfState === "error" && (
+                            <span className="chartbot-pdf-status error">Imeshindikana. Hakikisha una ruhusa ya Owner na ujaribu tena.</span>
+                          )}
                         </div>
                       )}
                     </div>

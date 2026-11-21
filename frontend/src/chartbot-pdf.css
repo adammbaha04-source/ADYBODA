@@ -1,0 +1,29 @@
+/* ChartBot PDF download card */
+.chartbot-pdf-card {
+  display: grid; grid-template-columns: 46px minmax(0, 1fr); gap: 12px;
+  align-items: center; margin-top: 16px; padding: 14px;
+  border: 1px solid #dbe4f0; border-radius: 16px; background: #f8fafc;
+}
+.chartbot-pdf-icon {
+  width: 44px; height: 48px; display: grid; place-items: center;
+  border-radius: 10px; color: #dc2626; background: #fee2e2;
+  font-size: 12px; font-weight: 800;
+}
+.chartbot-pdf-details { min-width: 0; display: flex; flex-direction: column; gap: 3px; }
+.chartbot-pdf-details strong { color: #172554; font-size: 14px; }
+.chartbot-pdf-details span { color: #475569; font-size: 12px; }
+.chartbot-pdf-details small { color: #64748b; font-size: 11px; line-height: 1.4; }
+.chartbot-pdf-download {
+  grid-column: 1 / -1; min-height: 44px; border: 0; border-radius: 11px;
+  padding: 10px 16px; background: #0756ad; color: white; font: inherit;
+  font-weight: 700; cursor: pointer;
+}
+.chartbot-pdf-download:disabled { opacity: .65; cursor: wait; }
+.chartbot-pdf-status { grid-column: 1 / -1; font-size: 12px; line-height: 1.4; }
+.chartbot-pdf-status.success { color: #047857; }
+.chartbot-pdf-status.error { color: #b91c1c; }
+@media (min-width: 640px) {
+  .chartbot-pdf-card { grid-template-columns: 46px minmax(0, 1fr) auto; }
+  .chartbot-pdf-download { grid-column: auto; min-width: 120px; }
+  .chartbot-pdf-status { grid-column: 2 / -1; }
+}
