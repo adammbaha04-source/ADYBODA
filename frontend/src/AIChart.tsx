@@ -89,11 +89,21 @@ const COLORS = [
 
 // PDF requests are app actions, not questions for the language model.
 // This first version exports the report currently selected on the Reports page.
-const isPdfRequest = (question: string): boolean =>
-  /\\b(pdf|pakua|kupakua|download|print|chapisha)\\b/i.test(question) ||
-  /(tengeneza|nitengenezee|nahitaji|nataka|nipe).{0,35}(ripoti|report).{0,20}(pdf)/i.test(question) ||
-  /(ripoti|report).{0,25}(ya|kwa).{0,25}(pdf)/i.test(question);
+const isPdfRequest = (question: string): boolean => {
+  // Normalize Swahili text and recognize direct requests such as
+  // "Niandalie pdf", "Nipe PDF", "Pakua ripoti", and "Download report".
+  const normalized = question
+    .normalize("NFD")
+    .replace(/[\\u0300-\\u036f]/g, "")
+    .toLowerCase()
+    .trim();
 
+  return (
+    /\\b(pdf|pakua|kupakua|download|print|chapisha)\\b/i.test(normalized) ||
+    /\\b(niandalie|nitengenezee|tengeneza|nahitaji|nataka|nipe)\\b.{0,45}\\b(ripoti|report|pdf)\\b/i.test(normalized) ||
+    /\\b(ripoti|report)\\b.{0,30}\\b(ya|kwa|la)\\b.{0,20}\\b(pdf|download)\\b/i.test(normalized)
+  );
+};
 
 const formatText = (text: string) => {
   return text.split(/(\*\*.*?\*\*)/g).map((part, i) => {

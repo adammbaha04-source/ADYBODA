@@ -78,5 +78,8 @@ export async function downloadReportPdf(from: string, to: string, vehicleId: str
   document.body.appendChild(a);
   a.click();
   a.remove();
-  URL.revokeObjectURL(url);
+
+  // Android browsers may start reading the Blob after the click handler ends.
+  // Revoking immediately can cancel the download on some mobile devices.
+  window.setTimeout(() => URL.revokeObjectURL(url), 1500);
 }
