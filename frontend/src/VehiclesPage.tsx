@@ -1,38 +1,9 @@
 import { useEffect, useState, type FormEvent } from "react";
-import { changeDriver, createVehicle, getDebt, updateVehicle } from "./api";
+import { changeDriver, createVehicle, getDebt, listLostDays, updateVehicle } from "./api";
 import DriverSection from "./DriverSection";
-import { monthLabel, shortDate, todayYMD, tsh } from "./format";
+import FleetCard from "./FleetCard";
+import { shortDate, todayYMD, tsh } from "./format";
 import type { DebtEntry, DebtSummary, Vehicle } from "./types";
-
-
-const FLEET_DASHBOARD_CSS = `
-.vehicle-dashboard{margin:14px 0 2px}.vcard{overflow:hidden}.fleet-summary-card{position:relative;overflow:hidden;margin:14px 0 18px;padding:18px 16px 14px;border:1px solid #cfe0ff;border-radius:30px;background:linear-gradient(155deg,#fff 0%,#f7fbff 54%,#fff 100%);box-shadow:0 14px 35px rgba(30,64,175,.13);color:#102b66}
-.fleet-income-head{display:flex;align-items:center;gap:12px;min-width:0}
-.fleet-section-icon{width:52px;height:52px;flex:0 0 52px;display:grid;place-items:center;border-radius:50%;background:linear-gradient(145deg,#38bdf8,#075de8);color:#fff;font-size:34px;font-weight:900;box-shadow:0 7px 16px #0b64dc44}
-.fleet-section-title{min-width:0;flex:1}.fleet-section-title h2,.fleet-debt-heading h2{margin:0;color:#102b66;font-size:19px;line-height:1.2;font-weight:900}.fleet-section-title span,.fleet-debt-heading small{font-size:12px;color:#536b98;font-weight:650}
-.fleet-percent{white-space:nowrap;border-radius:30px;padding:9px 12px;font-size:16px;font-weight:900}.income-percent{background:#d7f9e9;color:#07834e}
-.fleet-income-gauge,.fleet-debt-gauge{position:relative;height:190px;margin:2px 0 10px}
-.fleet-gauge{position:absolute;left:2%;top:4px;width:96%;height:145px;overflow:visible}
-.gauge-track,.gauge-value{fill:none;stroke-width:17;stroke-linecap:round}.gauge-track{stroke:#dce5f4}.gauge-value{transition:stroke-dasharray .8s ease}
-.gauge-center{position:absolute;left:0;right:0;top:91px;text-align:center;display:flex;flex-direction:column;align-items:center;gap:0;pointer-events:none}.gauge-center strong{font-size:clamp(23px,6vw,34px);line-height:1.15;color:#102b66;font-weight:950;letter-spacing:-.8px}.gauge-center span{font-size:18px;font-weight:750;color:#526b99}
-.gauge-callout{position:absolute;z-index:2;top:19px;left:12%;padding:7px 13px;border-radius:20px;color:#fff;font-size:13px;font-weight:900;box-shadow:0 5px 12px #0f172a22}.income-callout{background:linear-gradient(120deg,#059669,#16a34a)}
-.gauge-min,.gauge-max{position:absolute;top:145px;font-size:12px;font-weight:900;color:#102b66}.gauge-min{left:5%}.gauge-max{right:4%;text-align:right}.gauge-max small{display:block;font-size:10px;color:#7183a5}
-.fleet-stat-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:9px;margin:4px 0 14px}
-.fleet-stat{min-width:0;display:flex;align-items:center;gap:10px;padding:12px 10px;border:1px solid transparent;border-radius:20px;min-height:82px}
-.fleet-stat>div{min-width:0;display:flex;flex-direction:column;gap:3px}.fleet-stat small{font-size:12px;font-weight:750;color:#29416f}.fleet-stat strong{font-size:clamp(14px,3.8vw,19px);line-height:1.15;font-weight:950;overflow-wrap:anywhere}
-.stat-icon{width:42px;height:42px;flex:0 0 42px;display:grid;place-items:center;border-radius:50%;background:#fff;font-size:23px;font-weight:900;box-shadow:0 4px 12px #1e3a8a18}
-.stat-blue{background:linear-gradient(135deg,#eff6ff,#dbeafe);border-color:#bfdbfe}.stat-blue strong{color:#1556c0}.stat-blue .stat-icon{color:#1671e8}
-.stat-green{background:linear-gradient(135deg,#ecfdf5,#d1fae5);border-color:#a7f3d0}.stat-green strong{color:#087443}.stat-green .stat-icon{color:#059669}
-.stat-purple{background:linear-gradient(135deg,#faf5ff,#ede9fe);border-color:#ddd6fe}.stat-purple strong{color:#7e22ce}.stat-purple .stat-icon{color:#9333ea}
-.stat-cyan{background:linear-gradient(135deg,#eff6ff,#e0f2fe);border-color:#bfdbfe}.stat-cyan strong{color:#075985}.stat-cyan .stat-icon{color:#0284c7}
-.fleet-debt-section{border-top:1px solid #e3eaf6;padding-top:13px;margin-top:2px;background:linear-gradient(180deg,#fff8f8 0%,#fff 100%);border-radius:18px}
-.fleet-debt-heading{display:flex;align-items:center;justify-content:space-between;gap:8px}.fleet-debt-heading>div{display:flex;align-items:center;gap:10px}.fleet-debt-heading h2{color:#c51f2d}.debt-alert-icon{width:38px;height:38px;display:grid;place-items:center;border-radius:50%;background:linear-gradient(135deg,#fb7185,#dc2626);color:#fff;font-size:24px;font-weight:950}.fleet-debt-heading>strong{background:#ffe4e8;color:#c51f2d;padding:8px 11px;border-radius:20px;font-size:14px;white-space:nowrap}
-.fleet-debt-gauge{height:174px;margin-bottom:4px}.fleet-debt-gauge .fleet-gauge{height:137px}.fleet-debt-gauge .gauge-center{top:82px}.fleet-debt-gauge .gauge-center strong{font-size:clamp(22px,5.8vw,31px)}.fleet-debt-gauge .gauge-center span{font-size:16px}.fleet-debt-gauge .gauge-min,.fleet-debt-gauge .gauge-max{top:132px}.debt-callout{background:linear-gradient(120deg,#f97316,#dc2626);left:38%;top:8px}
-.fleet-debt-note{margin:0 auto 12px;width:max-content;max-width:100%;padding:7px 13px;border-radius:20px;background:#fff1f2;color:#be123c;font-size:12px;font-weight:850;text-align:center}
-.fleet-summary-footer{display:flex;align-items:center;justify-content:center;gap:10px;margin-top:9px;padding:13px 8px;border:1px solid #bfdbfe;border-radius:18px;background:linear-gradient(100deg,#eff6ff,#dbeafe);color:#1746a2;font-size:13px;font-weight:850;text-align:center}
-@media(min-width:600px){.fleet-summary-card{padding:22px 24px}.fleet-stat{padding:15px}.fleet-stat-grid{gap:12px}.fleet-income-gauge{height:210px}.fleet-gauge{height:165px}.gauge-center{top:108px}.gauge-min,.gauge-max{top:160px}.fleet-debt-gauge{height:190px}.fleet-debt-gauge .gauge-center{top:100px}.fleet-debt-gauge .gauge-min,.fleet-debt-gauge .gauge-max{top:150px}}
-@media(max-width:380px){.fleet-summary-card{padding:14px 10px}.fleet-section-title h2{font-size:16px}.fleet-percent{font-size:13px;padding:7px 9px}.fleet-stat{gap:7px;padding:9px 7px}.fleet-stat small{font-size:11px}.stat-icon{width:34px;height:34px;flex-basis:34px;font-size:19px}.fleet-debt-heading>strong{font-size:12px;padding:7px 8px}}
-`;
 
 // Vehicle types. The owner types the amount per day and the working days per week.
 export const PRESETS = [
@@ -115,7 +86,7 @@ export function AddVehicleForm({ onSaved, onCancel }: { onSaved: () => void; onC
   );
 }
 
-// ---------- Edit vehicle (inline, opened by the pencil) ----------
+// ---------- Edit vehicle (inline, opened by Edit button) ----------
 // Vehicle fields on top, then the driver section (Hariri dereva / Badili dereva).
 function EditVehicleInline({
   vehicle, onSaved, onClose, onRefresh,
@@ -171,10 +142,12 @@ function EditVehicleInline({
 export function VehicleCard(props: {
   vehicle: Vehicle; month: string; tick: number; period: PeriodSel;
   onOpen: () => void; onDelete: () => void; onUpdated: () => void; canManage: boolean;
+  index?: number;
 }) {
   const { vehicle, month, tick, period, onOpen, onDelete, onUpdated, canManage } = props;
   const [s, setS] = useState<DebtSummary | null>(null);
   const [entries, setEntries] = useState<DebtEntry[]>([]);
+  const [lostDays, setLostDays] = useState(0);
   const [editing, setEditing] = useState(false);
 
   useEffect(() => {
@@ -182,13 +155,17 @@ export function VehicleCard(props: {
     getDebt(vehicle.id, month)
       .then((d) => { if (alive) { setS(d.summary); setEntries(d.entries); } })
       .catch(() => {});
+    listLostDays(vehicle.id)
+      .then((rows) => {
+        if (!alive) return;
+        const mine = rows.filter((r) => r.month === month && (period.mode === "month" || r.week_number === period.week));
+        setLostDays(mine.reduce((sum, r) => sum + (Number(r.days) || 0), 0));
+      })
+      .catch(() => {});
     return () => { alive = false; };
-  }, [vehicle.id, month, tick]);
+  }, [vehicle.id, month, tick, period.mode, period.week]);
 
   const latest = [...vehicle.driver_periods].sort((a, b) => a.from_date.localeCompare(b.from_date)).pop();
-  const driverText = latest && latest.driver_name
-    ? `Driver: ${latest.driver_name}${latest.phone ? " • " + latest.phone : ""}`
-    : "Hakuna dereva";
   const monthTarget = s ? s.weekly_target * (vehicle.include_week5 ? 5 : 4) : 0;
   const week = period.mode === "week" ? weekRowOf(entries, period.week) : null;
   const dashboardTarget = period.mode === "week"
@@ -196,26 +173,29 @@ export function VehicleCard(props: {
     : monthTarget;
   const dashboardPaid = period.mode === "week" ? (week?.income ?? 0) : (s?.payments ?? 0);
   const dashboardDebt = s?.ending_debt ?? 0;
-  const incomePct = dashboardTarget > 0 ? Math.min(100, Math.max(0, dashboardPaid / dashboardTarget * 100)) : 0;
-  const debtPct = dashboardTarget > 0 ? Math.min(100, Math.max(0, dashboardDebt / dashboardTarget * 100)) : 0;
-  const money = (n: number) => `TSh ${Math.round(n).toLocaleString("en-US")}`;
-  const gaugeKey = String(vehicle.id).replace(/[^a-zA-Z0-9_-]/g, "-");
+  const totalDays = vehicle.working_days_count * (period.mode === "week" ? 1 : (vehicle.include_week5 ? 5 : 4));
+
   return (
-    <article className="vcard" onClick={onOpen}>
-      <div className="vhead">
-        <div className="vtitle">
-          <h3>{vehicle.name}</h3>
-          <span className="badge type">{vehicle.vehicle_type.toUpperCase()}</span>
-          <span className="badge month">{monthLabel(month)}</span>
-        </div>
-        {canManage && (
-          <div className="vactions">
-            <button className="icon" aria-label="Hariri" title="Hariri" onClick={(e) => { e.stopPropagation(); setEditing((v) => !v); }}>✏️</button>
-            <button className="icon" aria-label="Futa" title="Futa" onClick={(e) => { e.stopPropagation(); onDelete(); }}>🗑️</button>
-          </div>
-        )}
-      </div>
-      <p className="driver">{driverText}</p>
+    <>
+      {!s && <p className="driver">Inapakia taarifa za gari...</p>}
+
+      {s && (
+        <FleetCard
+          vehicle={vehicle}
+          index={props.index ?? 0}
+          driverName={latest?.driver_name ?? ""}
+          driverPhone={latest?.phone ?? ""}
+          target={dashboardTarget}
+          paid={dashboardPaid}
+          debt={dashboardDebt}
+          lostDays={lostDays}
+          totalDays={totalDays}
+          canManage={canManage}
+          onOpen={onOpen}
+          onEdit={() => setEditing((v) => !v)}
+          onDelete={onDelete}
+        />
+      )}
 
       {canManage && editing && (
         <EditVehicleInline
@@ -226,62 +206,20 @@ export function VehicleCard(props: {
         />
       )}
 
-      {!s && <p className="driver">Inapakia taarifa za gari...</p>}
-
-      {s && (
-        <section className="fleet-summary-card vehicle-dashboard" aria-label={`Dashboard ya ${vehicle.name}`}>
-          <div className="fleet-income-head">
-            <div className="fleet-section-icon">↗</div>
-            <div className="fleet-section-title">
-              <h2>{period.mode === "week" ? `Mapato ya Wiki ${period.week}` : "Mapato ya Mwezi"}</h2>
-              <span>{period.mode === "week" ? "Weekly income progress" : "Monthly income progress"}</span>
-            </div>
-            <div className="fleet-percent income-percent">↗ {incomePct.toFixed(1)}%</div>
-          </div>
-          <div className="fleet-income-gauge">
-            <div className="gauge-callout income-callout">{money(dashboardPaid)}</div>
-            <HalfGauge value={dashboardPaid} max={dashboardTarget} tone="income" id={`${gaugeKey}-income`} />
-            <div className="gauge-center"><strong>{money(dashboardPaid)}</strong><span>/ {money(dashboardTarget)}</span></div>
-            <div className="gauge-min">0</div>
-            <div className="gauge-max">{money(dashboardTarget)} <small>(Target)</small></div>
-          </div>
-          <div className="fleet-stat-grid">
-            <div className="fleet-stat stat-blue"><span className="stat-icon">▣</span><div><small>Deni la Mwezi</small><strong>{money(s.debt_added)}</strong></div></div>
-            <div className="fleet-stat stat-green"><span className="stat-icon">↻</span><div><small>Deni la Kubeba</small><strong>{money(s.starting_debt)}</strong></div></div>
-            <div className="fleet-stat stat-purple"><span className="stat-icon">▤</span><div><small>Jumla ya Deni</small><strong>{money(dashboardDebt)}</strong></div></div>
-            <div className="fleet-stat stat-cyan"><span className="stat-icon">💰</span><div><small>Malipo Yaliyopokelewa</small><strong>{money(s.payments)}</strong></div></div>
-          </div>
-          {period.mode === "week" && (
-            <div className="week-block">
-              <div className="wb-title">WEEK {period.week}</div>
-              {week ? (
-                <>
-                  <div className="wb-range">{shortDate(week.start)} – {shortDate(addDaysLocal(week.start, vehicle.working_days_count - 1))}</div>
-                  <div className="row-line"><span>Target ya wiki:</span><b className="blue">{tsh(week.target)}</b></div>
-                  <div className="row-line"><span>Imekusanywa:</span><b className="green">{tsh(week.income)}</b></div>
-                  <div className="row-line"><span>Imebaki:</span><b className="red">{tsh(week.remaining)}</b></div>
-                </>
-              ) : <p className="driver">Hakuna data ya Week {period.week} mwezi huu</p>}
-            </div>
-          )}
-          <div className="fleet-debt-section">
-            <div className="fleet-debt-heading">
-              <div><span className="debt-alert-icon">!</span><div><h2>Deni la Bajaj hii</h2><small>Total debt</small></div></div>
-              <strong>{money(dashboardDebt)}</strong>
-            </div>
-            <div className="fleet-debt-gauge">
-              <div className="gauge-callout debt-callout">{money(dashboardDebt)}</div>
-              <HalfGauge value={dashboardDebt} max={dashboardTarget} tone="debt" id={`${gaugeKey}-debt`} />
-              <div className="gauge-center"><strong>{money(dashboardDebt)}</strong><span>/ {money(dashboardTarget)}</span></div>
-              <div className="gauge-min">0</div>
-              <div className="gauge-max">{money(dashboardTarget)} <small>(Target)</small></div>
-            </div>
-            <div className="fleet-debt-note">{dashboardDebt > dashboardTarget && dashboardTarget > 0 ? "Deni limezidi target ya kipindi" : `${debtPct.toFixed(1)}% ya target ya kipindi`}</div>
-          </div>
-          <div className="fleet-summary-footer">🤝 <span>Endelea kuongeza mapato ya {vehicle.name}, punguza deni!</span></div>
-        </section>
+      {s && period.mode === "week" && (
+        <div className="week-block">
+          <div className="wb-title">WEEK {period.week}</div>
+          {week ? (
+            <>
+              <div className="wb-range">{shortDate(week.start)} – {shortDate(addDaysLocal(week.start, vehicle.working_days_count - 1))}</div>
+              <div className="row-line"><span>Target ya wiki:</span><b className="blue">{tsh(week.target)}</b></div>
+              <div className="row-line"><span>Imekusanywa:</span><b className="green">{tsh(week.income)}</b></div>
+              <div className="row-line"><span>Imebaki:</span><b className="red">{tsh(week.remaining)}</b></div>
+            </>
+          ) : <p className="driver">Hakuna data ya Week {period.week} mwezi huu</p>}
+        </div>
       )}
-    </article>
+    </>
   );
 }
 
@@ -289,22 +227,6 @@ function addDaysLocal(ymd: string, n: number): string {
   const [y, m, d] = ymd.split("-").map(Number);
   const dt = new Date(y, m - 1, d + n);
   return `${dt.getFullYear()}-${String(dt.getMonth() + 1).padStart(2, "0")}-${String(dt.getDate()).padStart(2, "0")}`;
-}
-
-// ---------- Unified fleet dashboard ----------
-function HalfGauge({ value, max, tone, id }: { value: number; max: number; tone: "income" | "debt"; id: string }) {
-  const progress = max > 0 ? Math.min(100, Math.max(0, (value / max) * 100)) : 0;
-  return (
-    <svg className={`fleet-gauge fleet-gauge-${tone}`} viewBox="0 0 300 124" role="img" aria-label={`${progress.toFixed(1)} percent`}>
-      <defs>
-        <linearGradient id={`gauge-${id}`} x1="0" y1="0" x2="1" y2="0">
-          {tone === "income" ? <><stop offset="0%" stopColor="#06b6d4"/><stop offset="52%" stopColor="#22c55e"/><stop offset="100%" stopColor="#f59e0b"/></> : <><stop offset="0%" stopColor="#f59e0b"/><stop offset="55%" stopColor="#f97316"/><stop offset="100%" stopColor="#ef4444"/></>}
-        </linearGradient>
-      </defs>
-      <path d="M 20 108 A 130 130 0 0 1 280 108" pathLength="100" className="gauge-track" />
-      <path d="M 20 108 A 130 130 0 0 1 280 108" pathLength="100" className="gauge-value" stroke={`url(#gauge-${id})`} strokeDasharray={`${progress} 100`} />
-    </svg>
-  );
 }
 
 // ---------- List ----------
@@ -318,16 +240,16 @@ export default function VehiclesPage(props: {
   const [adding, setAdding] = useState(false);
   return (
     <>
-      <style>{FLEET_DASHBOARD_CSS}</style>
       {props.canManage && (adding ? (
         <AddVehicleForm onSaved={() => { setAdding(false); props.onAdded(); }} onCancel={() => setAdding(false)} />
       ) : (
         <button className="btn-add" onClick={() => setAdding(true)}>+ Ongeza Gari</button>
       ))}
       {props.vehicles.length === 0 && !adding && <p className="card">Hakuna gari bado. Bonyeza + Ongeza Gari.</p>}
-      {props.vehicles.map((v) => (
+      {props.vehicles.map((v, i) => (
         <VehicleCard
           key={v.id}
+          index={i}
           vehicle={v}
           month={props.month}
           tick={props.tick}
