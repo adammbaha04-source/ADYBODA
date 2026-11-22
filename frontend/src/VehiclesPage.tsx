@@ -336,6 +336,7 @@ export default function VehiclesPage(props: {
   vehicles: Vehicle[]; canManage: boolean; month: string; tick: number; period: PeriodSel;
   onMonthChange?: (month: string) => void;
   onPeriodModeChange?: (mode: "month" | "week") => void;
+  onWeekChange?: (week: number) => void;
   onOpen: (v: Vehicle) => void; onDelete: (v: Vehicle) => void; onAdded: () => void; onUpdated: () => void;
 }) {
   const [adding, setAdding] = useState(false);
