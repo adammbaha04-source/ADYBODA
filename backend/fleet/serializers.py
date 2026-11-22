@@ -12,13 +12,28 @@ class DriverPeriodSerializer(serializers.ModelSerializer):
 
 class VehicleSerializer(serializers.ModelSerializer):
     driver_periods = DriverPeriodSerializer(many=True, read_only=True)
+    driver_account = serializers.SerializerMethodField()
 
     class Meta:
         model = Vehicle
         fields = ["id", "name", "vehicle_type", "daily_target", "working_days_count",
                   "include_week5", "no_carry_months", "driver_periods",
-                  "active_days", "income_start", "income_end"]
+                  "active_days", "income_start", "income_end", "driver_account"]
         read_only_fields = ["no_carry_months"]
+
+    def get_driver_account(self, obj):
+        """Profile ya dereva aliyesajiliwa kwenye gari hili (jina, simu, picha). None kama hakuna."""
+        from fleet.models import Membership, UserProfile
+        m = Membership.objects.filter(role="driver", vehicles=obj).select_related("user").first()
+        if m is None:
+            return None
+        p = UserProfile.objects.filter(user=m.user).first()
+        return {
+            "username": m.user.username,
+            "full_name": (p.full_name if p and p.full_name else "") or m.user.first_name,
+            "phone": (p.phone if p and p.phone else "") or m.phone,
+            "avatar": p.avatar if p and p.avatar else "",
+        }
 
     def validate_daily_target(self, value):
         if value <= 0:

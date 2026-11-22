@@ -398,6 +398,42 @@ class TeamViewSet(viewsets.ViewSet):
         user.delete()
         return Response(status=204)
 
+    def partial_update(self, request, pk=None):
+        """Owner edits a manager or driver: name, phone, new password (optional), role, vehicles."""
+        _require_owner(request)
+        m = get_object_or_404(Membership, pk=pk, business_owner=request.user)
+        d = request.data
+        user = m.user
+        if "username" in d:
+            name = str(d.get("username") or "").strip()
+            if not name:
+                return Response({"username": "Jina haliwezi kuwa tupu."}, status=400)
+            if name != user.username and get_user_model().objects.filter(username=name).exists():
+                return Response({"username": "Jina hili limeshatumika."}, status=400)
+            user.username = name[:150]
+        if d.get("password"):
+            pw = str(d["password"])
+            if len(pw) < 6:
+                return Response({"password": "Nenosiri lazima liwe na herufi 6 au zaidi."}, status=400)
+            user.set_password(pw)
+        role = d.get("role", m.role)
+        if role not in ("manager", "driver"):
+            return Response({"role": "Role si sahihi."}, status=400)
+        mine = None
+        if d.get("vehicles") is not None:
+            mine = Vehicle.objects.filter(owner=request.user, id__in=d.get("vehicles"))
+        count = mine.count() if mine is not None else m.vehicles.count()
+        if role == "driver" and count > 1:
+            return Response({"vehicles": "Dereva anapangiwa gari moja tu."}, status=400)
+        user.save()
+        m.role = role
+        if "phone" in d:
+            m.phone = str(d.get("phone") or "")[:20]
+        m.save()
+        if mine is not None:
+            m.vehicles.set(mine)
+        return Response({"id": m.id, "username": user.username, "role": m.role})
+
 
 class MeView(APIView):
     """Profile of the signed-in user: role, business, assigned vehicles, phone (staff)."""
