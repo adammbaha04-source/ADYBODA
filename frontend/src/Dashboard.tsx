@@ -142,7 +142,7 @@ export default function Dashboard({ onLogout }: { onLogout: () => void }) {
           </section>
         )}
 
-        {!NO_PERIOD.includes(view) && view !== "ripoti" && view !== "grafu" && view !== "vehicles" && (
+        {!NO_PERIOD.includes(view) && view !== "ripoti" && view !== "grafu" && !(view === "vehicles" && detail) && (
           <section className="card period">
             <div className="seg">
               <button className={"seg-btn" + (periodMode === "month" ? " active" : "")} onClick={() => setPeriodMode("month")}>Mwezi</button>

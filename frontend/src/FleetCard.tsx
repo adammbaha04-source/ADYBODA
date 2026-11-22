@@ -1,24 +1,33 @@
 import type { Vehicle } from "./types";
 
+type DriverAccount = { username: string; full_name: string; phone: string; avatar: string } | null;
+
 const money = (n: number) => `TSh ${Math.round(n).toLocaleString("en-US")}`;
 
 const CSS = `
-.fc{border-radius:26px;overflow:hidden;background:#fff;margin:14px 0;box-shadow:0 10px 28px rgba(30,64,175,.18);border:1px solid #dbe6fb}
+.fc{border-radius:26px;overflow:hidden;background:#fff;margin:14px 0;box-shadow:0 10px 28px rgba(30,64,175,.18);border:1px solid #dbe6fb;cursor:pointer}
 .fc-head{padding:14px;color:#fff}.fc-blue{background:linear-gradient(135deg,#1d4ed8,#0b3aa8)}.fc-green{background:linear-gradient(135deg,#16a34a,#0f6b32)}
+.fc-hrow{display:flex;align-items:center;gap:12px}
+.fc-av{width:54px;height:54px;border-radius:50%;object-fit:cover;border:2px solid rgba(255,255,255,.75);background:rgba(255,255,255,.25);display:flex;align-items:center;justify-content:center;font-weight:900;font-size:22px;color:#fff;flex:0 0 auto;overflow:hidden}
+.fc-av img{width:100%;height:100%;object-fit:cover;display:block}
+.fc-hmain{min-width:0;flex:1}
 .fc-top{display:flex;align-items:center;gap:8px;flex-wrap:wrap}.fc-top h3{margin:0;font-size:22px;font-weight:900;color:#fff}
 .fc-b{padding:4px 10px;border-radius:14px;font-size:12px;font-weight:900;background:#22c55e;color:#fff}.fc-act{background:#16a34a;border:1px solid #bbf7d0}
-.fc-drv{margin:8px 0 0;font-size:14px;font-weight:700}
+.fc-drv{margin:6px 0 0;font-size:14px;font-weight:700;overflow-wrap:anywhere}
 .fc-body{padding:12px}.fc-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px}
 .fc-tile{position:relative;border-radius:20px;padding:8px 6px 10px;border:1px solid #e5e7f3;text-align:center;min-width:0}
 .fc-t-red{background:#fff5f5}.fc-t-green{background:#f0fdf4}.fc-t-purple{background:#faf5ff}.fc-t-orange{background:#fffaf0}
 .fc-pill{display:inline-block;padding:3px 16px;border-radius:14px;color:#fff;font-size:13px;font-weight:900}
 .fc-gauge{width:100%;height:auto;display:block;margin-top:2px}.fc-track,.fc-val{fill:none;stroke-width:11;stroke-linecap:round}.fc-track{stroke:#dfe5f1}
-.fc-center{margin-top:-30px;position:relative}.fc-center b{display:block;font-size:20px;color:#102b66;font-weight:950}.fc-center span{display:block;font-size:13px;font-weight:900}.fc-center small{display:block;font-size:12px;color:#445}
+.fc-center{margin-top:-30px;position:relative}.fc-center b{display:block;font-size:20px;color:#102b66;font-weight:950}.fc-center span{display:block;font-size:13px;font-weight:900}
 .fc-table{margin-top:12px;border:1px solid #dbe6fb;border-radius:18px;background:#f3f8ff;padding:4px 12px}
 .fc-row{display:flex;justify-content:space-between;align-items:center;padding:9px 0;border-bottom:1px solid #e1e9f7;font-size:14px;color:#29416f}.fc-row:last-child{border-bottom:0}.fc-row b{font-size:16px;font-weight:900}
 .fc-tip{margin-top:12px;padding:10px 12px;border-radius:16px;background:#e7f1ff;border:1px solid #cfe0ff;font-size:13px;color:#102b66}.fc-tip b{display:block;font-size:14px}
-.fc-btns{display:flex;gap:12px;justify-content:center;margin-top:12px}
-.fc-btn{border:0;border-radius:24px;padding:11px 26px;font-size:16px;font-weight:900;color:#fff;cursor:pointer}.fc-edit{background:linear-gradient(135deg,#2563eb,#1d4ed8)}.fc-del{background:linear-gradient(135deg,#ef4444,#c81e1e)}
+.fc-btns{display:flex;gap:8px;justify-content:center;flex-wrap:wrap;margin-top:12px}
+.fc-btn{border:0;border-radius:24px;padding:11px 20px;font-size:15px;font-weight:900;color:#fff;cursor:pointer}
+.fc-rec{background:linear-gradient(135deg,#f59e0b,#ea580c)}.fc-edit{background:linear-gradient(135deg,#2563eb,#1d4ed8)}.fc-del{background:linear-gradient(135deg,#ef4444,#c81e1e)}
+.fc-sk{height:96px;border-radius:18px;margin-bottom:10px;background:linear-gradient(90deg,#eef2fb 25%,#f8faff 50%,#eef2fb 75%);background-size:200% 100%;animation:fcsk 1.2s linear infinite}
+@keyframes fcsk{to{background-position:-200% 0}}
 `;
 
 function Gauge({ pct, from, to, id }: { pct: number; from: string; to: string; id: string }) {
@@ -49,12 +58,32 @@ function Tile(props: { cls: string; label: string; pill: string; pct: number; fr
   );
 }
 
+// Inaonekana mara moja wakati taarifa za gari bado zinakuja (badala ya maandishi ya "inapakia").
+export function FleetCardSkeleton({ index = 0 }: { index?: number }) {
+  return (
+    <article className="fc">
+      <style>{CSS}</style>
+      <div className={`fc-head ${index % 2 === 0 ? "fc-blue" : "fc-green"}`} style={{ height: 82 }} />
+      <div className="fc-body">
+        <div className="fc-sk" />
+        <div className="fc-sk" />
+      </div>
+    </article>
+  );
+}
+
 export default function FleetCard(p: {
   vehicle: Vehicle; index: number; driverName: string; driverPhone: string;
   target: number; paid: number; debt: number; lostDays: number; totalDays: number;
-  canManage: boolean; onOpen: () => void; onEdit: () => void; onDelete: () => void;
+  canManage: boolean; onOpen: () => void; onRecord: () => void; onEdit: () => void; onDelete: () => void;
 }) {
   const { vehicle: v, target, paid, debt, lostDays, totalDays } = p;
+  const acct = (v as Vehicle & { driver_account?: DriverAccount }).driver_account ?? null;
+  const shownName = (acct && (acct.full_name || acct.username)) || p.driverName;
+  const shownPhone = (acct && acct.phone) || p.driverPhone;
+  const avatar = acct?.avatar || "";
+  const initial = (shownName || "?").trim().charAt(0).toUpperCase() || "?";
+
   const lostAmount = lostDays * v.daily_target;
   const debtPct = target > 0 ? (debt / target) * 100 : 0;
   const incomePct = target > 0 ? (paid / target) * 100 : 0;
@@ -72,12 +101,17 @@ export default function FleetCard(p: {
     <article className="fc" onClick={p.onOpen}>
       <style>{CSS}</style>
       <div className={`fc-head ${p.index % 2 === 0 ? "fc-blue" : "fc-green"}`}>
-        <div className="fc-top">
-          <h3>{v.name}</h3>
-          <span className="fc-b">{v.vehicle_type.toUpperCase()}</span>
-          <span className="fc-b fc-act">✓ Active</span>
+        <div className="fc-hrow">
+          <div className="fc-av">{avatar ? <img src={avatar} alt="" /> : initial}</div>
+          <div className="fc-hmain">
+            <div className="fc-top">
+              <h3>{v.name}</h3>
+              <span className="fc-b">{v.vehicle_type.toUpperCase()}</span>
+              <span className="fc-b fc-act">✓ Active</span>
+            </div>
+            <p className="fc-drv">{shownName ? `Driver: ${shownName}${shownPhone ? "  📞 " + shownPhone : ""}` : "Hakuna dereva"}</p>
+          </div>
         </div>
-        <p className="fc-drv">{p.driverName ? `Driver: ${p.driverName}${p.driverPhone ? "  📞 " + p.driverPhone : ""}` : "Hakuna dereva"}</p>
       </div>
       <div className="fc-body">
         <div className="fc-grid">
@@ -94,12 +128,11 @@ export default function FleetCard(p: {
           <div className="fc-row"><span>📉 Loss Amount</span><b style={{ color: "#f97316" }}>{money(lostAmount)}</b></div>
         </div>
         <div className="fc-tip">💡 <b>AI Suggestion:</b>{tip}</div>
-        {p.canManage && (
-          <div className="fc-btns">
-            <button className="fc-btn fc-edit" onClick={stop(p.onEdit)}>✏️ Edit</button>
-            <button className="fc-btn fc-del" onClick={stop(p.onDelete)}>🗑️ Delete</button>
-          </div>
-        )}
+        <div className="fc-btns">
+          <button className="fc-btn fc-rec" onClick={stop(p.onRecord)}>📋 Record</button>
+          {p.canManage && <button className="fc-btn fc-edit" onClick={stop(p.onEdit)}>✏️ Edit</button>}
+          {p.canManage && <button className="fc-btn fc-del" onClick={stop(p.onDelete)}>🗑️ Delete</button>}
+        </div>
       </div>
     </article>
   );

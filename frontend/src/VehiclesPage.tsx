@@ -1,9 +1,10 @@
 import { useEffect, useState, type FormEvent } from "react";
-import { changeDriver, createVehicle, getDebt, listLostDays, updateVehicle } from "./api";
+import { changeDriver, createVehicle, getDebtSummaries, updateVehicle, type DebtBundle } from "./api";
+import { listAllLostDays } from "./api_extra";
 import DriverSection from "./DriverSection";
-import FleetCard from "./FleetCard";
+import FleetCard, { FleetCardSkeleton } from "./FleetCard";
 import { shortDate, todayYMD, tsh } from "./format";
-import type { DebtEntry, DebtSummary, Vehicle } from "./types";
+import type { DebtEntry, DebtSummary, LostDays, Vehicle } from "./types";
 
 // Vehicle types. The owner types the amount per day and the working days per week.
 export const PRESETS = [
@@ -15,6 +16,9 @@ export interface PeriodSel { mode: "month" | "week"; week: number; }
 
 const WEEK_RE = /Week (\d+): Income (\d+) vs Target (\d+)/;
 const WEEK_TYPES = ["WEEKLY_DEFICIT", "WEEKLY_EXCESS", "EXCESS_PAYMENT", "NO_CHANGE"];
+
+// Kumbukumbu ya mwisho (memory) ili kadi zionekane papo hapo ukirudi kwenye ukurasa huu.
+const cache: { debt: Record<string, DebtBundle[]>; lost: LostDays[] | null } = { debt: {}, lost: null };
 
 function weekRowOf(entries: DebtEntry[], week: number) {
   for (const e of entries) {
@@ -139,31 +143,21 @@ function EditVehicleInline({
 }
 
 // ---------- Vehicle card ----------
+// Taarifa (deni + siku za hasara) zinaletwa na orodha kwa ombi moja, kisha kila kadi inazitumia.
 export function VehicleCard(props: {
-  vehicle: Vehicle; month: string; tick: number; period: PeriodSel;
+  vehicle: Vehicle; month: string; period: PeriodSel;
+  bundle?: DebtBundle; lost: LostDays[];
   onOpen: () => void; onDelete: () => void; onUpdated: () => void; canManage: boolean;
   index?: number;
 }) {
-  const { vehicle, month, tick, period, onOpen, onDelete, onUpdated, canManage } = props;
-  const [s, setS] = useState<DebtSummary | null>(null);
-  const [entries, setEntries] = useState<DebtEntry[]>([]);
-  const [lostDays, setLostDays] = useState(0);
+  const { vehicle, month, period, bundle, lost, onOpen, onDelete, onUpdated, canManage } = props;
   const [editing, setEditing] = useState(false);
 
-  useEffect(() => {
-    let alive = true;
-    getDebt(vehicle.id, month)
-      .then((d) => { if (alive) { setS(d.summary); setEntries(d.entries); } })
-      .catch(() => {});
-    listLostDays(vehicle.id)
-      .then((rows) => {
-        if (!alive) return;
-        const mine = rows.filter((r) => r.month === month && (period.mode === "month" || r.week_number === period.week));
-        setLostDays(mine.reduce((sum, r) => sum + (Number(r.days) || 0), 0));
-      })
-      .catch(() => {});
-    return () => { alive = false; };
-  }, [vehicle.id, month, tick, period.mode, period.week]);
+  const s: DebtSummary | null = bundle?.summary ?? null;
+  const entries: DebtEntry[] = bundle?.entries ?? [];
+  const lostDays = lost
+    .filter((r) => r.vehicle === vehicle.id && r.month === month && (period.mode === "month" || r.week_number === period.week))
+    .reduce((sum, r) => sum + (Number(r.days) || 0), 0);
 
   const latest = [...vehicle.driver_periods].sort((a, b) => a.from_date.localeCompare(b.from_date)).pop();
   const monthTarget = s ? s.weekly_target * (vehicle.include_week5 ? 5 : 4) : 0;
@@ -177,7 +171,7 @@ export function VehicleCard(props: {
 
   return (
     <>
-      {!s && <p className="driver">Inapakia taarifa za gari...</p>}
+      {!s && <FleetCardSkeleton index={props.index ?? 0} />}
 
       {s && (
         <FleetCard
@@ -192,6 +186,7 @@ export function VehicleCard(props: {
           totalDays={totalDays}
           canManage={canManage}
           onOpen={onOpen}
+          onRecord={onOpen}
           onEdit={() => setEditing((v) => !v)}
           onDelete={onDelete}
         />
@@ -238,6 +233,22 @@ export default function VehiclesPage(props: {
   onOpen: (v: Vehicle) => void; onDelete: (v: Vehicle) => void; onAdded: () => void; onUpdated: () => void;
 }) {
   const [adding, setAdding] = useState(false);
+  const [bundles, setBundles] = useState<DebtBundle[] | null>(cache.debt[props.month] ?? null);
+  const [lost, setLost] = useState<LostDays[]>(cache.lost ?? []);
+
+  // Ombi MOJA kwa magari yote (si ombi kwa kila gari). Kumbukumbu ya zamani inaonekana papo hapo.
+  useEffect(() => {
+    let alive = true;
+    setBundles(cache.debt[props.month] ?? null);
+    getDebtSummaries(props.month)
+      .then((d) => { cache.debt[props.month] = d; if (alive) setBundles(d); })
+      .catch(() => { /* tunaendelea kuonyesha tulichonacho */ });
+    listAllLostDays()
+      .then((r) => { cache.lost = r; if (alive) setLost(r); })
+      .catch(() => { /* ignore */ });
+    return () => { alive = false; };
+  }, [props.month, props.tick, props.vehicles.length]);
+
   return (
     <>
       {props.canManage && (adding ? (
@@ -252,8 +263,9 @@ export default function VehiclesPage(props: {
           index={i}
           vehicle={v}
           month={props.month}
-          tick={props.tick}
           period={props.period}
+          bundle={bundles?.find((b) => b.vehicle_id === v.id)}
+          lost={lost}
           onOpen={() => props.onOpen(v)}
           onDelete={() => props.onDelete(v)}
           onUpdated={props.onUpdated}
