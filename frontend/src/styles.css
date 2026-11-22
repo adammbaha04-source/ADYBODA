@@ -660,3 +660,30 @@ button.link:hover { transform: none; }
 .inline-edit form { display: flex; flex-direction: column; gap: 4px; }
 .week-preview { font-size: 14px; font-weight: 700; color: #0369a1; margin: 4px 0 10px; }
 .avatar-img { width: 100%; height: 100%; object-fit: cover; border-radius: 50%; }
+
+/* ===== AdyBoda unified income + debt dashboard ===== */
+.fleet-summary-card{position:relative;overflow:hidden;margin:14px 0 18px;padding:18px 16px 14px;border:1px solid #cfe0ff;border-radius:30px;background:linear-gradient(155deg,#fff 0%,#f7fbff 54%,#fff 100%);box-shadow:0 14px 35px rgba(30,64,175,.13);color:#102b66}
+.fleet-income-head{display:flex;align-items:center;gap:12px;min-width:0}
+.fleet-section-icon{width:52px;height:52px;flex:0 0 52px;display:grid;place-items:center;border-radius:50%;background:linear-gradient(145deg,#38bdf8,#075de8);color:#fff;font-size:34px;font-weight:900;box-shadow:0 7px 16px #0b64dc44}
+.fleet-section-title{min-width:0;flex:1}.fleet-section-title h2,.fleet-debt-heading h2{margin:0;color:#102b66;font-size:19px;line-height:1.2;font-weight:900}.fleet-section-title span,.fleet-debt-heading small{font-size:12px;color:#536b98;font-weight:650}
+.fleet-percent{white-space:nowrap;border-radius:30px;padding:9px 12px;font-size:16px;font-weight:900}.income-percent{background:#d7f9e9;color:#07834e}
+.fleet-income-gauge,.fleet-debt-gauge{position:relative;height:190px;margin:2px 0 10px}
+.fleet-gauge{position:absolute;left:2%;top:4px;width:96%;height:145px;overflow:visible}
+.gauge-track,.gauge-value{fill:none;stroke-width:17;stroke-linecap:round}.gauge-track{stroke:#dce5f4}.gauge-value{transition:stroke-dasharray .8s ease}
+.gauge-center{position:absolute;left:0;right:0;top:91px;text-align:center;display:flex;flex-direction:column;align-items:center;gap:0;pointer-events:none}.gauge-center strong{font-size:clamp(23px,6vw,34px);line-height:1.15;color:#102b66;font-weight:950;letter-spacing:-.8px}.gauge-center span{font-size:18px;font-weight:750;color:#526b99}
+.gauge-callout{position:absolute;z-index:2;top:19px;left:12%;padding:7px 13px;border-radius:20px;color:#fff;font-size:13px;font-weight:900;box-shadow:0 5px 12px #0f172a22}.income-callout{background:linear-gradient(120deg,#059669,#16a34a)}
+.gauge-min,.gauge-max{position:absolute;top:145px;font-size:12px;font-weight:900;color:#102b66}.gauge-min{left:5%}.gauge-max{right:4%;text-align:right}.gauge-max small{display:block;font-size:10px;color:#7183a5}
+.fleet-stat-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:9px;margin:4px 0 14px}
+.fleet-stat{min-width:0;display:flex;align-items:center;gap:10px;padding:12px 10px;border:1px solid transparent;border-radius:20px;min-height:82px}
+.fleet-stat>div{min-width:0;display:flex;flex-direction:column;gap:3px}.fleet-stat small{font-size:12px;font-weight:750;color:#29416f}.fleet-stat strong{font-size:clamp(14px,3.8vw,19px);line-height:1.15;font-weight:950;overflow-wrap:anywhere}
+.stat-icon{width:42px;height:42px;flex:0 0 42px;display:grid;place-items:center;border-radius:50%;background:#fff;font-size:23px;font-weight:900;box-shadow:0 4px 12px #1e3a8a18}
+.stat-blue{background:linear-gradient(135deg,#eff6ff,#dbeafe);border-color:#bfdbfe}.stat-blue strong{color:#1556c0}.stat-blue .stat-icon{color:#1671e8}
+.stat-green{background:linear-gradient(135deg,#ecfdf5,#d1fae5);border-color:#a7f3d0}.stat-green strong{color:#087443}.stat-green .stat-icon{color:#059669}
+.stat-purple{background:linear-gradient(135deg,#faf5ff,#ede9fe);border-color:#ddd6fe}.stat-purple strong{color:#7e22ce}.stat-purple .stat-icon{color:#9333ea}
+.stat-cyan{background:linear-gradient(135deg,#eff6ff,#e0f2fe);border-color:#bfdbfe}.stat-cyan strong{color:#075985}.stat-cyan .stat-icon{color:#0284c7}
+.fleet-debt-section{border-top:1px solid #e3eaf6;padding-top:13px;margin-top:2px;background:linear-gradient(180deg,#fff8f8 0%,#fff 100%);border-radius:18px}
+.fleet-debt-heading{display:flex;align-items:center;justify-content:space-between;gap:8px}.fleet-debt-heading>div{display:flex;align-items:center;gap:10px}.fleet-debt-heading h2{color:#c51f2d}.debt-alert-icon{width:38px;height:38px;display:grid;place-items:center;border-radius:50%;background:linear-gradient(135deg,#fb7185,#dc2626);color:#fff;font-size:24px;font-weight:950}.fleet-debt-heading>strong{background:#ffe4e8;color:#c51f2d;padding:8px 11px;border-radius:20px;font-size:14px;white-space:nowrap}
+.fleet-debt-gauge{height:174px;margin-bottom:4px}.fleet-debt-gauge .fleet-gauge{height:137px}.fleet-debt-gauge .gauge-center{top:82px}.fleet-debt-gauge .gauge-center strong{font-size:clamp(22px,5.8vw,31px)}.fleet-debt-gauge .gauge-center span{font-size:16px}.fleet-debt-gauge .gauge-min,.fleet-debt-gauge .gauge-max{top:132px}.debt-callout{background:linear-gradient(120deg,#f97316,#dc2626);left:38%;top:8px}
+.fleet-debt-note{margin:0 auto 12px;width:max-content;max-width:100%;padding:7px 13px;border-radius:20px;background:#fff1f2;color:#be123c;font-size:12px;font-weight:850;text-align:center}
+.fleet-summary-footer{display:flex;align-items:center;justify-content:center;gap:10px;margin-top:9px;padding:13px 8px;border:1px solid #bfdbfe;border-radius:18px;background:linear-gradient(100deg,#eff6ff,#dbeafe);color:#1746a2;font-size:13px;font-weight:850;text-align:center}
+@media(min-width:600px){.fleet-summary-card{padding:22px 24px}.fleet-stat{padding:15px}.fleet-stat-grid{gap:12px}.fleet-income-gauge{height:210px}.fleet-gauge{height:165px}.gauge-center{top:108px}.gauge-min,.gauge-max{top:160px}.fleet-debt-gauge{height:190px}.fleet-debt-gauge .gauge-center{top:100px}.fleet-debt-gauge .gauge-min,.fleet-debt-gauge .gauge-max{top:150px}}
