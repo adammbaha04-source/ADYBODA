@@ -1,12 +1,12 @@
 import { useEffect, useState, type FormEvent } from "react";
-import { changeDriver, createVehicle, getDebt, getDebtSummaries, updateVehicle } from "./api";
+import { changeDriver, createVehicle, getDebt, updateVehicle } from "./api";
 import DriverSection from "./DriverSection";
 import { monthLabel, shortDate, todayYMD, tsh } from "./format";
 import type { DebtEntry, DebtSummary, Vehicle } from "./types";
 
 
 const FLEET_DASHBOARD_CSS = `
-.fleet-summary-card{position:relative;overflow:hidden;margin:14px 0 18px;padding:18px 16px 14px;border:1px solid #cfe0ff;border-radius:30px;background:linear-gradient(155deg,#fff 0%,#f7fbff 54%,#fff 100%);box-shadow:0 14px 35px rgba(30,64,175,.13);color:#102b66}
+.vehicle-dashboard{margin:14px 0 2px}.vcard{overflow:hidden}.fleet-summary-card{position:relative;overflow:hidden;margin:14px 0 18px;padding:18px 16px 14px;border:1px solid #cfe0ff;border-radius:30px;background:linear-gradient(155deg,#fff 0%,#f7fbff 54%,#fff 100%);box-shadow:0 14px 35px rgba(30,64,175,.13);color:#102b66}
 .fleet-income-head{display:flex;align-items:center;gap:12px;min-width:0}
 .fleet-section-icon{width:52px;height:52px;flex:0 0 52px;display:grid;place-items:center;border-radius:50%;background:linear-gradient(145deg,#38bdf8,#075de8);color:#fff;font-size:34px;font-weight:900;box-shadow:0 7px 16px #0b64dc44}
 .fleet-section-title{min-width:0;flex:1}.fleet-section-title h2,.fleet-debt-heading h2{margin:0;color:#102b66;font-size:19px;line-height:1.2;font-weight:900}.fleet-section-title span,.fleet-debt-heading small{font-size:12px;color:#536b98;font-weight:650}
@@ -189,9 +189,17 @@ export function VehicleCard(props: {
   const driverText = latest && latest.driver_name
     ? `Driver: ${latest.driver_name}${latest.phone ? " • " + latest.phone : ""}`
     : "Hakuna dereva";
-  const monthTarget = s ? s.weekly_target * 4 : 0;
+  const monthTarget = s ? s.weekly_target * (vehicle.include_week5 ? 5 : 4) : 0;
   const week = period.mode === "week" ? weekRowOf(entries, period.week) : null;
-
+  const dashboardTarget = period.mode === "week"
+    ? (week?.target ?? vehicle.daily_target * vehicle.working_days_count)
+    : monthTarget;
+  const dashboardPaid = period.mode === "week" ? (week?.income ?? 0) : (s?.payments ?? 0);
+  const dashboardDebt = s?.ending_debt ?? 0;
+  const incomePct = dashboardTarget > 0 ? Math.min(100, Math.max(0, dashboardPaid / dashboardTarget * 100)) : 0;
+  const debtPct = dashboardTarget > 0 ? Math.min(100, Math.max(0, dashboardDebt / dashboardTarget * 100)) : 0;
+  const money = (n: number) => `TSh ${Math.round(n).toLocaleString("en-US")}`;
+  const gaugeKey = String(vehicle.id).replace(/[^a-zA-Z0-9_-]/g, "-");
   return (
     <article className="vcard" onClick={onOpen}>
       <div className="vhead">
@@ -218,36 +226,61 @@ export function VehicleCard(props: {
         />
       )}
 
-      {!s && <p className="driver">Inapakia...</p>}
+      {!s && <p className="driver">Inapakia taarifa za gari...</p>}
 
-      {s && period.mode === "week" && (
-        <div className="week-block">
-          <div className="wb-title">WEEK {period.week}</div>
-          {week ? (
-            <>
-              <div className="wb-range">{shortDate(week.start)} – {shortDate(addDaysLocal(week.start, vehicle.working_days_count - 1))}</div>
-              <div className="row-line"><span>Target ya wiki:</span><b className="blue">{tsh(week.target)}</b></div>
-              <div className="row-line"><span>Imekusanywa:</span><b className="green">{tsh(week.income)}</b></div>
-              <div className="row-line"><span>Imebaki:</span><b className="red">{tsh(week.remaining)}</b></div>
-            </>
-          ) : (
-            <p className="driver">Hakuna data ya Week {period.week} mwezi huu</p>
-          )}
-        </div>
-      )}
-
-      {s && period.mode === "month" && (
-        <>
-          <div className="block">
-            <div className="block-title">MONTH</div>
-            <div className="row-line"><span>Target:</span><b className="blue">{tsh(monthTarget)}</b></div>
-            <div className="row-line"><span>Paid:</span><b className="green">{tsh(s.payments)}</b></div>
+      {s && (
+        <section className="fleet-summary-card vehicle-dashboard" aria-label={`Dashboard ya ${vehicle.name}`}>
+          <div className="fleet-income-head">
+            <div className="fleet-section-icon">↗</div>
+            <div className="fleet-section-title">
+              <h2>{period.mode === "week" ? `Mapato ya Wiki ${period.week}` : "Mapato ya Mwezi"}</h2>
+              <span>{period.mode === "week" ? "Weekly income progress" : "Monthly income progress"}</span>
+            </div>
+            <div className="fleet-percent income-percent">↗ {incomePct.toFixed(1)}%</div>
           </div>
-          <div className="row-line"><span>Month Debt:</span><b className="orange">{tsh(s.debt_added)}</b></div>
-          <div className="row-line"><span>Carry Over Debt:</span><b className="orange">{tsh(s.starting_debt)}</b></div>
-        </>
+          <div className="fleet-income-gauge">
+            <div className="gauge-callout income-callout">{money(dashboardPaid)}</div>
+            <HalfGauge value={dashboardPaid} max={dashboardTarget} tone="income" id={`${gaugeKey}-income`} />
+            <div className="gauge-center"><strong>{money(dashboardPaid)}</strong><span>/ {money(dashboardTarget)}</span></div>
+            <div className="gauge-min">0</div>
+            <div className="gauge-max">{money(dashboardTarget)} <small>(Target)</small></div>
+          </div>
+          <div className="fleet-stat-grid">
+            <div className="fleet-stat stat-blue"><span className="stat-icon">▣</span><div><small>Deni la Mwezi</small><strong>{money(s.debt_added)}</strong></div></div>
+            <div className="fleet-stat stat-green"><span className="stat-icon">↻</span><div><small>Deni la Kubeba</small><strong>{money(s.starting_debt)}</strong></div></div>
+            <div className="fleet-stat stat-purple"><span className="stat-icon">▤</span><div><small>Jumla ya Deni</small><strong>{money(dashboardDebt)}</strong></div></div>
+            <div className="fleet-stat stat-cyan"><span className="stat-icon">💰</span><div><small>Malipo Yaliyopokelewa</small><strong>{money(s.payments)}</strong></div></div>
+          </div>
+          {period.mode === "week" && (
+            <div className="week-block">
+              <div className="wb-title">WEEK {period.week}</div>
+              {week ? (
+                <>
+                  <div className="wb-range">{shortDate(week.start)} – {shortDate(addDaysLocal(week.start, vehicle.working_days_count - 1))}</div>
+                  <div className="row-line"><span>Target ya wiki:</span><b className="blue">{tsh(week.target)}</b></div>
+                  <div className="row-line"><span>Imekusanywa:</span><b className="green">{tsh(week.income)}</b></div>
+                  <div className="row-line"><span>Imebaki:</span><b className="red">{tsh(week.remaining)}</b></div>
+                </>
+              ) : <p className="driver">Hakuna data ya Week {period.week} mwezi huu</p>}
+            </div>
+          )}
+          <div className="fleet-debt-section">
+            <div className="fleet-debt-heading">
+              <div><span className="debt-alert-icon">!</span><div><h2>Deni la Bajaj hii</h2><small>Total debt</small></div></div>
+              <strong>{money(dashboardDebt)}</strong>
+            </div>
+            <div className="fleet-debt-gauge">
+              <div className="gauge-callout debt-callout">{money(dashboardDebt)}</div>
+              <HalfGauge value={dashboardDebt} max={dashboardTarget} tone="debt" id={`${gaugeKey}-debt`} />
+              <div className="gauge-center"><strong>{money(dashboardDebt)}</strong><span>/ {money(dashboardTarget)}</span></div>
+              <div className="gauge-min">0</div>
+              <div className="gauge-max">{money(dashboardTarget)} <small>(Target)</small></div>
+            </div>
+            <div className="fleet-debt-note">{dashboardDebt > dashboardTarget && dashboardTarget > 0 ? "Deni limezidi target ya kipindi" : `${debtPct.toFixed(1)}% ya target ya kipindi`}</div>
+          </div>
+          <div className="fleet-summary-footer">🤝 <span>Endelea kuongeza mapato ya {vehicle.name}, punguza deni!</span></div>
+        </section>
       )}
-      {s && <div className="total"><span>Total Debt:</span><b>{tsh(s.ending_debt)}</b></div>}
     </article>
   );
 }
@@ -259,75 +292,18 @@ function addDaysLocal(ymd: string, n: number): string {
 }
 
 // ---------- Unified fleet dashboard ----------
-function HalfGauge({ value, max, tone }: { value: number; max: number; tone: "income" | "debt" }) {
+function HalfGauge({ value, max, tone, id }: { value: number; max: number; tone: "income" | "debt"; id: string }) {
   const progress = max > 0 ? Math.min(100, Math.max(0, (value / max) * 100)) : 0;
   return (
     <svg className={`fleet-gauge fleet-gauge-${tone}`} viewBox="0 0 300 124" role="img" aria-label={`${progress.toFixed(1)} percent`}>
       <defs>
-        <linearGradient id={`gauge-${tone}`} x1="0" y1="0" x2="1" y2="0">
+        <linearGradient id={`gauge-${id}`} x1="0" y1="0" x2="1" y2="0">
           {tone === "income" ? <><stop offset="0%" stopColor="#06b6d4"/><stop offset="52%" stopColor="#22c55e"/><stop offset="100%" stopColor="#f59e0b"/></> : <><stop offset="0%" stopColor="#f59e0b"/><stop offset="55%" stopColor="#f97316"/><stop offset="100%" stopColor="#ef4444"/></>}
         </linearGradient>
       </defs>
       <path d="M 20 108 A 130 130 0 0 1 280 108" pathLength="100" className="gauge-track" />
-      <path d="M 20 108 A 130 130 0 0 1 280 108" pathLength="100" className="gauge-value" stroke={`url(#gauge-${tone})`} strokeDasharray={`${progress} 100`} />
+      <path d="M 20 108 A 130 130 0 0 1 280 108" pathLength="100" className="gauge-value" stroke={`url(#gauge-${id})`} strokeDasharray={`${progress} 100`} />
     </svg>
-  );
-}
-
-function FleetSummaryCard({ vehicles, month, tick }: { vehicles: Vehicle[]; month: string; tick: number }) {
-  const [rows, setRows] = useState<Awaited<ReturnType<typeof getDebtSummaries>>>([]);
-  const [loading, setLoading] = useState(true);
-  useEffect(() => {
-    let alive = true;
-    setLoading(true);
-    getDebtSummaries(month)
-      .then((data) => { if (alive) setRows(data); })
-      .catch(() => { if (alive) setRows([]); })
-      .finally(() => { if (alive) setLoading(false); });
-    return () => { alive = false; };
-  }, [month, tick, vehicles.length]);
-
-  const summaryById = new Map(rows.map((r) => [r.vehicle_id, r.summary]));
-  const target = vehicles.reduce((sum, v) => sum + ((summaryById.get(v.id)?.weekly_target ?? (v.daily_target * v.working_days_count)) * (v.include_week5 ? 5 : 4)), 0);
-  const paid = vehicles.reduce((sum, v) => sum + (summaryById.get(v.id)?.payments ?? 0), 0);
-  const monthDebt = vehicles.reduce((sum, v) => sum + (summaryById.get(v.id)?.debt_added ?? 0), 0);
-  const carryDebt = vehicles.reduce((sum, v) => sum + (summaryById.get(v.id)?.starting_debt ?? 0), 0);
-  const totalDebt = vehicles.reduce((sum, v) => sum + (summaryById.get(v.id)?.ending_debt ?? 0), 0);
-  const incomePct = target > 0 ? Math.min(100, (paid / target) * 100) : 0;
-  const debtPct = target > 0 ? Math.min(100, (totalDebt / target) * 100) : 0;
-  const money = (n: number) => `TSh ${Math.round(n).toLocaleString("en-US")}`;
-
-  return (
-    <section className="fleet-summary-card" aria-label="Muhtasari wa biashara">
-      <div className="fleet-income-head">
-        <div className="fleet-section-icon">↗</div>
-        <div className="fleet-section-title"><h2>Mapato ya Mwezi</h2><span>Income Progress</span></div>
-        <div className="fleet-percent income-percent">↗ {incomePct.toFixed(1)}%</div>
-      </div>
-      <div className="fleet-income-gauge">
-        <div className="gauge-callout income-callout">{money(paid)}</div>
-        <HalfGauge value={paid} max={target} tone="income" />
-        <div className="gauge-center"><strong>{money(paid)}</strong><span>/ {money(target)}</span></div>
-        <div className="gauge-min">0</div><div className="gauge-max">{money(target)} <small>(100%)</small></div>
-      </div>
-      <div className="fleet-stat-grid">
-        <div className="fleet-stat stat-blue"><span className="stat-icon">▣</span><div><small>Deni la Mwezi</small><strong>{money(monthDebt)}</strong></div></div>
-        <div className="fleet-stat stat-green"><span className="stat-icon">↻</span><div><small>Deni la Kubeba</small><strong>{money(carryDebt)}</strong></div></div>
-        <div className="fleet-stat stat-purple"><span className="stat-icon">▤</span><div><small>Jumla ya Deni</small><strong>{money(totalDebt)}</strong></div></div>
-        <div className="fleet-stat stat-cyan"><span className="stat-icon">🚘</span><div><small>Magari Yaliyopo</small><strong>{vehicles.length}</strong></div></div>
-      </div>
-      <div className="fleet-debt-section">
-        <div className="fleet-debt-heading"><div><span className="debt-alert-icon">!</span><div><h2>Madeni ya Jumla</h2><small>Total Debt</small></div></div><strong>{money(totalDebt)}</strong></div>
-        <div className="fleet-debt-gauge">
-          <div className="gauge-callout debt-callout">{money(totalDebt)}</div>
-          <HalfGauge value={totalDebt} max={target} tone="debt" />
-          <div className="gauge-center"><strong>{money(totalDebt)}</strong><span>/ {money(target)}</span></div>
-          <div className="gauge-min">0</div><div className="gauge-max">{money(target)} <small>(Target)</small></div>
-        </div>
-        <div className="fleet-debt-note">{loading ? "Inapakia taarifa za madeni..." : totalDebt > target && target > 0 ? "Deni limezidi target ya mwezi" : `${debtPct.toFixed(1)}% ya target ya mwezi`}</div>
-      </div>
-      <div className="fleet-summary-footer">🤝 <span>Endelea kuongeza mapato, punguza madeni!</span></div>
-    </section>
   );
 }
 
@@ -343,7 +319,6 @@ export default function VehiclesPage(props: {
   return (
     <>
       <style>{FLEET_DASHBOARD_CSS}</style>
-      <FleetSummaryCard vehicles={props.vehicles} month={props.month} tick={props.tick} />
       {props.canManage && (adding ? (
         <AddVehicleForm onSaved={() => { setAdding(false); props.onAdded(); }} onCancel={() => setAdding(false)} />
       ) : (
