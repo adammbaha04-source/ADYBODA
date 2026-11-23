@@ -694,8 +694,13 @@ from rest_framework.permissions import AllowAny
 from rest_framework.decorators import api_view, permission_classes as _pc
 
 
+from rest_framework.decorators import throttle_classes as _tc
+from core.throttles import RegisterThrottle
+
+
 @api_view(["POST"])
 @_pc([AllowAny])
+@_tc([RegisterThrottle])
 def register_owner(request):
     """Owner self-registration: creates the owner account and returns a login token."""
     d = request.data
