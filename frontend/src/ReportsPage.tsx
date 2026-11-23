@@ -72,7 +72,9 @@ export default function ReportsPage({
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
   const [pdfBusy, setPdfBusy] = useState(false);
-  const [activeTab, setActiveTab] = useState<ViewTab>("report"); // TAB MPYA
+  
+  // STATE MPYA KWA AJILI YA TABS
+  const [activeTab, setActiveTab] = useState<ViewTab>("report");
 
   const year = Number(month.slice(0, 4)) || thisYear();
   const [from, to] = rangeFor(kind, month, year, cFrom, cTo);
@@ -143,22 +145,22 @@ export default function ReportsPage({
 
   return (
     <div className="reports">
-      {/* TABS MPYA ZA JUU */}
-      <div className="flex gap-2 mb-4 border-b border-gray-200">
+      {/* ====== TABS MPYA ZA JUU ====== */}
+      <div className="flex gap-2 mb-4 border-b border-gray-200 overflow-x-auto">
         <button
-          className={`px-4 py-2 font-bold ${activeTab === 'report' ? 'text-blue-600 border-b-2 border-blue-600' : 'text-gray-500'}`}
+          className={`px-4 py-2 font-bold whitespace-nowrap ${activeTab === 'report' ? 'text-blue-600 border-b-2 border-blue-600' : 'text-gray-500'}`}
           onClick={() => setActiveTab('report')}
         >
           📄 Ripoti
         </button>
         <button
-          className={`px-4 py-2 font-bold ${activeTab === 'graphs' ? 'text-blue-600 border-b-2 border-blue-600' : 'text-gray-500'}`}
+          className={`px-4 py-2 font-bold whitespace-nowrap ${activeTab === 'graphs' ? 'text-blue-600 border-b-2 border-blue-600' : 'text-gray-500'}`}
           onClick={() => setActiveTab('graphs')}
         >
           📊 Grafu
         </button>
         <button
-          className={`px-4 py-2 font-bold ${activeTab === 'chatbot' ? 'text-blue-600 border-b-2 border-blue-600' : 'text-gray-500'}`}
+          className={`px-4 py-2 font-bold whitespace-nowrap ${activeTab === 'chatbot' ? 'text-blue-600 border-b-2 border-blue-600' : 'text-gray-500'}`}
           onClick={() => setActiveTab('chatbot')}
         >
           🤖 ChartBot
@@ -206,16 +208,16 @@ export default function ReportsPage({
             <button className="btn-add" onClick={pdf} disabled={!data || pdfBusy}>{pdfBusy ? "Inaandaa PDF..." : "Download PDF"}</button>
             <button className="btn-add alt" onClick={downloadCsv} disabled={!data}>Download CSV</button>
             <button className="btn-add alt" onClick={() => window.print()} disabled={!data}>Print</button>
-            {/* BUTTON YA AI IMEONDOLEWA HAPA */}
+            {/* Button ya AI imeondolewa hapa */}
           </div>
         )}
         {loading && <p className="hint">Inapakia...</p>}
         {error && <p className="error">{error}</p>}
       </section>
 
+      {/* TAB 1: RIPOTI */}
       {data && t && activeTab === "report" && (
         <article className="rpt">
-          {/* ... (SEHEMU YA RIPOTI IMEBAKI KAMA ILIVYO) ... */}
           <header className="rpt-head">
             <div className="rpt-brand">
               <span className="rpt-logo">{(data.business_name || "A").charAt(0).toUpperCase()}</span>
@@ -364,14 +366,14 @@ export default function ReportsPage({
         </article>
       )}
 
-      {/* TAB YA CHATBOT */}
+      {/* TAB 2: CHATBOT */}
       {activeTab === "chatbot" && data && (
         <div className="mt-4">
           <AIChart report={data} />
         </div>
       )}
 
-      {/* TAB YA GRAF */}
+      {/* TAB 3: GRAF */}
       {data && activeTab === "graphs" && (
         <GraphsView data={data} expCats={expCats} period={periodText} />
       )}
