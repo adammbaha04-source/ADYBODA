@@ -19,7 +19,7 @@ SECRET_KEY = _secret_key
 ALLOWED_HOSTS = [h for h in os.environ.get('DJANGO_ALLOWED_HOSTS', 'localhost,127.0.0.1').split(',') if h]
 
 INSTALLED_APPS = [
-    'corsheaders',  # <--- MUHIMU KWA CORS
+    'corsheaders',
     'rest_framework',
     'rest_framework.authtoken',
     'fleet',
@@ -32,7 +32,7 @@ INSTALLED_APPS = [
 ]
 
 MIDDLEWARE = [
-    'corsheaders.middleware.CorsMiddleware',  # <--- Lazima iwe juu kabisa
+    'corsheaders.middleware.CorsMiddleware',  # lazima iwe juu kabisa
     'django.middleware.security.SecurityMiddleware',
     'whitenoise.middleware.WhiteNoiseMiddleware',
     'django.contrib.sessions.middleware.SessionMiddleware',
@@ -62,7 +62,7 @@ TEMPLATES = [
 
 WSGI_APPLICATION = 'core.wsgi.application'
 
-# Database Configuration
+# Database
 DATABASES = {
     'default': dj_database_url.config(
         default='sqlite:///' + str(BASE_DIR / 'db.sqlite3'),
@@ -71,10 +71,12 @@ DATABASES = {
     )
 }
 DATABASES['default']['DISABLE_SERVER_SIDE_CURSORS'] = True
-DATABASES['default']['OPTIONS'] = {
-    'connect_timeout': 10,
-    'sslmode': 'require',
-}
+# Chaguo hizi ni za PostgreSQL pekee (Render). SQLite ya majaribio haizikubali.
+if DATABASES['default']['ENGINE'].endswith('postgresql'):
+    DATABASES['default']['OPTIONS'] = {
+        'connect_timeout': 10,
+        'sslmode': 'require',
+    }
 
 AUTH_PASSWORD_VALIDATORS = [
     {'NAME': 'django.contrib.auth.password_validation.UserAttributeSimilarityValidator'},
@@ -108,17 +110,14 @@ if not DEBUG:
     SECURE_CONTENT_TYPE_NOSNIFF = True
     SESSION_COOKIE_HTTPONLY = True
 
-# CORS: ni app yako tu (adyboda.pages.dev) inayoruhusiwa kuongea na API hii.
-# Ukiongeza domain nyingine baadaye, iweke kwenye CORS_EXTRA_ORIGINS (Render > Environment), zitenganishe kwa koma.
+# CORS: app yako tu inaruhusiwa kuongea na API hii.
+# Domain nyingine: weka CORS_EXTRA_ORIGINS kwenye Render, zitenganishe kwa koma.
 CORS_ALLOWED_ORIGINS = [
     "https://adyboda.pages.dev",
     "http://localhost:5173",
 ] + [o.strip() for o in os.environ.get('CORS_EXTRA_ORIGINS', '').split(',') if o.strip()]
-# Toleo la majaribio la Cloudflare (mfano abc123.adyboda.pages.dev)
 CORS_ALLOWED_ORIGIN_REGEXES = [r"^https://[a-z0-9-]+\.adyboda\.pages\.dev$"]
-# App inatumia Token kwenye header, haihitaji cookies, kwa hiyo credentials zimezimwa.
 CORS_ALLOW_CREDENTIALS = False
-# Frontend inatuma header ya Cache-Control, hivyo lazima iruhusiwe kwenye preflight
 CORS_ALLOW_HEADERS = list(default_headers) + ["cache-control"]
 
 CSRF_TRUSTED_ORIGINS = [
@@ -133,15 +132,17 @@ REST_FRAMEWORK = {
     ],
     "DEFAULT_PERMISSION_CLASSES": ["rest_framework.permissions.IsAuthenticated"],
     "DEFAULT_PAGINATION_CLASS": None,
-    # Kinga dhidi ya kubahatisha nenosiri (login/register) na matumizi kupita kiasi.
     "DEFAULT_THROTTLE_CLASSES": [
         "rest_framework.throttling.AnonRateThrottle",
         "rest_framework.throttling.UserRateThrottle",
     ],
+    # 'login' inatumika na LoginThrottle (core/throttles.py), 'register' na RegisterThrottle.
+    # 'ai' inatumika na AiThrottle (fleet/ai_views.py), kwa /api/ai/insights/ na /api/ai/chart/.
     "DEFAULT_THROTTLE_RATES": {
         "anon": "30/min",
         "user": "600/min",
         "login": "10/min",
         "register": "5/hour",
+        "ai": "10/hour",
     },
 }
