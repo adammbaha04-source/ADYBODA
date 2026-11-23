@@ -202,7 +202,7 @@ export default function AIChart({ report }: AIChartProps) {
   }
 
   return (
-    <div className="chartbot-inline-container"> {/* TUMIA CLASS MPYA YA CSS */}
+    <div className="chartbot-inline-container">
       <section className="chartbot-window-inline">
         {/* HEADER */}
         <header className="chartbot-header">
