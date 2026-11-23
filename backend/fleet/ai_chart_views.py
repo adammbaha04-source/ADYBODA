@@ -3,11 +3,13 @@ from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 from rest_framework.views import APIView
 from fleet.ai_service import ask_adyboda
+from fleet.ai_views import AiThrottle
 
 
 class ChartView(APIView):
     """POST /api/ai/chart/ {"question": "..."}. Database tools are read-only and role-scoped."""
     permission_classes = [IsAuthenticated]
+    throttle_classes = [AiThrottle]
 
     def post(self, request):
         question = request.data.get("question")

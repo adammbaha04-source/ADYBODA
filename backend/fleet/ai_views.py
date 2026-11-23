@@ -6,12 +6,12 @@ import urllib.request
 from rest_framework import status
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
+from rest_framework.throttling import UserRateThrottle
 from rest_framework.views import APIView
 
 GROQ_URL = "https://api.groq.com/openai/v1/chat/completions"
 
-# Modeli mpya: badala ya llama-3.3-70b-versatile iliyozimwa.
-# Unaweza kubadilisha bila kugusa code kwa kuweka AI_MODEL kwenye Render.
+# Modeli: unaweza kubadilisha bila kugusa code kwa kuweka AI_MODEL kwenye Render.
 PRIMARY_MODEL = os.environ.get("AI_MODEL", "openai/gpt-oss-120b")
 FALLBACK_MODEL = os.environ.get("AI_FALLBACK_MODEL", "openai/gpt-oss-20b")
 
@@ -24,6 +24,11 @@ SYSTEM_PROMPT = (
     "Eleza: hali ya mapato dhidi ya target, gari lenye tatizo zaidi, siku zilizopotea na sababu zake, "
     "deni, gharama kubwa, kisha hatua 2 za kuchukua mwezi ujao."
 )
+
+
+class AiThrottle(UserRateThrottle):
+    """Kila owner anaweza kuomba uchambuzi wa AI mara 10 kwa saa (rate 'ai' kwenye settings)."""
+    scope = "ai"
 
 
 def _call_groq(api_key, model, report_text):
@@ -55,6 +60,7 @@ def _call_groq(api_key, model, report_text):
 class InsightsView(APIView):
     """POST /api/ai/insights/ with {"report": {...}}. Owner only."""
     permission_classes = [IsAuthenticated]
+    throttle_classes = [AiThrottle]
 
     def post(self, request):
         if hasattr(request.user, "membership"):
@@ -78,21 +84,16 @@ class InsightsView(APIView):
 
         report_text = json.dumps(report, ensure_ascii=False)[:MAX_REPORT_CHARS]
 
-        # Jaribu model ya kwanza, kisha fallback ikiwa itashindikana.
-        last_error = None
         for model in (PRIMARY_MODEL, FALLBACK_MODEL):
             try:
                 text = _call_groq(api_key, model, report_text)
                 return Response({"insights": text, "model": model})
             except urllib.error.HTTPError as e:
-                body = e.read().decode("utf-8", "ignore")[:300]
-                print("GROQ_ERROR", e.code, model, body, flush=True)
-                last_error = e
-                # 404 = model haipo; 429 = rate limit. Zote zinafaa kujaribu fallback.
+                # Usiweke body ya jibu kwenye logs: inaweza kuwa na taarifa za fedha.
+                print("GROQ_ERROR", e.code, model, flush=True)
                 continue
             except (urllib.error.URLError, TimeoutError, KeyError, IndexError, ValueError) as e:
-                print("GROQ_ERROR", type(e).__name__, model, e, flush=True)
-                last_error = e
+                print("GROQ_ERROR", type(e).__name__, model, flush=True)
                 continue
 
         return Response(

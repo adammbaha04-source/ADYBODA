@@ -11,9 +11,9 @@ class Vehicle(models.Model):
     working_days_count = models.PositiveSmallIntegerField(default=6)
     include_week5 = models.BooleanField(default=False)
     no_carry_months = models.JSONField(default=list)          # ["2026-03", ...]
-    # NEW: siku za kazi za kawaida, 0=Jumatatu ... 6=Jumapili. None = siku za mwanzo (working_days_count).
+    # siku za kazi za kawaida, 0=Jumatatu ... 6=Jumapili. None = siku za mwanzo (working_days_count).
     active_days = models.JSONField(null=True, blank=True)
-    # NEW: kipindi cha mapato (tarehe ya kuanza na ya mwisho). None = hakuna kikomo.
+    # kipindi cha mapato (tarehe ya kuanza na ya mwisho). None = hakuna kikomo.
     income_start = models.DateField(null=True, blank=True)
     income_end = models.DateField(null=True, blank=True)
 
@@ -24,7 +24,6 @@ class Vehicle(models.Model):
         return self.name
 
 
-# NEW MODEL: mipangilio ya wiki moja mahususi (mwezi + namba ya wiki)
 class WeekSetting(models.Model):
     vehicle = models.ForeignKey(Vehicle, on_delete=models.CASCADE, related_name="week_settings")
     month = models.CharField(max_length=7)                      # "2026-10"
@@ -48,7 +47,7 @@ class DriverPeriod(models.Model):
     residence = models.CharField(max_length=160, blank=True, default="")         # anapoishi
     guarantor_name = models.CharField(max_length=80, blank=True, default="")     # jina la mdhamini
     guarantor_phone = models.CharField(max_length=20, blank=True, default="")    # simu ya mdhamini
-    reason = models.CharField(max_length=120, blank=True, default="")            # kwa nini alibadilishwa (dereva wa zamani)
+    reason = models.CharField(max_length=120, blank=True, default="")            # kwa nini alibadilishwa
 
     class Meta:
         ordering = ["from_date"]
@@ -60,7 +59,6 @@ class Return(models.Model):
     amount = models.PositiveIntegerField()
     is_excess = models.BooleanField(default=False)
     confirmed_at = models.DateTimeField(null=True, blank=True)
-    # Which week this money belongs to (chosen on the form). Empty = old records: week is found from `day`.
     record_month = models.CharField(max_length=7, blank=True)   # "2026-10"
     week_number = models.PositiveSmallIntegerField(null=True, blank=True)
     period_start = models.DateField(null=True, blank=True)
@@ -73,7 +71,7 @@ class LostDays(models.Model):
     month = models.CharField(max_length=7)                    # "2026-09"
     week_number = models.PositiveSmallIntegerField()
     days = models.PositiveSmallIntegerField()
-    note = models.CharField(max_length=300, blank=True, default="")  # sababu ya siku zilizopotea
+    note = models.CharField(max_length=300, blank=True, default="")
 
     class Meta:
         unique_together = [("vehicle", "month", "week_number")]
@@ -105,10 +103,10 @@ class PaymentRecord(models.Model):
     payment_type = models.CharField(max_length=20, choices=TYPES)
     amount = models.PositiveIntegerField()
     note = models.CharField(max_length=200, blank=True)
+    confirmed_at = models.DateTimeField(null=True, blank=True)
 
     class Meta:
         ordering = ["day", "id"]
-    confirmed_at = models.DateTimeField(null=True, blank=True)
 
 
 class ServiceRecord(models.Model):
@@ -135,7 +133,7 @@ class TyreRecord(models.Model):
     tyre_number = models.CharField(max_length=40, blank=True)
     amount = models.PositiveIntegerField(default=0)
     note = models.CharField(max_length=200, blank=True)
-    retired_on = models.DateField(null=True, blank=True)   # tarehe tairi iliyoondolewa gari
+    retired_on = models.DateField(null=True, blank=True)
 
     class Meta:
         ordering = ["day", "id"]
@@ -189,30 +187,6 @@ class Membership(models.Model):
 
 
 class UserProfile(models.Model):
-    """Profile and app settings for any signed-in user (owner, manager or driver)."""
-    user = models.OneToOneField(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name="profile")
-    phone = models.CharField(max_length=20, blank=True)
-    photo = models.TextField(blank=True)          # small data URL (max ~150 KB), see views
-    settings = models.JSONField(default=dict, blank=True)
-
-
-class Challenge(models.Model):
-    """Changamoto: a problem reported on a vehicle. Driver reports, owner or manager resolves."""
-    STATUS = [("open", "Open"), ("resolved", "Resolved")]
-    vehicle = models.ForeignKey(Vehicle, on_delete=models.CASCADE, related_name="challenges")
-    title = models.CharField(max_length=120)
-    details = models.TextField(blank=True)
-    status = models.CharField(max_length=10, choices=STATUS, default="open")
-    created_by = models.ForeignKey(settings.AUTH_USER_MODEL, null=True, on_delete=models.SET_NULL, related_name="challenges_made")
-    created_at = models.DateTimeField(auto_now_add=True)
-    resolved_by = models.ForeignKey(settings.AUTH_USER_MODEL, null=True, blank=True, on_delete=models.SET_NULL, related_name="challenges_solved")
-    resolved_at = models.DateTimeField(null=True, blank=True)
-
-    class Meta:
-        ordering = ["-created_at", "-id"]
-
-
-class UserProfile(models.Model):
     """Profile and appearance settings for any signed-in user (owner, manager or driver)."""
     THEMES = [("light", "Light"), ("dark", "Dark")]
     BACKGROUNDS = [("adybajaj", "AdyBajaj"), ("ocean", "Ocean"), ("emerald", "Emerald"), ("sunset", "Sunset"), ("violet", "Violet")]
@@ -223,7 +197,7 @@ class UserProfile(models.Model):
     avatar = models.TextField(blank=True)            # small image as a data URL (max ~200 KB, checked in the API)
     theme = models.CharField(max_length=10, choices=THEMES, default="light")
     background = models.CharField(max_length=20, choices=BACKGROUNDS, default="adybajaj")
-    accent = models.CharField(max_length=7, default="#f97316")   # hex colour like #f97316
+    accent = models.CharField(max_length=7, default="#f97316")
 
 
 class Challenge(models.Model):

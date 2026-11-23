@@ -147,27 +147,6 @@ from fleet.models import Challenge
 class ChallengeSerializer(serializers.ModelSerializer):
     vehicle_name = serializers.CharField(source="vehicle.name", read_only=True)
     created_by_name = serializers.SerializerMethodField()
-    resolved_by_name = serializers.SerializerMethodField()
-
-    class Meta:
-        model = Challenge
-        fields = ["id", "vehicle", "vehicle_name", "title", "details", "status", "created_at",
-                  "created_by_name", "resolved_at", "resolved_by_name"]
-        read_only_fields = ["status", "created_at", "resolved_at"]
-
-    def get_created_by_name(self, obj):
-        return obj.created_by.username if obj.created_by else ""
-
-    def get_resolved_by_name(self, obj):
-        return obj.resolved_by.username if obj.resolved_by else ""
-
-
-from fleet.models import UserProfile, Challenge
-
-
-class ChallengeSerializer(serializers.ModelSerializer):
-    vehicle_name = serializers.CharField(source="vehicle.name", read_only=True)
-    created_by_name = serializers.SerializerMethodField()
 
     class Meta:
         model = Challenge

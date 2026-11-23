@@ -1,23 +1,53 @@
 import datetime as _dt
-from fleet.models import WeekSetting
-from fleet.services import build_config
-from fleet.engine import plan_month
+import re
+
+from django.contrib.auth import get_user_model
+from django.db.models import Sum
 from django.shortcuts import get_object_or_404
 from django.utils import timezone
+from rest_framework import viewsets
+from rest_framework.authtoken.models import Token
+from rest_framework.decorators import action, api_view, permission_classes, throttle_classes
 from rest_framework.exceptions import PermissionDenied
-from rest_framework.permissions import IsAuthenticated
-from fleet.access import ScopedPermission, vehicles_for, role_of, business_owner, membership_of
-from rest_framework import viewsets, status
-from rest_framework.decorators import action
+from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework.response import Response
 from rest_framework.serializers import ValidationError
-from fleet.models import (Vehicle, DriverPeriod, Return, LostDays, ManualLedgerEntry,
-                          PaymentRecord, ServiceRecord, TyreRecord, InsuranceRecord)
-from fleet.serializers import (VehicleSerializer, DriverPeriodSerializer, ReturnSerializer,
-                               LostDaysSerializer, ManualLedgerEntrySerializer,
-                               PaymentRecordSerializer, ServiceRecordSerializer,
-                               TyreRecordSerializer, InsuranceRecordSerializer)
-from fleet.services import vehicle_debt, debt_summary, serialize_entries
+from rest_framework.views import APIView
+
+from core.throttles import RegisterThrottle
+from fleet.access import ScopedPermission, vehicles_for, role_of, membership_of
+from fleet.engine import plan_month, months_between
+from fleet.fees import makato_fee
+from fleet.models import (
+    Vehicle, WeekSetting, DriverPeriod, Return, LostDays, ManualLedgerEntry,
+    PaymentRecord, ServiceRecord, TyreRecord, InsuranceRecord, PersonalExpense,
+    Membership, UserProfile, Challenge,
+)
+from fleet.reports import build_report
+from fleet.serializers import (
+    VehicleSerializer, DriverPeriodSerializer, ReturnSerializer, LostDaysSerializer,
+    ManualLedgerEntrySerializer, PaymentRecordSerializer, ServiceRecordSerializer,
+    TyreRecordSerializer, InsuranceRecordSerializer, PersonalExpenseSerializer,
+    TeamMemberSerializer, ChallengeSerializer,
+)
+from fleet.services import build_config, vehicle_debt, debt_summary, serialize_entries
+
+
+# ---------------------------------------------------------------- helpers
+
+MAX_AVATAR_CHARS = 200_000
+THEME_VALUES = {"light", "dark"}
+BG_VALUES = {"adybajaj", "ocean", "emerald", "sunset", "violet"}
+MIN_PASSWORD_LEN = 6
+# Picha za kawaida pekee. SVG inaweza kubeba script, kwa hiyo inakataliwa.
+_SAFE_IMAGE = re.compile(r"^data:image/(png|jpeg|jpg|webp|gif);base64,[A-Za-z0-9+/=]+$")
+_MONTH = re.compile(r"^\d{4}-\d{2}$")
+# Sehemu hizi ni za faragha: dereva wa sasa haoni za madereva wengine.
+DRIVER_PRIVATE_FIELDS = ("email", "residence", "guarantor_name", "guarantor_phone")
+
+
+def _is_safe_image(value):
+    return bool(_SAFE_IMAGE.match(value))
 
 
 def _parse_day(value, field):
@@ -30,43 +60,73 @@ def _parse_day(value, field):
         raise ValidationError({field: "Tarehe si sahihi. Tumia YYYY-MM-DD."})
 
 
+def _profile(user):
+    prof, _ = UserProfile.objects.get_or_create(user=user)
+    return prof
+
+
+def _require_owner(request):
+    if role_of(request.user) != "owner":
+        raise PermissionDenied("Owner pekee.")
+
+
+class ConfirmMixin:
+    """Driver signs a record for his own vehicle. Only the driver can confirm."""
+
+    @action(detail=True, methods=["post"])
+    def confirm(self, request, pk=None):
+        if role_of(request.user) != "driver":
+            raise PermissionDenied("Only the driver can confirm a record.")
+        obj = self.get_object()
+        obj.confirmed_at = timezone.now()
+        obj.save(update_fields=["confirmed_at"])
+        return Response(self.get_serializer(obj).data)
+
+
 class OwnedVehicleMixin:
+    """Every query is limited to vehicles the current user can see. Anyone else gets 404."""
     permission_classes = [ScopedPermission]
     manager_can_write = True
-    """Every query is limited to vehicles the current user owns. Anyone else gets 404."""
 
     def owned_vehicle(self, vehicle_id):
         return get_object_or_404(vehicles_for(self.request.user), pk=vehicle_id)
 
 
+# ---------------------------------------------------------------- vehicles
+
 class VehicleViewSet(viewsets.ModelViewSet):
     serializer_class = VehicleSerializer
     permission_classes = [ScopedPermission]
-    # Manager may edit settings of his OWN assigned vehicles (week 5, carry over, targets, week plan).
-    # Creating and deleting vehicles stays owner only (see create and destroy below).
+    # Manager may edit settings of his OWN assigned vehicles. Create and delete stay owner-only.
     manager_can_write = True
+
+    def get_serializer_class(self):
+        if self.action in ("list", "retrieve") and role_of(self.request.user) != "owner":
+            return VehiclePublicSerializer
+        return VehicleSerializer
 
     def get_queryset(self):
         return vehicles_for(self.request.user).prefetch_related("driver_periods")
 
     def create(self, request, *args, **kwargs):
-        if role_of(request.user) != "owner":
-            raise PermissionDenied("Owner pekee ndiye anaweza kuongeza gari.")
+        _require_owner(request)
         return super().create(request, *args, **kwargs)
 
     def destroy(self, request, *args, **kwargs):
-        if role_of(request.user) != "owner":
-            raise PermissionDenied("Owner pekee ndiye anaweza kufuta gari.")
+        _require_owner(request)
         return super().destroy(request, *args, **kwargs)
 
     def perform_create(self, serializer):
         serializer.save(owner=self.request.user)
 
+    def perform_update(self, serializer):
+        # Owner ya gari haiwezi kubadilishwa kupitia API, hata na manager.
+        serializer.save(owner=serializer.instance.owner)
+
     @action(detail=False, methods=["get"], url_path="debt-summaries")
     def debt_summaries(self, request):
-        """All vehicles' debt for one month in ONE request (the Vehicles screen used to make one request per vehicle)."""
         month = request.query_params.get("month")
-        if not month or len(month) != 7:
+        if not month or not _MONTH.match(month):
             raise ValidationError({"month": "Use YYYY-MM."})
         out = []
         for vehicle in self.get_queryset():
@@ -81,7 +141,7 @@ class VehicleViewSet(viewsets.ModelViewSet):
     def debt(self, request, pk=None):
         vehicle = self.get_object()
         month = request.query_params.get("month")
-        if not month or len(month) != 7:
+        if not month or not _MONTH.match(month):
             raise ValidationError({"month": "Use YYYY-MM."})
         entries = vehicle_debt(vehicle, month)
         month_entries = [e for e in entries if e.month == month]
@@ -90,17 +150,16 @@ class VehicleViewSet(viewsets.ModelViewSet):
 
     @action(detail=True, methods=["get", "post"], url_path="week-plan")
     def week_plan(self, request, pk=None):
-        """GET ?month=YYYY-MM  -> wiki 1..5 za mwezi huo na target zake.
-        POST {month, week_number, active_days?, target?} -> hifadhi mipangilio ya wiki moja.
-           active_days: null = rudi kwenye siku za gari; target: null/"" = kiotomatiki."""
+        """GET ?month=YYYY-MM -> wiki 1..5 za mwezi huo na target zake.
+        POST {month, week_number, active_days?, target?, start_date?, end_date?, note?}."""
         vehicle = self.get_object()
         if request.method == "GET":
             month = request.query_params.get("month", "")
-            if len(month) != 7:
+            if not _MONTH.match(month):
                 raise ValidationError({"month": "Use YYYY-MM."})
         else:
             month = str(request.data.get("month", ""))
-            if len(month) != 7:
+            if not _MONTH.match(month):
                 raise ValidationError({"month": "Use YYYY-MM."})
             try:
                 week = int(request.data.get("week_number"))
@@ -159,7 +218,7 @@ class VehicleViewSet(viewsets.ModelViewSet):
         vehicle = self.get_object()
         month = request.data.get("month")
         carry = bool(request.data.get("carry", True))
-        if not month or len(str(month)) != 7:
+        if not month or not _MONTH.match(str(month)):
             raise ValidationError({"month": "Use YYYY-MM."})
         months = set(vehicle.no_carry_months)
         if carry:
@@ -171,8 +230,37 @@ class VehicleViewSet(viewsets.ModelViewSet):
         return Response({"no_carry_months": vehicle.no_carry_months})
 
 
+# ---------------------------------------------------------------- drivers and records
+
+class DriverPeriodPublicSerializer(DriverPeriodSerializer):
+    """Same as DriverPeriodSerializer, but without private contact and guarantor fields."""
+
+    def to_representation(self, instance):
+        data = super().to_representation(instance)
+        for field in DRIVER_PRIVATE_FIELDS:
+            data.pop(field, None)
+        return data
+
+
+class VehiclePublicSerializer(VehicleSerializer):
+    """VehicleSerializer for managers and drivers: driver_periods without private fields."""
+
+    def to_representation(self, instance):
+        data = super().to_representation(instance)
+        for period in data.get("driver_periods", []):
+            for field in DRIVER_PRIVATE_FIELDS:
+                period.pop(field, None)
+        return data
+
+
 class DriverPeriodViewSet(OwnedVehicleMixin, viewsets.ModelViewSet):
     serializer_class = DriverPeriodSerializer
+
+    def get_serializer_class(self):
+        # Reads by anyone but the owner use the redacted serializer. Writes need the full one.
+        if self.action in ("list", "retrieve") and role_of(self.request.user) != "owner":
+            return DriverPeriodPublicSerializer
+        return DriverPeriodSerializer
 
     def get_queryset(self):
         return DriverPeriod.objects.filter(vehicle__in=vehicles_for(self.request.user))
@@ -181,7 +269,7 @@ class DriverPeriodViewSet(OwnedVehicleMixin, viewsets.ModelViewSet):
         serializer.save(vehicle=self.owned_vehicle(self.request.data.get("vehicle")))
 
 
-class ReturnViewSet(OwnedVehicleMixin, viewsets.ModelViewSet):
+class ReturnViewSet(ConfirmMixin, OwnedVehicleMixin, viewsets.ModelViewSet):
     serializer_class = ReturnSerializer
 
     def get_queryset(self):
@@ -191,16 +279,6 @@ class ReturnViewSet(OwnedVehicleMixin, viewsets.ModelViewSet):
 
     def perform_create(self, serializer):
         serializer.save(vehicle=self.owned_vehicle(self.request.data.get("vehicle")))
-
-    @action(detail=True, methods=["post"])
-    def confirm(self, request, pk=None):
-        """Driver signs a record for his own vehicle. Only the driver can confirm."""
-        if role_of(request.user) != "driver":
-            raise PermissionDenied("Only the driver can confirm a record.")
-        obj = self.get_object()
-        obj.confirmed_at = timezone.now()
-        obj.save(update_fields=["confirmed_at"])
-        return Response(self.get_serializer(obj).data)
 
 
 class LostDaysViewSet(OwnedVehicleMixin, viewsets.ModelViewSet):
@@ -213,7 +291,7 @@ class LostDaysViewSet(OwnedVehicleMixin, viewsets.ModelViewSet):
         serializer.save(vehicle=self.owned_vehicle(self.request.data.get("vehicle")))
 
 
-class ManualLedgerViewSet(OwnedVehicleMixin, viewsets.ModelViewSet):
+class ManualLedgerViewSet(ConfirmMixin, OwnedVehicleMixin, viewsets.ModelViewSet):
     serializer_class = ManualLedgerEntrySerializer
 
     def get_queryset(self):
@@ -223,18 +301,8 @@ class ManualLedgerViewSet(OwnedVehicleMixin, viewsets.ModelViewSet):
         serializer.save(vehicle=self.owned_vehicle(self.request.data.get("vehicle")),
                         created_by=self.request.user)
 
-    @action(detail=True, methods=["post"])
-    def confirm(self, request, pk=None):
-        """Driver signs a record for his own vehicle. Only the driver can confirm."""
-        if role_of(request.user) != "driver":
-            raise PermissionDenied("Only the driver can confirm a record.")
-        obj = self.get_object()
-        obj.confirmed_at = timezone.now()
-        obj.save(update_fields=["confirmed_at"])
-        return Response(self.get_serializer(obj).data)
 
-
-class _VehicleChildViewSet(OwnedVehicleMixin, viewsets.ModelViewSet):
+class _VehicleChildViewSet(ConfirmMixin, OwnedVehicleMixin, viewsets.ModelViewSet):
     """Base for records that belong to a vehicle. Filter with ?vehicle=<id>."""
     model = None
 
@@ -245,16 +313,6 @@ class _VehicleChildViewSet(OwnedVehicleMixin, viewsets.ModelViewSet):
 
     def perform_create(self, serializer):
         serializer.save(vehicle=self.owned_vehicle(self.request.data.get("vehicle")))
-
-    @action(detail=True, methods=["post"])
-    def confirm(self, request, pk=None):
-        """Driver signs a record for his own vehicle. Only the driver can confirm."""
-        if role_of(request.user) != "driver":
-            raise PermissionDenied("Only the driver can confirm a record.")
-        obj = self.get_object()
-        obj.confirmed_at = timezone.now()
-        obj.save(update_fields=["confirmed_at"])
-        return Response(self.get_serializer(obj).data)
 
 
 class PaymentRecordViewSet(_VehicleChildViewSet):
@@ -277,12 +335,7 @@ class InsuranceRecordViewSet(_VehicleChildViewSet):
     serializer_class = InsuranceRecordSerializer
 
 
-from rest_framework.views import APIView
-from django.db.models import Sum
-from fleet.fees import makato_fee
-from fleet.models import PersonalExpense, ManualLedgerEntry
-from fleet.serializers import PersonalExpenseSerializer
-
+# ---------------------------------------------------------------- owner-only money views
 
 class PersonalExpenseViewSet(viewsets.ModelViewSet):
     serializer_class = PersonalExpenseSerializer
@@ -292,7 +345,11 @@ class PersonalExpenseViewSet(viewsets.ModelViewSet):
     def get_queryset(self):
         qs = PersonalExpense.objects.filter(owner=self.request.user)
         month = self.request.query_params.get("month")
-        return qs.filter(day__year=int(month[:4]), day__month=int(month[5:7])) if month else qs
+        if month:
+            if not _MONTH.match(month):
+                raise ValidationError({"month": "Use YYYY-MM."})
+            qs = qs.filter(day__year=int(month[:4]), day__month=int(month[5:7]))
+        return qs
 
     def perform_create(self, serializer):
         data = serializer.validated_data
@@ -303,21 +360,20 @@ class PersonalExpenseViewSet(viewsets.ModelViewSet):
 
 
 class ExpenseSummaryView(APIView):
-    permission_classes = [ScopedPermission]
     """Totals for the Matumizi tab: personal categories + vehicle-related totals for one month."""
+    permission_classes = [ScopedPermission]
 
     def get(self, request):
-        if role_of(request.user) != "owner":
-            raise PermissionDenied("Owner only.")
+        _require_owner(request)
         month = request.query_params.get("month")
-        if not month or len(month) != 7:
+        if not month or not _MONTH.match(month):
             return Response({"month": "Use YYYY-MM."}, status=400)
         y, m = int(month[:4]), int(month[5:7])
         owner = request.user
-        cats = {k: 0 for k in ["binafsi", "chakula", "ofisi", "mgonjwa", "hospitali", "michango", "vocha", "umeme", "maji", "mavazi", "mengineyo", "makato"]}
+        cats = {k: 0 for k in ["binafsi", "chakula", "ofisi", "mgonjwa", "hospitali", "michango",
+                               "vocha", "umeme", "maji", "mavazi", "mengineyo", "makato"]}
         for row in PersonalExpense.objects.filter(owner=owner, day__year=y, day__month=m).values("category").annotate(t=Sum("amount")):
             cats[row["category"]] = row["t"] or 0
-        from fleet.models import ServiceRecord, TyreRecord, InsuranceRecord, PaymentRecord
         vehicles = owner.vehicles.all()
         service = sum(s.count * s.unit_price for s in ServiceRecord.objects.filter(vehicle__in=vehicles, day__year=y, day__month=m))
         tairi = TyreRecord.objects.filter(vehicle__in=vehicles, day__year=y, day__month=m).aggregate(t=Sum("amount"))["t"] or 0
@@ -330,37 +386,29 @@ class ExpenseSummaryView(APIView):
             "total_personal": total})
 
 
-from fleet.reports import build_report
-from fleet.engine import months_between
-
-
 class ReportView(APIView):
-    permission_classes = [ScopedPermission]
     """GET /api/reports/?from=YYYY-MM&to=YYYY-MM[&vehicle=<id>] for the signed-in owner only."""
+    permission_classes = [ScopedPermission]
 
     def get(self, request):
-        if role_of(request.user) != "owner":
-            raise PermissionDenied("Owner only.")
+        _require_owner(request)
         start = request.query_params.get("from", "")
         end = request.query_params.get("to", "")
-        if len(start) != 7 or len(end) != 7 or start > end:
+        if not _MONTH.match(start) or not _MONTH.match(end) or start > end:
             return Response({"detail": "Use from=YYYY-MM and to=YYYY-MM, with from before to."}, status=400)
         if len(months_between(start, end)) > 36:
             return Response({"detail": "Choose 36 months or fewer."}, status=400)
         vid = request.query_params.get("vehicle")
-        vehicle_id = int(vid) if vid and vid.isdigit() else None
+        vehicle_id = None
+        if vid:
+            if not vid.isdigit():
+                return Response({"detail": "Vehicle si sahihi."}, status=400)
+            # Gari lazima liwe la owner huyu, vinginevyo 404.
+            vehicle_id = get_object_or_404(vehicles_for(request.user), pk=int(vid)).id
         return Response(build_report(request.user, start, end, vehicle_id))
 
 
-from django.contrib.auth import get_user_model
-from fleet.models import Membership
-from fleet.serializers import TeamMemberSerializer
-
-
-def _require_owner(request):
-    if role_of(request.user) != "owner":
-        raise PermissionDenied("Owner only.")
-
+# ---------------------------------------------------------------- team
 
 class TeamViewSet(viewsets.ViewSet):
     """Owner registers, lists and removes managers and drivers. Staff cannot use this."""
@@ -380,6 +428,8 @@ class TeamViewSet(viewsets.ViewSet):
         ser = TeamMemberSerializer(data=request.data)
         ser.is_valid(raise_exception=True)
         d = ser.validated_data
+        if len(str(d.get("password", ""))) < MIN_PASSWORD_LEN:
+            return Response({"password": "Nenosiri lazima liwe na herufi 6 au zaidi."}, status=400)
         if get_user_model().objects.filter(username=d["username"]).exists():
             return Response({"username": "Jina hili limeshatumika."}, status=400)
         mine = Vehicle.objects.filter(owner=request.user, id__in=d.get("vehicles", []))
@@ -395,11 +445,11 @@ class TeamViewSet(viewsets.ViewSet):
         m = get_object_or_404(Membership, pk=pk, business_owner=request.user)
         user = m.user
         m.delete()
-        user.delete()
+        user.delete()  # pia hufuta Token zake
         return Response(status=204)
 
     def partial_update(self, request, pk=None):
-        """Owner edits a manager or driver: name, phone, new password (optional), role, vehicles."""
+        """Owner edits a manager or driver. Changing the password logs them out everywhere."""
         _require_owner(request)
         m = get_object_or_404(Membership, pk=pk, business_owner=request.user)
         d = request.data
@@ -411,11 +461,13 @@ class TeamViewSet(viewsets.ViewSet):
             if name != user.username and get_user_model().objects.filter(username=name).exists():
                 return Response({"username": "Jina hili limeshatumika."}, status=400)
             user.username = name[:150]
+        password_changed = False
         if d.get("password"):
             pw = str(d["password"])
-            if len(pw) < 6:
+            if len(pw) < MIN_PASSWORD_LEN:
                 return Response({"password": "Nenosiri lazima liwe na herufi 6 au zaidi."}, status=400)
             user.set_password(pw)
+            password_changed = True
         role = d.get("role", m.role)
         if role not in ("manager", "driver"):
             return Response({"role": "Role si sahihi."}, status=400)
@@ -426,6 +478,8 @@ class TeamViewSet(viewsets.ViewSet):
         if role == "driver" and count > 1:
             return Response({"vehicles": "Dereva anapangiwa gari moja tu."}, status=400)
         user.save()
+        if password_changed:
+            Token.objects.filter(user=user).delete()
         m.role = role
         if "phone" in d:
             m.phone = str(d.get("phone") or "")[:20]
@@ -435,212 +489,28 @@ class TeamViewSet(viewsets.ViewSet):
         return Response({"id": m.id, "username": user.username, "role": m.role})
 
 
-class MeView(APIView):
-    """Profile of the signed-in user: role, business, assigned vehicles, phone (staff)."""
+# ---------------------------------------------------------------- profile and auth
+
+class LogoutView(APIView):
+    """Futa token ya sasa. Inatoa logout kwenye vifaa vyote vya mtumiaji huyo."""
     permission_classes = [IsAuthenticated]
 
-    def get(self, request):
-        m = Membership.objects.filter(user=request.user).select_related("business_owner").first()
-        return Response({
-            "username": request.user.username,
-            "role": m.role if m else "owner",
-            "business_owner": m.business_owner.username if m else request.user.username,
-            "phone": m.phone if m else "",
-            "vehicles": [{"id": v.id, "name": v.name} for v in vehicles_for(request.user)],
-        })
-
-    def patch(self, request):
-        m = Membership.objects.filter(user=request.user).first()
-        if m is None:
-            return Response({"detail": "Owner profile edit comes later."}, status=400)
-        if "phone" in request.data:
-            m.phone = str(request.data.get("phone", ""))[:20]
-            m.save(update_fields=["phone"])
-        return Response({"phone": m.phone})
-
-
-# ----- Profile and settings -----
-from fleet.models import UserProfile, Challenge
-from fleet.serializers import ChallengeSerializer
-
-MAX_PHOTO_CHARS = 200_000   # about 150 KB as a data URL
-
-import re as _re
-# Picha za kawaida pekee. SVG na aina nyingine (zinazoweza kubeba script) zinakataliwa.
-_SAFE_IMAGE = _re.compile(r"^data:image/(png|jpeg|jpg|webp|gif);base64,[A-Za-z0-9+/=]+$")
-
-
-def _is_safe_image(value):
-    return bool(_SAFE_IMAGE.match(value))
-ALLOWED_SETTINGS = {
-    "background": {"adybajaj", "ocean", "emerald", "sunset", "violet"},
-    "accent": {"orange", "violet", "blue", "green"},
-    "dark_mode": {True, False},
-    "remember_theme": {True, False},
-}
-
-
-def _profile_payload(user, m, prof):
-    return {
-        "username": user.username,
-        "first_name": user.first_name,
-        "role": m.role if m else "owner",
-        "business_owner": m.business_owner.username if m else user.username,
-        "phone": prof.phone,
-        "photo": prof.photo,
-        "settings": prof.settings,
-        "vehicles": [{"id": v.id, "name": v.name} for v in vehicles_for(user)],
-    }
+    def post(self, request):
+        Token.objects.filter(user=request.user).delete()
+        return Response(status=204)
 
 
 class MeView(APIView):
-    """Profile of the signed-in user (any role). GET reads, PATCH edits name, phone, photo and settings."""
-    permission_classes = [IsAuthenticated]
-
-    def get(self, request):
-        m = membership_of(request.user)
-        prof, _ = UserProfile.objects.get_or_create(user=request.user)
-        return Response(_profile_payload(request.user, m, prof))
-
-    def patch(self, request):
-        m = membership_of(request.user)
-        prof, _ = UserProfile.objects.get_or_create(user=request.user)
-        data = request.data
-        if "first_name" in data:
-            request.user.first_name = str(data.get("first_name", ""))[:150]
-            request.user.save(update_fields=["first_name"])
-        if "phone" in data:
-            prof.phone = str(data.get("phone", ""))[:20]
-            if m:
-                m.phone = prof.phone
-                m.save(update_fields=["phone"])
-        if "photo" in data:
-            photo = str(data.get("photo") or "")
-            if photo and not _is_safe_image(photo):
-                return Response({"photo": "Chagua picha (jpg, png)."}, status=400)
-            if len(photo) > MAX_PHOTO_CHARS:
-                return Response({"photo": "Picha ni kubwa sana. Chagua picha ndogo (chini ya 150 KB)."}, status=400)
-            prof.photo = photo
-        if "settings" in data and isinstance(data.get("settings"), dict):
-            clean = dict(prof.settings or {})
-            for key, value in data["settings"].items():
-                if key in ALLOWED_SETTINGS and value in ALLOWED_SETTINGS[key]:
-                    clean[key] = value
-            prof.settings = clean
-        prof.save()
-        return Response(_profile_payload(request.user, m, prof))
-
-
-class ChallengeViewSet(viewsets.ModelViewSet):
-    """Changamoto. Driver reports on his vehicle; owner and manager see and resolve for their vehicles."""
-    serializer_class = ChallengeSerializer
-    permission_classes = [IsAuthenticated]
-    http_method_names = ["get", "post", "delete", "head", "options"]
-
-    def get_queryset(self):
-        qs = Challenge.objects.filter(vehicle__in=vehicles_for(self.request.user))
-        status_q = self.request.query_params.get("status")
-        vid = self.request.query_params.get("vehicle")
-        if status_q in ("open", "resolved"):
-            qs = qs.filter(status=status_q)
-        if vid and vid.isdigit():
-            qs = qs.filter(vehicle_id=int(vid))
-        return qs
-
-    def perform_create(self, serializer):
-        vehicle = serializer.validated_data["vehicle"]
-        if vehicle not in vehicles_for(self.request.user):
-            raise PermissionDenied("Gari hili si lako.")
-        serializer.save(created_by=self.request.user)
-
-    def perform_destroy(self, instance):
-        if role_of(self.request.user) != "owner" and instance.created_by_id != self.request.user.id:
-            raise PermissionDenied("Huwezi kufuta changamoto hii.")
-        instance.delete()
-
-    @action(detail=True, methods=["post"])
-    def resolve(self, request, pk=None):
-        """Owner or manager marks a challenge as solved. The driver then sees it as Resolved."""
-        if role_of(request.user) not in ("owner", "manager"):
-            raise PermissionDenied("Owner au manager pekee wanaweza kutatua changamoto.")
-        obj = self.get_object()
-        obj.status = "resolved"
-        obj.resolved_by = request.user
-        obj.resolved_at = timezone.now()
-        obj.save(update_fields=["status", "resolved_by", "resolved_at"])
-        return Response(self.get_serializer(obj).data)
-
-    @action(detail=True, methods=["post"])
-    def reopen(self, request, pk=None):
-        if role_of(request.user) not in ("owner", "manager"):
-            raise PermissionDenied("Owner au manager pekee.")
-        obj = self.get_object()
-        obj.status = "open"
-        obj.resolved_by = None
-        obj.resolved_at = None
-        obj.save(update_fields=["status", "resolved_by", "resolved_at"])
-        return Response(self.get_serializer(obj).data)
-
-
-from django.utils import timezone as _tz
-from fleet.models import UserProfile, Challenge
-from fleet.serializers import ChallengeSerializer
-
-MAX_AVATAR_CHARS = 200_000
-THEME_VALUES = {"light", "dark"}
-BG_VALUES = {"adybajaj", "ocean", "emerald", "sunset", "violet"}
-
-
-def _profile(user):
-    prof, _ = UserProfile.objects.get_or_create(user=user)
-    return prof
-
-
-class ChallengeViewSet(viewsets.ModelViewSet):
-    """Challenges (Changamoto). Everyone who can see a vehicle can report on it.
-    Only owner and manager can solve. Driver sees the status change."""
-    serializer_class = ChallengeSerializer
-    permission_classes = [IsAuthenticated]
-    http_method_names = ["get", "post", "head", "options"]
-
-    def get_queryset(self):
-        qs = Challenge.objects.filter(vehicle__in=vehicles_for(self.request.user)).select_related("vehicle", "created_by")
-        status = self.request.query_params.get("status")
-        vehicle = self.request.query_params.get("vehicle")
-        if status in ("open", "resolved"):
-            qs = qs.filter(status=status)
-        if vehicle and vehicle.isdigit():
-            qs = qs.filter(vehicle_id=int(vehicle))
-        return qs
-
-    def perform_create(self, serializer):
-        vehicle = serializer.validated_data["vehicle"]
-        if vehicle not in vehicles_for(self.request.user):
-            raise PermissionDenied("Gari hili si lako.")
-        serializer.save(created_by=self.request.user)
-
-    @action(detail=True, methods=["post"])
-    def solve(self, request, pk=None):
-        if role_of(request.user) not in ("owner", "manager"):
-            raise PermissionDenied("Owner au manager pekee ndiye anaweza kutatua changamoto.")
-        obj = self.get_object()
-        obj.status = "resolved"
-        obj.resolved_at = _tz.now()
-        obj.resolved_by = request.user
-        obj.save(update_fields=["status", "resolved_at", "resolved_by"])
-        return Response(self.get_serializer(obj).data)
-
-
-class MeProfileView(APIView):
-    """Profile and appearance for the signed-in user. Works for owner, manager and driver."""
+    """Profile of the signed-in user (any role). GET reads, PATCH edits name, phone, photo and appearance."""
     permission_classes = [IsAuthenticated]
 
     def _payload(self, user):
+        m = membership_of(user)
         p = _profile(user)
-        m = Membership.objects.filter(user=user).select_related("business_owner").first()
         return {
             "username": user.username,
             "email": user.email,
+            "first_name": user.first_name,
             "role": m.role if m else "owner",
             "business_owner": m.business_owner.username if m else user.username,
             "full_name": p.full_name,
@@ -658,15 +528,22 @@ class MeProfileView(APIView):
 
     def patch(self, request):
         p = _profile(request.user)
+        m = membership_of(request.user)
         d = request.data
+        if "first_name" in d:
+            request.user.first_name = str(d.get("first_name") or "")[:150]
+            request.user.save(update_fields=["first_name"])
         if "full_name" in d:
-            p.full_name = str(d.get("full_name", ""))[:120]
-        if "phone" in d:
-            p.phone = str(d.get("phone", ""))[:20]
+            p.full_name = str(d.get("full_name") or "")[:120]
         if "business_name" in d:
-            p.business_name = str(d.get("business_name", ""))[:120]
+            p.business_name = str(d.get("business_name") or "")[:120]
+        if "phone" in d:
+            p.phone = str(d.get("phone") or "")[:20]
+            if m:
+                m.phone = p.phone
+                m.save(update_fields=["phone"])
         if "avatar" in d:
-            avatar = str(d.get("avatar", ""))
+            avatar = str(d.get("avatar") or "")
             if avatar and not _is_safe_image(avatar):
                 return Response({"avatar": "Picha lazima iwe png, jpg, webp au gif."}, status=400)
             if len(avatar) > MAX_AVATAR_CHARS:
@@ -681,7 +558,6 @@ class MeProfileView(APIView):
                 return Response({"background": "Mandhari hii haipo."}, status=400)
             p.background = d["background"]
         if "accent" in d:
-            import re
             if not re.fullmatch(r"#[0-9a-fA-F]{6}", str(d["accent"])):
                 return Response({"accent": "Rangi lazima iwe kama #f97316."}, status=400)
             p.accent = d["accent"]
@@ -689,18 +565,47 @@ class MeProfileView(APIView):
         return Response(self._payload(request.user))
 
 
-from rest_framework.authtoken.models import Token
-from rest_framework.permissions import AllowAny
-from rest_framework.decorators import api_view, permission_classes as _pc
+# Jina la zamani, ili urls zilizopo zisivunjike.
+MeProfileView = MeView
 
 
-from rest_framework.decorators import throttle_classes as _tc
-from core.throttles import RegisterThrottle
+class ChallengeViewSet(viewsets.ModelViewSet):
+    """Challenges. Anyone who can see a vehicle can report on it. Only owner and manager can solve."""
+    serializer_class = ChallengeSerializer
+    permission_classes = [IsAuthenticated]
+    http_method_names = ["get", "post", "head", "options"]
+
+    def get_queryset(self):
+        qs = Challenge.objects.filter(vehicle__in=vehicles_for(self.request.user)).select_related("vehicle", "created_by")
+        status_q = self.request.query_params.get("status")
+        vehicle = self.request.query_params.get("vehicle")
+        if status_q in ("open", "resolved"):
+            qs = qs.filter(status=status_q)
+        if vehicle and vehicle.isdigit():
+            qs = qs.filter(vehicle_id=int(vehicle))
+        return qs
+
+    def perform_create(self, serializer):
+        vehicle = serializer.validated_data["vehicle"]
+        if vehicle not in vehicles_for(self.request.user):
+            raise PermissionDenied("Gari hili si lako.")
+        serializer.save(created_by=self.request.user)
+
+    @action(detail=True, methods=["post"])
+    def solve(self, request, pk=None):
+        if role_of(request.user) not in ("owner", "manager"):
+            raise PermissionDenied("Owner au manager pekee ndiye anaweza kutatua changamoto.")
+        obj = self.get_object()
+        obj.status = "resolved"
+        obj.resolved_at = timezone.now()
+        obj.resolved_by = request.user
+        obj.save(update_fields=["status", "resolved_at", "resolved_by"])
+        return Response(self.get_serializer(obj).data)
 
 
 @api_view(["POST"])
-@_pc([AllowAny])
-@_tc([RegisterThrottle])
+@permission_classes([AllowAny])
+@throttle_classes([RegisterThrottle])
 def register_owner(request):
     """Owner self-registration: creates the owner account and returns a login token."""
     d = request.data
@@ -709,7 +614,7 @@ def register_owner(request):
     if missing:
         return Response({"detail": "Jaza sehemu zote zilizo na *."}, status=400)
     email = str(d["email"]).strip().lower()
-    if len(str(d["password"])) < 6:
+    if len(str(d["password"])) < MIN_PASSWORD_LEN:
         return Response({"detail": "Nenosiri lazima liwe na herufi 6 au zaidi."}, status=400)
     if get_user_model().objects.filter(username=email).exists():
         return Response({"detail": "Email hii imeshasajiliwa."}, status=400)
@@ -719,21 +624,22 @@ def register_owner(request):
     token, _ = Token.objects.get_or_create(user=user)
     return Response({"token": token.key, "username": user.username}, status=201)
 
-# ==============================================================================
-# HEALTH CHECK VIEW (Kwa ajili ya Cron-Job kulinda Database isilale)
-# ==============================================================================
-from django.db import connection
-from rest_framework.decorators import api_view, permission_classes
-from rest_framework.permissions import AllowAny
-from rest_framework.response import Response
 
-@api_view(['GET'])
+# ---------------------------------------------------------------- health check (cron-job.org)
+
+from django.db import connection
+
+
+@api_view(["GET"])
 @permission_classes([AllowAny])
 def health_check(request):
+    # Haturudishi ujumbe wa exception kwa umma; logs zinabaki Render.
     try:
         with connection.cursor() as cursor:
             cursor.execute("SELECT 1")
             cursor.fetchone()
         return Response({"status": "ok", "database": "awake"}, status=200)
-    except Exception as e:
-        return Response({"status": "error", "details": str(e)}, status=500)
+    except Exception:
+        import logging
+        logging.getLogger(__name__).exception("health check failed")
+        return Response({"status": "error"}, status=500)
