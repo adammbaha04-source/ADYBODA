@@ -567,3 +567,39 @@
   color: #94a3b8;
   margin-top: 10px;
 }
+/* =====================================================
+   CHARTBOT INLINE (NDANI YA TAB)
+===================================================== */
+
+.chartbot-inline-container {
+  display: flex;
+  justify-content: center;
+  width: 100%;
+  min-height: 70vh;
+  padding: 10px 0;
+}
+
+.chartbot-window-inline {
+  width: 100%;
+  max-width: 900px; /* Upana mkubwa kidogo kwa desktop */
+  height: 75vh; /* Urefu wa kutosha ndani ya tab */
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  background: #f7f9fd;
+  border: 1px solid #e2e8f0;
+  border-radius: 20px;
+  box-shadow: 0 10px 30px rgba(0,0,0,0.08);
+}
+
+/* Rekebisha rangi ya overlay kuwa nyeupe kwa sababu sasa iko ndani ya ukurasa */
+.chartbot-window-inline .chartbot-header {
+  border-radius: 20px 20px 0 0;
+}
+
+@media (max-width: 600px) {
+  .chartbot-window-inline {
+    height: 80vh;
+    border-radius: 16px;
+  }
+}
