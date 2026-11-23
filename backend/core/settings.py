@@ -102,10 +102,22 @@ if not DEBUG:
     SECURE_SSL_REDIRECT = True
     SESSION_COOKIE_SECURE = True
     CSRF_COOKIE_SECURE = True
+    # HSTS: browser itakumbuka kutumia https pekee kwa mwaka mzima.
+    SECURE_HSTS_SECONDS = 31536000
+    SECURE_HSTS_INCLUDE_SUBDOMAINS = True
+    SECURE_CONTENT_TYPE_NOSNIFF = True
+    SESSION_COOKIE_HTTPONLY = True
 
-# CORS SETTINGS - Kufungua kila kitu kwa sasa
-CORS_ALLOW_ALL_ORIGINS = True
-CORS_ALLOW_CREDENTIALS = True
+# CORS: ni app yako tu (adyboda.pages.dev) inayoruhusiwa kuongea na API hii.
+# Ukiongeza domain nyingine baadaye, iweke kwenye CORS_EXTRA_ORIGINS (Render > Environment), zitenganishe kwa koma.
+CORS_ALLOWED_ORIGINS = [
+    "https://adyboda.pages.dev",
+    "http://localhost:5173",
+] + [o.strip() for o in os.environ.get('CORS_EXTRA_ORIGINS', '').split(',') if o.strip()]
+# Toleo la majaribio la Cloudflare (mfano abc123.adyboda.pages.dev)
+CORS_ALLOWED_ORIGIN_REGEXES = [r"^https://[a-z0-9-]+\.adyboda\.pages\.dev$"]
+# App inatumia Token kwenye header, haihitaji cookies, kwa hiyo credentials zimezimwa.
+CORS_ALLOW_CREDENTIALS = False
 # Frontend inatuma header ya Cache-Control, hivyo lazima iruhusiwe kwenye preflight
 CORS_ALLOW_HEADERS = list(default_headers) + ["cache-control"]
 
@@ -115,10 +127,19 @@ CSRF_TRUSTED_ORIGINS = [
 ]
 
 REST_FRAMEWORK = {
+    # Token pekee: bila cookies hakuna mlango wa CSRF kwenye API.
     "DEFAULT_AUTHENTICATION_CLASSES": [
         "rest_framework.authentication.TokenAuthentication",
-        "rest_framework.authentication.SessionAuthentication",
     ],
     "DEFAULT_PERMISSION_CLASSES": ["rest_framework.permissions.IsAuthenticated"],
     "DEFAULT_PAGINATION_CLASS": None,
+    # Kinga dhidi ya kubahatisha nenosiri (login/register) na matumizi kupita kiasi.
+    "DEFAULT_THROTTLE_CLASSES": [
+        "rest_framework.throttling.AnonRateThrottle",
+        "rest_framework.throttling.UserRateThrottle",
+    ],
+    "DEFAULT_THROTTLE_RATES": {
+        "anon": "30/min",
+        "user": "600/min",
+    },
 }
