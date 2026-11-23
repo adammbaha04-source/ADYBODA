@@ -464,6 +464,14 @@ from fleet.models import UserProfile, Challenge
 from fleet.serializers import ChallengeSerializer
 
 MAX_PHOTO_CHARS = 200_000   # about 150 KB as a data URL
+
+import re as _re
+# Picha za kawaida pekee. SVG na aina nyingine (zinazoweza kubeba script) zinakataliwa.
+_SAFE_IMAGE = _re.compile(r"^data:image/(png|jpeg|jpg|webp|gif);base64,[A-Za-z0-9+/=]+$")
+
+
+def _is_safe_image(value):
+    return bool(_SAFE_IMAGE.match(value))
 ALLOWED_SETTINGS = {
     "background": {"adybajaj", "ocean", "emerald", "sunset", "violet"},
     "accent": {"orange", "violet", "blue", "green"},
@@ -508,7 +516,7 @@ class MeView(APIView):
                 m.save(update_fields=["phone"])
         if "photo" in data:
             photo = str(data.get("photo") or "")
-            if photo and not photo.startswith("data:image/"):
+            if photo and not _is_safe_image(photo):
                 return Response({"photo": "Chagua picha (jpg, png)."}, status=400)
             if len(photo) > MAX_PHOTO_CHARS:
                 return Response({"photo": "Picha ni kubwa sana. Chagua picha ndogo (chini ya 150 KB)."}, status=400)
@@ -659,8 +667,8 @@ class MeProfileView(APIView):
             p.business_name = str(d.get("business_name", ""))[:120]
         if "avatar" in d:
             avatar = str(d.get("avatar", ""))
-            if avatar and not avatar.startswith("data:image/"):
-                return Response({"avatar": "Picha lazima iwe image."}, status=400)
+            if avatar and not _is_safe_image(avatar):
+                return Response({"avatar": "Picha lazima iwe png, jpg, webp au gif."}, status=400)
             if len(avatar) > MAX_AVATAR_CHARS:
                 return Response({"avatar": "Picha ni kubwa sana. Chagua picha ndogo."}, status=400)
             p.avatar = avatar
