@@ -14,29 +14,78 @@ PRIMARY_MODEL = os.environ.get("AI_MODEL", "openai/gpt-oss-120b")
 FALLBACK_MODEL = os.environ.get("AI_FALLBACK_MODEL", "openai/gpt-oss-20b")
 MAX_TOOL_ROUNDS = 5
 MAX_TOOL_OUTPUT_CHARS = 14000
+MAX_CHARTS = 3
+CHART_TYPES = ("bar", "line", "pie", "doughnut", "halfpie")
 
-SYSTEM_PROMPT = """Wewe ni AdyBoda AI Analyst, mchambuzi wa biashara ya bajaji Tanzania.
-Jibu kwa Kiswahili rahisi isipokuwa mtumiaji atumie Kiingereza. Unaweza kutumia tools ulizopewa kutafuta data halisi.
-Sheria muhimu:
+SYSTEM_PROMPT = """Wewe ni AdyBoda AI Analyst, mchambuzi mtaalamu wa biashara ya bajaji Tanzania.
+Jibu kwa Kiswahili rahisi isipokuwa mtumiaji atumie Kiingereza.
+
+KUCHAGUA TOOL (tumia data halisi kila mara):
+- matumizi binafsi -> get_personal_expenses
+- service, matairi, vipuri, mafuta ya injini, vitu vilivyonunuliwa -> get_services
+- mapato / marejesho -> get_income_summary
+- malipo (TRA, maegesho, faini, polisi, deni) -> get_payments_summary
+- changamoto -> get_open_challenges / get_today_challenges
+- magari na madereva -> get_vehicle_overview
+Ikiwa swali linahusu zaidi ya kitu kimoja (mfano faida), tumia tools kadhaa.
+Tools zinarudisha jumla tayari (totals_by_category, totals_by_item, totals_by_type, totals_by_vehicle, totals_by_month) zikiwa na asilimia. Tumia jumla hizo; usizihesabu upya kutoka kwenye items.
+"mwezi huu" = kuanzia tarehe 1 ya mwezi wa sasa hadi leo. "mwezi uliopita" = mwezi mzima uliopita.
+
+MUUNDO WA UCHAMBUZI (wa kitaalamu):
+1. Muhtasari: jumla kuu kwa TZS na kipindi.
+2. Mgawanyo kwa item/kundi: taja kila kundi kubwa na kiasi na asilimia yake, kuanzia kubwa hadi ndogo.
+3. Mwenendo: ikiwa kuna miezi zaidi ya mmoja, onyesha kupanda au kushuka.
+4. Ushauri: taja gharama zipi zipunguzwe au zifuatiliwe, kwa nini (kwa kutumia asilimia na kiasi), na makadirio ya kiasi kinachoweza kuokolewa. Eleza pia kilicho sawa.
+5. Hatua 2 hadi 3 zinazotekelezeka.
+Tumia **maneno mazito** kwa vichwa na namba muhimu. Andika kiasi kama TZS 125,000.
+
+CHATI:
+- Tengeneza chati 1 hadi 3 zinazounga mkono uchambuzi: pie au doughnut kwa mgawanyo, bar kwa ulinganisho, line kwa mwenendo wa miezi.
+- Mtumiaji akitaja aina ya chati (pie, half chart, half pie, line, bar), tumia aina hiyo. "half chart" / "half pie" = aina "halfpie".
+- Aina zinazoruhusiwa: bar, line, pie, doughnut, halfpie.
+- Data za chati ziwe namba halisi kutoka kwenye tools. Usibuni.
+
+SHERIA:
 - Usibuni takwimu, majina, tarehe, au matukio. Tumia tu matokeo ya tools.
 - Ikiwa taarifa haipo au tool haijarudisha rekodi, sema wazi.
-- Tofautisha jumla ya rekodi zilizorudishwa na jumla ya rekodi zote ikiwa kuna pagination/limit.
+- Tofautisha jumla ya rekodi zilizorudishwa (items) na jumla ya rekodi zote (total_records) ikiwa kuna limit.
 - Usidai kuwa umetafuta database ikiwa hukuitumia tool.
 - Usitoe taarifa za gari/biashara nyingine; backend imeweka scope ya ruhusa.
-- Toa uchambuzi, sababu zinazoungwa mkono na data, na hatua zinazotekelezeka.
-- Mwisho rudisha JSON PEKEE: {"text":"jibu la Kiswahili","chart":null au {"type":"bar|line|pie|doughnut","title":"...","labels":["..."],"datasets":[{"label":"...","data":[namba]}]}}.
-- Chati iwepo tu pale data ya tools inaunga mkono chati. Data za chart ziwe namba halisi zilizopatikana.
+- Ushauri uungwe mkono na data; usitoe ushauri wa jumla usio na ushahidi.
+
+MUUNDO WA JIBU LA MWISHO: rudisha JSON PEKEE:
+{"text":"uchambuzi wa Kiswahili","charts":[{"type":"bar|line|pie|doughnut|halfpie","title":"...","labels":["..."],"datasets":[{"label":"...","data":[namba]}]}]}
+Ikiwa hakuna chati inayofaa, tumia "charts": [].
 """
 
 
 def _request_groq(api_key, model, messages):
-    payload = {"model": model, "temperature": 0.2, "max_tokens": 2200,
+    payload = {"model": model, "temperature": 0.2, "max_tokens": 3000,
                "messages": messages, "tools": TOOLS, "tool_choice": "auto"}
     req = urllib.request.Request(GROQ_URL, data=json.dumps(payload).encode("utf-8"),
         headers={"Content-Type": "application/json", "Authorization": f"Bearer {api_key}",
                  "User-Agent": "AdyBoda/2.0"}, method="POST")
     with urllib.request.urlopen(req, timeout=60) as response:
         return json.loads(response.read().decode("utf-8"))
+
+
+def _clean_chart(chart):
+    """Validate one chart object; return a safe chart dict or None."""
+    if not isinstance(chart, dict) or chart.get("type") not in CHART_TYPES:
+        return None
+    labels = chart.get("labels", [])
+    datasets = chart.get("datasets", [])
+    if not isinstance(labels, list) or not isinstance(datasets, list) or len(labels) > 30:
+        return None
+    valid = []
+    for ds in datasets[:5]:
+        values = ds.get("data", []) if isinstance(ds, dict) else []
+        if isinstance(values, list) and len(values) == len(labels) and all(isinstance(v, (int, float)) and not isinstance(v, bool) for v in values):
+            valid.append({"label": str(ds.get("label", "Series"))[:80], "data": values})
+    if not valid:
+        return None
+    return {"type": chart["type"], "title": str(chart.get("title", ""))[:120],
+            "labels": [str(x)[:80] for x in labels], "datasets": valid}
 
 
 def _clean_result(content):
@@ -49,34 +98,25 @@ def _clean_result(content):
     try:
         obj = json.loads(content)
         if isinstance(obj, dict) and isinstance(obj.get("text"), str):
-            chart = obj.get("chart")
-            if chart is not None:
-                if not isinstance(chart, dict) or chart.get("type") not in ("bar", "line", "pie", "doughnut"):
-                    chart = None
-                else:
-                    labels = chart.get("labels", [])
-                    datasets = chart.get("datasets", [])
-                    if not isinstance(labels, list) or not isinstance(datasets, list) or len(labels) > 30:
-                        chart = None
-                    else:
-                        valid = []
-                        for ds in datasets[:5]:
-                            values = ds.get("data", []) if isinstance(ds, dict) else []
-                            if isinstance(values, list) and len(values) == len(labels) and all(isinstance(v, (int, float)) and not isinstance(v, bool) for v in values):
-                                valid.append({"label": str(ds.get("label", "Series"))[:80], "data": values})
-                        chart = {"type": chart["type"], "title": str(chart.get("title", ""))[:120], "labels": [str(x)[:80] for x in labels], "datasets": valid} if valid else None
-            return {"text": obj["text"][:8000], "chart": chart}
+            raw_charts = obj.get("charts")
+            if not isinstance(raw_charts, list):
+                raw_charts = [obj.get("chart")] if obj.get("chart") is not None else []
+            charts = [c for c in (_clean_chart(x) for x in raw_charts[:MAX_CHARTS]) if c]
+            # "chart" (first chart) is kept so older screens keep working.
+            return {"text": obj["text"][:8000], "chart": charts[0] if charts else None, "charts": charts}
     except (ValueError, TypeError):
         pass
-    return {"text": content[:8000] or "Samahani, sijapata jibu.", "chart": None}
+    return {"text": content[:8000] or "Samahani, sijapata jibu.", "chart": None, "charts": []}
 
 
 def ask_adyboda(user, question):
     api_key = os.environ.get("GROQ_API_KEY", "").strip()
     if not api_key:
         raise APIException("AI haijawekwa. Weka GROQ_API_KEY kwenye Render.")
+    today = timezone.now().astimezone(ZoneInfo("Africa/Dar_es_Salaam")).date()
+    month_start = today.replace(day=1)
     messages = [
-        {"role": "system", "content": SYSTEM_PROMPT + f"\nTarehe ya leo Tanzania: {timezone.now().astimezone(ZoneInfo('Africa/Dar_es_Salaam')).date().isoformat()}."},
+        {"role": "system", "content": SYSTEM_PROMPT + f"\nTarehe ya leo Tanzania: {today.isoformat()}. Mwezi huu: {month_start.isoformat()} hadi {today.isoformat()}."},
         {"role": "user", "content": question[:2000]},
     ]
     last_error = None

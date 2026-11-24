@@ -30,6 +30,17 @@ def _parse_range(args):
     return start, end
 
 
+def _group(rows, key_fn, amount_fn, key_name):
+    totals = {}
+    for x in rows:
+        k = key_fn(x)
+        totals[k] = totals.get(k, 0) + amount_fn(x)
+    grand = sum(totals.values())
+    return [{key_name: k, "total_tzs": v,
+             "percent": round(v * 100 / grand, 1) if grand else 0}
+            for k, v in sorted(totals.items(), key=lambda kv: -kv[1])]
+
+
 def get_today_challenges(user, args):
     today = _tanzania_today()
     start = timezone.make_aware(datetime.combine(today, time.min), TANZANIA_TZ)
@@ -60,38 +71,48 @@ def get_today_services(user, args):
 def get_services(user, args):
     start, end = _parse_range(args)
     qs = ServiceRecord.objects.filter(vehicle__in=visible_vehicles(user), day__range=(start, end)).select_related("vehicle").order_by("-day", "-id")
+    all_rows = list(qs)
     rows = [{"id": x.id, "vehicle": x.vehicle.name, "day": x.day.isoformat(), "item": x.tool,
              "quantity": x.count, "unit_price_tzs": x.unit_price,
              "total_tzs": x.count * x.unit_price, "seller": x.seller, "note": x.note}
-            for x in qs[:MAX_ROWS]]
-    total = sum(x.count * x.unit_price for x in qs)
+            for x in all_rows[:MAX_ROWS]]
+    amount = lambda x: x.count * x.unit_price
     return {"date_from": start.isoformat(), "date_to": end.isoformat(),
-            "records_returned": len(rows), "total_records": qs.count(),
-            "total_service_tzs": total, "items": rows}
+            "records_returned": len(rows), "total_records": len(all_rows),
+            "total_service_tzs": sum(amount(x) for x in all_rows),
+            "totals_by_item": _group(all_rows, lambda x: x.tool, amount, "item"),
+            "totals_by_vehicle": _group(all_rows, lambda x: x.vehicle.name, amount, "vehicle"),
+            "totals_by_month": sorted(_group(all_rows, lambda x: x.day.strftime("%Y-%m"), amount, "month"), key=lambda r: r["month"]),
+            "items": rows}
 
 
 def get_income_summary(user, args):
     start, end = _parse_range(args)
-    qs = Return.objects.filter(vehicle__in=visible_vehicles(user), day__range=(start, end)).select_related("vehicle")
+    qs = Return.objects.filter(vehicle__in=visible_vehicles(user), day__range=(start, end)).select_related("vehicle").order_by("-day", "-id")
+    all_rows = list(qs)
     rows = [{"vehicle": x.vehicle.name, "day": x.day.isoformat(), "amount_tzs": x.amount,
-             "is_excess": x.is_excess, "note": x.note} for x in qs.order_by("-day", "-id")[:MAX_ROWS]]
+             "is_excess": x.is_excess, "note": x.note} for x in all_rows[:MAX_ROWS]]
+    amount = lambda x: x.amount
     return {"date_from": start.isoformat(), "date_to": end.isoformat(),
-            "total_records": qs.count(), "total_collected_tzs": sum(x.amount for x in qs),
+            "total_records": len(all_rows), "total_collected_tzs": sum(amount(x) for x in all_rows),
+            "totals_by_vehicle": _group(all_rows, lambda x: x.vehicle.name, amount, "vehicle"),
+            "totals_by_month": sorted(_group(all_rows, lambda x: x.day.strftime("%Y-%m"), amount, "month"), key=lambda r: r["month"]),
             "items": rows}
 
 
 def get_payments_summary(user, args):
     start, end = _parse_range(args)
-    qs = PaymentRecord.objects.filter(vehicle__in=visible_vehicles(user), day__range=(start, end)).select_related("vehicle")
+    qs = PaymentRecord.objects.filter(vehicle__in=visible_vehicles(user), day__range=(start, end)).select_related("vehicle").order_by("-day", "-id")
+    all_rows = list(qs)
     rows = [{"vehicle": x.vehicle.name, "day": x.day.isoformat(), "type": x.get_payment_type_display(),
-             "amount_tzs": x.amount, "note": x.note} for x in qs.order_by("-day", "-id")[:MAX_ROWS]]
-    totals = {}
-    # Aggregate in Python without relying on database-specific JSON behavior.
-    for x in qs.only("payment_type", "amount"):
-        totals[x.payment_type] = totals.get(x.payment_type, 0) + x.amount
+             "amount_tzs": x.amount, "note": x.note} for x in all_rows[:MAX_ROWS]]
+    amount = lambda x: x.amount
     return {"date_from": start.isoformat(), "date_to": end.isoformat(),
-            "total_records": qs.count(), "total_paid_tzs": sum(x.amount for x in qs),
-            "totals_by_type_tzs": totals, "items": rows}
+            "total_records": len(all_rows), "total_paid_tzs": sum(amount(x) for x in all_rows),
+            "totals_by_type": _group(all_rows, lambda x: x.get_payment_type_display(), amount, "type"),
+            "totals_by_vehicle": _group(all_rows, lambda x: x.vehicle.name, amount, "vehicle"),
+            "totals_by_month": sorted(_group(all_rows, lambda x: x.day.strftime("%Y-%m"), amount, "month"), key=lambda r: r["month"]),
+            "items": rows}
 
 
 def get_open_challenges(user, args):
