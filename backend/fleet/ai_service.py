@@ -1,6 +1,7 @@
 """Groq tool-calling orchestration for AdyBoda ChartBot."""
 import json
 import os
+import re
 import urllib.error
 import urllib.request
 from django.utils import timezone
@@ -53,8 +54,8 @@ SHERIA:
 - Usitoe taarifa za gari/biashara nyingine; backend imeweka scope ya ruhusa.
 - Ushauri uungwe mkono na data; usitoe ushauri wa jumla usio na ushahidi.
 
-MUUNDO WA JIBU LA MWISHO: rudisha JSON PEKEE:
-{"text":"uchambuzi wa Kiswahili","charts":[{"type":"bar|line|pie|doughnut|halfpie","title":"...","labels":["..."],"datasets":[{"label":"...","data":[namba]}]}]}
+MUUNDO WA JIBU LA MWISHO: rudisha kitu kimoja tu, JSON object. Uchambuzi WOTE (muhtasari, mgawanyo, mwenendo, ushauri, hatua) uandikwe ndani ya sehemu ya "text". Usiandike maandishi yoyote nje ya JSON, wala ```.
+Umbo: {"text": <uchambuzi kamili kwa Kiswahili>, "charts": [ {"type": <bar|line|pie|doughnut|halfpie>, "title": <kichwa>, "labels": [<majina>], "datasets": [ {"label": <jina>, "data": [<namba>]} ]} ]}
 Ikiwa hakuna chati inayofaa, tumia "charts": [].
 """
 
@@ -88,24 +89,48 @@ def _clean_chart(chart):
             "labels": [str(x)[:80] for x in labels], "datasets": valid}
 
 
-def _clean_result(content):
-    content = (content or "").strip()
-    # Support JSON object returned inside markdown fences, while preferring strict JSON.
-    if content.startswith("```"):
-        content = content.strip("`")
-        if content.lower().startswith("json"):
-            content = content[4:].strip()
+def _find_json(content):
+    """Return (object, leftover_text). Handles pure JSON, fenced JSON, or JSON after prose."""
     try:
         obj = json.loads(content)
-        if isinstance(obj, dict) and isinstance(obj.get("text"), str):
-            raw_charts = obj.get("charts")
-            if not isinstance(raw_charts, list):
-                raw_charts = [obj.get("chart")] if obj.get("chart") is not None else []
-            charts = [c for c in (_clean_chart(x) for x in raw_charts[:MAX_CHARTS]) if c]
-            # "chart" (first chart) is kept so older screens keep working.
-            return {"text": obj["text"][:8000], "chart": charts[0] if charts else None, "charts": charts}
+        if isinstance(obj, dict):
+            return obj, ""
     except (ValueError, TypeError):
         pass
+    m = re.search(r"```(?:json)?\s*(\{.*\})\s*```", content, re.S)
+    if m:
+        try:
+            obj = json.loads(m.group(1))
+            if isinstance(obj, dict):
+                return obj, content[:m.start()] + content[m.end():]
+        except (ValueError, TypeError):
+            pass
+    start, end = content.find("{"), content.rfind("}")
+    if start != -1 and end > start:
+        try:
+            obj = json.loads(content[start:end + 1])
+            if isinstance(obj, dict):
+                return obj, content[:start] + content[end + 1:]
+        except (ValueError, TypeError):
+            pass
+    return None, content
+
+
+def _clean_result(content):
+    content = (content or "").strip()
+    obj, rest = _find_json(content)
+    if obj is not None and ("charts" in obj or "chart" in obj or isinstance(obj.get("text"), str)):
+        raw_charts = obj.get("charts")
+        if not isinstance(raw_charts, list):
+            raw_charts = [obj.get("chart")] if obj.get("chart") is not None else []
+        charts = [c for c in (_clean_chart(x) for x in raw_charts[:MAX_CHARTS]) if c]
+        obj_text = obj["text"] if isinstance(obj.get("text"), str) else ""
+        # If the model wrote the analysis outside the JSON, keep that and drop a dangling "Chati" heading.
+        rest = re.sub(r"\s*(?:\*\*)?Chati(?:\*\*)?\s*:?\s*$", "", rest.strip(), flags=re.I).strip()
+        text = rest if len(rest) >= 40 else (obj_text or rest)
+        # "chart" (first chart) is kept so older screens keep working.
+        return {"text": (text or "Samahani, sijapata jibu.")[:8000],
+                "chart": charts[0] if charts else None, "charts": charts}
     return {"text": content[:8000] or "Samahani, sijapata jibu.", "chart": None, "charts": []}
 
 
