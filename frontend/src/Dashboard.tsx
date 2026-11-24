@@ -14,10 +14,11 @@ import UsersPage from "./UsersPage";
 import ProfilePage from "./ProfilePage";
 import SettingsPage from "./SettingsPage";
 import Analytics from "./Analytics"; // <-- IMPORT MPYA YA ANALYTICS
+import AIChatPage from "./AIChatPage"; // <-- ChartBot kwenye menyu
 import type { Vehicle } from "./types";
 
 // Pages that do not use the month/period card.
-const NO_PERIOD: View[] = ["profile", "settings", "changamoto", "users"];
+const NO_PERIOD: View[] = ["profile", "settings", "changamoto", "users", "chatbot"];
 
 export default function Dashboard({ onLogout }: { onLogout: () => void }) {
   const [vehicles, setVehicles] = useState<Vehicle[]>([]);
@@ -197,6 +198,9 @@ export default function Dashboard({ onLogout }: { onLogout: () => void }) {
         
         {/* HAPA NDIPO ANALYTICS INAPOINGIA BADALA YA REPORTS ZA GRAFYS */}
         {view === "grafu" && <Analytics vehicles={vehicles} month={month} />}
+
+        {/* ChartBot: inafunguka mtu akibonyeza menyu, na kufunga kunarudi Vehicles */}
+        {view === "chatbot" && <AIChatPage vehicles={vehicles} month={month} onClose={() => go("vehicles")} />}
         
         {view === "ripoti" && <ReportsPage mode="report" vehicles={vehicles} month={month} onMonthChange={setMonth} />}
         {view === "users" && <UsersPage vehicles={vehicles} />}

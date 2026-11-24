@@ -3,12 +3,11 @@ import GraphsView from "./GraphsView";
 import { monthLabel, tsh } from "./format";
 import { downloadReportPdf, getReportV3, type ReportV3 } from "./reportApi";
 import type { Vehicle } from "./types";
-import AIChart from "./AIChart";
 import "./report.css";
 import "./reports-controls.css";
 
 type Kind = "month" | "q1" | "q2" | "q3" | "q4" | "year" | "custom";
-type ViewTab = "report" | "graphs" | "chatbot";
+type ViewTab = "report" | "graphs";
 
 const QUARTERS: { kind: Kind; label: string; range: string }[] = [
   { kind: "q1", label: "Q1", range: "Jan – Mar" },
@@ -73,7 +72,7 @@ export default function ReportsPage({
   const [loading, setLoading] = useState(false);
   const [pdfBusy, setPdfBusy] = useState(false);
   
-  // STATE MPYA KWA AJILI YA TABS
+  // STATE KWA AJILI YA TABS
   const [activeTab, setActiveTab] = useState<ViewTab>("report");
 
   const year = Number(month.slice(0, 4)) || thisYear();
@@ -145,7 +144,7 @@ export default function ReportsPage({
 
   return (
     <div className="reports">
-      {/* ====== TABS MPYA ZA JUU ====== */}
+      {/* ====== TABS ZA JUU: Ripoti na Grafu tu ====== */}
       <div className="flex gap-2 mb-4 border-b border-gray-200 overflow-x-auto">
         <button
           className={`px-4 py-2 font-bold whitespace-nowrap ${activeTab === 'report' ? 'text-blue-600 border-b-2 border-blue-600' : 'text-gray-500'}`}
@@ -158,12 +157,6 @@ export default function ReportsPage({
           onClick={() => setActiveTab('graphs')}
         >
           📊 Grafu
-        </button>
-        <button
-          className={`px-4 py-2 font-bold whitespace-nowrap ${activeTab === 'chatbot' ? 'text-blue-600 border-b-2 border-blue-600' : 'text-gray-500'}`}
-          onClick={() => setActiveTab('chatbot')}
-        >
-          🤖 ChartBot
         </button>
       </div>
 
@@ -208,7 +201,6 @@ export default function ReportsPage({
             <button className="btn-add" onClick={pdf} disabled={!data || pdfBusy}>{pdfBusy ? "Inaandaa PDF..." : "Download PDF"}</button>
             <button className="btn-add alt" onClick={downloadCsv} disabled={!data}>Download CSV</button>
             <button className="btn-add alt" onClick={() => window.print()} disabled={!data}>Print</button>
-            {/* Button ya AI imeondolewa hapa */}
           </div>
         )}
         {loading && <p className="hint">Inapakia...</p>}
@@ -366,14 +358,7 @@ export default function ReportsPage({
         </article>
       )}
 
-      {/* TAB 2: CHATBOT */}
-      {activeTab === "chatbot" && data && (
-        <div className="mt-4">
-          <AIChart report={data} />
-        </div>
-      )}
-
-      {/* TAB 3: GRAF */}
+      {/* TAB 2: GRAFU */}
       {data && activeTab === "graphs" && (
         <GraphsView data={data} expCats={expCats} period={periodText} />
       )}

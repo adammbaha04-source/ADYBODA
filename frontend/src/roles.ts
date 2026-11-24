@@ -4,7 +4,7 @@ export type Role = "owner" | "manager" | "driver";
 
 export type View =
   | "vehicles" | "income" | "service" | "debt" | "changamoto" | "ripoti"
-  | "grafu" | "users" | "profile" | "settings";
+  | "grafu" | "chatbot" | "users" | "profile" | "settings";
 
 export interface MenuItem { key: View; label: string; icon: string; }
 
@@ -16,6 +16,7 @@ export const MENU: MenuItem[] = [
   { key: "changamoto", label: "Changamoto", icon: "⚠️" },
   { key: "ripoti", label: "Ripoti", icon: "📊" },
   { key: "grafu", label: "Grafu", icon: "📈" },
+  { key: "chatbot", label: "ChartBot", icon: "🤖" },
   { key: "users", label: "Users", icon: "👥" },
   { key: "profile", label: "Profile", icon: "👤" },
   { key: "settings", label: "Settings", icon: "⚙️" },
