@@ -202,7 +202,7 @@ export default function Dashboard({ onLogout }: { onLogout: () => void }) {
         {/* ChartBot: inafunguka mtu akibonyeza menyu, na kufunga kunarudi Vehicles */}
         {view === "chatbot" && <AIChatPage vehicles={vehicles} month={month} onClose={() => go("vehicles")} />}
         
-        {view === "ripoti" && <ReportsPage mode="report" vehicles={vehicles} month={month} onMonthChange={setMonth} />}
+        {view === "ripoti" && <ReportsPage vehicles={vehicles} month={month} onMonthChange={setMonth} />}
         {view === "users" && <UsersPage vehicles={vehicles} />}
         {view === "profile" && <ProfilePage onChanged={(p) => applyAppearance(p)} />}
         {view === "settings" && <SettingsPage />}
