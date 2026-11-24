@@ -37,7 +37,7 @@ interface AIChartProps {
 interface Message {
   role: "user" | "ai";
   text: string;
-  chart?: any;
+  charts?: any[];
   action?: "download-report-pdf";
   pdfStatus?: "idle" | "loading" | "success" | "error";
 }
@@ -56,10 +56,22 @@ const QUICK_PROMPTS = [
     category: "FEDHA",
   },
   {
+    icon: "🧾",
+    title: "Matumizi binafsi",
+    text: "Matumizi yangu binafsi mwezi huu yapoje? Nipe uchambuzi kwa items na ushauri ipi ipunguzwe",
+    category: "MATUMIZI",
+  },
+  {
     icon: "🛠️",
     title: "Huduma za magari",
     text: "Nichambulia service za magari yangu mwezi huu",
     category: "MATENGENEZO",
+  },
+  {
+    icon: "💳",
+    title: "Malipo",
+    text: "Chambua malipo yote mwezi huu (TRA, maegesho, faini, deni)",
+    category: "MALIPO",
   },
   {
     icon: "⛽",
@@ -87,7 +99,19 @@ const COLORS = [
   "#F59E0B",
   "#EF4444",
   "#8B5CF6",
+  "#06B6D4",
+  "#EC4899",
+  "#84CC16",
+  "#F97316",
+  "#64748B",
 ];
+
+const CIRCULAR_TYPES = ["pie", "doughnut", "halfpie"];
+
+const formatNumber = (value: any) => {
+  const n = Number(value);
+  return Number.isFinite(n) ? n.toLocaleString("en-US") : String(value);
+};
 
 // PDF requests are app actions, not questions for the language model.
 // This first version exports the report currently selected on the Reports page.
@@ -114,6 +138,28 @@ const formatText = (text: string) => {
     }
     return <span key={i}>{part}</span>;
   });
+};
+
+// Turns one chart from the server into the data Chart.js needs.
+const buildChartPayload = (chart: any) => {
+  const circular = CIRCULAR_TYPES.includes(chart.type);
+  return {
+    labels: chart.labels,
+    datasets: chart.datasets.map((d: any, index: number) => ({
+      label: d.label,
+      data: d.data,
+      backgroundColor: circular
+        ? chart.labels.map((_: any, i: number) => COLORS[i % COLORS.length])
+        : COLORS[index % COLORS.length],
+      borderColor: circular ? "#FFFFFF" : COLORS[index % COLORS.length],
+      borderWidth: 2,
+      borderRadius: circular ? 0 : 8,
+      tension: 0.4,
+      fill: false,
+    })),
+    type: chart.type,
+    title: chart.title,
+  };
 };
 
 export default function AIChart({ report, autoOpen = false, onClose }: AIChartProps) {
@@ -216,38 +262,27 @@ export default function AIChart({ report, autoOpen = false, onClose }: AIChartPr
 
     try {
       const res = await getAIChart(q, report);
+      const result: any = res.result;
 
-      const aiText =
-        res.result?.text || "Samahani, sikuweza kupata majibu.";
+      const aiText = result?.text || "Samahani, sikuweza kupata majibu.";
 
-      let chartPayload = null;
+      // The server sends "charts" (up to 3). Older replies had a single "chart".
+      const rawCharts: any[] = Array.isArray(result?.charts)
+        ? result.charts
+        : result?.chart
+          ? [result.chart]
+          : [];
 
-      if (res.result?.chart) {
-        chartPayload = {
-          labels: res.result.chart.labels,
-          datasets: res.result.chart.datasets.map(
-            (d: any, index: number) => ({
-              label: d.label,
-              data: d.data,
-              backgroundColor: COLORS[index % COLORS.length],
-              borderColor: COLORS[index % COLORS.length],
-              borderWidth: 2,
-              borderRadius: 8,
-              tension: 0.4,
-              fill: false,
-            })
-          ),
-          type: res.result.chart.type,
-          title: res.result.chart.title,
-        };
-      }
+      const charts = rawCharts
+        .filter((c: any) => c && Array.isArray(c.labels) && Array.isArray(c.datasets))
+        .map(buildChartPayload);
 
       setMessages((prev) => [
         ...prev,
         {
           role: "ai",
           text: aiText,
-          chart: chartPayload,
+          charts,
         },
       ]);
     } catch (error) {
@@ -266,14 +301,21 @@ export default function AIChart({ report, autoOpen = false, onClose }: AIChartPr
   }
 
   function renderChart(chart: any) {
+    const isHalf = chart.type === "halfpie";
+    const isCircular = CIRCULAR_TYPES.includes(chart.type);
+
     const options: any = {
       responsive: true,
       maintainAspectRatio: false,
 
       interaction: {
-        intersect: false,
-        mode: "index",
+        intersect: isCircular,
+        mode: isCircular ? "nearest" : "index",
       },
+
+      ...(isHalf
+        ? { rotation: -90, circumference: 180, cutout: "55%" }
+        : {}),
 
       plugins: {
         legend: {
@@ -308,6 +350,13 @@ export default function AIChart({ report, autoOpen = false, onClose }: AIChartPr
           backgroundColor: "#10264B",
           padding: 12,
           cornerRadius: 10,
+          callbacks: {
+            label: (ctx: any) => {
+              const value = isCircular ? ctx.parsed : ctx.parsed?.y;
+              const label = isCircular ? ctx.label : ctx.dataset?.label;
+              return `${label ?? ""}: ${formatNumber(value)}`;
+            },
+          },
         },
       },
 
@@ -324,6 +373,7 @@ export default function AIChart({ report, autoOpen = false, onClose }: AIChartPr
                 },
                 ticks: {
                   color: "#94A3B8",
+                  callback: (value: any) => formatNumber(value),
                 },
               },
 
@@ -355,6 +405,7 @@ export default function AIChart({ report, autoOpen = false, onClose }: AIChartPr
         return <Pie data={data} options={options} />;
 
       case "doughnut":
+      case "halfpie":
         return <Doughnut data={data} options={options} />;
 
       default:
@@ -538,8 +589,8 @@ export default function AIChart({ report, autoOpen = false, onClose }: AIChartPr
                         {formatText(msg.text)}
                       </div>
 
-                      {msg.chart && (
-                        <div className="chart-result-card">
+                      {msg.charts && msg.charts.map((chart, chartIdx) => (
+                        <div className="chart-result-card" key={chartIdx}>
                           <div className="chart-card-heading">
                             <span>📊</span>
                             <strong>Business Analytics</strong>
@@ -549,10 +600,10 @@ export default function AIChart({ report, autoOpen = false, onClose }: AIChartPr
                           </div>
 
                           <div className="chart-container">
-                            {renderChart(msg.chart)}
+                            {renderChart(chart)}
                           </div>
                         </div>
-                      )}
+                      ))}
 
                       {msg.action === "download-report-pdf" && (
                         <div className="chartbot-pdf-action">
