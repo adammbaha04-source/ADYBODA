@@ -1,0 +1,136 @@
+/* =========================================================
+   ADYBODA REPORTS v3 - additions on top of reports-v2.css
+   Load AFTER reports-v2.css. Adds: speedometer gauge, banner with
+   vehicle picture, image icons, trend badges, profit statement.
+   ========================================================= */
+
+/* ---------- Banner with fleet summary and vehicle picture ---------- */
+.rp-banner3 {
+  position: relative; overflow: hidden;
+  display: grid; grid-template-columns: 1fr; gap: 10px;
+  padding: 16px 18px; min-height: 120px;
+}
+.rp-banner-fleet {
+  display: flex; flex-direction: column; gap: 2px; padding-left: 14px;
+  border-left: 1px solid rgba(255, 255, 255, .35); font-size: 12px; opacity: .95;
+}
+.rp-banner-fleet b { font-size: 16px; font-weight: 800; }
+.rp-banner-pics {
+  position: absolute; right: 8px; bottom: -4px; display: flex; align-items: flex-end; gap: 6px;
+  pointer-events: none;
+}
+.rp-banner-pics img { height: 104px; width: auto; filter: drop-shadow(0 6px 8px rgba(0, 0, 0, .35)); }
+.rp-banner-pics svg { color: #fbbf24; filter: drop-shadow(0 4px 6px rgba(0, 0, 0, .35)); }
+.rp-banner-top { display: flex; align-items: center; gap: 14px; padding-right: 130px; }
+@media (min-width: 720px) {
+  .rp-banner3 { grid-template-columns: auto auto 1fr; align-items: center; }
+  .rp-banner-top { padding-right: 0; }
+  .rp-banner-pics img { height: 118px; }
+}
+
+/* ---------- Stat tiles with picture icons ---------- */
+.v2-stat.tone-blue { background: linear-gradient(180deg, #e8f1ff, #fff 60%); }
+.v2-stat.tone-blue .v2-stat-value { color: #1d4ed8; }
+.v2-stat.tone-blue::after { background: #2563eb; }
+.rp-stat-img { width: 44px; height: 44px; object-fit: contain; margin-bottom: 2px; }
+.rp-stat-sub { font-size: 11px; font-weight: 800; }
+.rp-stat-sub.red { color: #dc2626; }
+.rp-stat-sub.green { color: #15803d; }
+
+/* ---------- Trend badge ---------- */
+.rp-trend {
+  display: inline-flex; align-items: center; gap: 3px; width: fit-content;
+  font-size: 11px; font-weight: 800; border-radius: 999px; padding: 1px 7px;
+  font-variant-numeric: tabular-nums;
+}
+.rp-trend.good { background: #dcfce7; color: #15803d; }
+.rp-trend.bad { background: #fee2e2; color: #dc2626; }
+.rp-trend.flat, .rp-trend.new { background: #e8edf5; color: #475569; }
+
+/* ---------- Speedometer gauge ---------- */
+.rp-gauge { width: 100%; max-width: 300px; margin: 0 auto; text-align: center; }
+.rp-gauge svg { width: 100%; height: auto; display: block; overflow: visible; }
+.rp-needle { transition: transform 1s cubic-bezier(.2, .8, .2, 1); }
+.rp-gauge-title { margin: 2px 0 0; font-size: 13px; font-weight: 800; color: #1e3a6e; }
+.rp-gauge-sub { margin: 0; font-size: 11px; color: #64748b; }
+@media (prefers-reduced-motion: reduce) { .rp-needle { transition: none; } }
+.rp-gauge-row { display: grid; grid-template-columns: 1fr; gap: 14px; align-items: center; }
+@media (min-width: 720px) { .rp-gauge-row { grid-template-columns: 300px 1fr; } }
+
+/* ---------- Layout helpers inside cards ---------- */
+.rp-stack { display: flex; flex-direction: column; gap: 14px; }
+.rp-sub {
+  margin: 0; font-size: 13px; font-weight: 800; color: #0a2f78;
+  padding-bottom: 6px; border-bottom: 2px solid #1566e0; width: fit-content;
+}
+.rp-note { margin: 0; font-size: 12px; line-height: 1.6; color: #475569; }
+.rp-kpis { display: grid; grid-template-columns: repeat(2, 1fr); gap: 10px; }
+.rp-kpi {
+  border: 1px solid #e3ebf7; background: #f7faff; border-radius: 14px; padding: 11px 12px;
+  display: flex; flex-direction: column; gap: 3px; min-width: 0;
+}
+.rp-kpi span { font-size: 12px; color: #475569; font-weight: 700; }
+.rp-kpi b { font-size: 16px; font-weight: 900; font-variant-numeric: tabular-nums; overflow-wrap: anywhere; }
+.rp-kpi small { font-size: 11px; color: #64748b; }
+.rp-kpi.green b { color: #15803d; }
+.rp-kpi.red b { color: #dc2626; }
+.rp-kpi.orange b { color: #ea580c; }
+.rp-kpi.blue b { color: #1d4ed8; }
+.rp-kpi.purple b { color: #7c3aed; }
+@media (min-width: 720px) {
+  .rp-kpis.three { grid-template-columns: repeat(3, 1fr); }
+  .rp-kpis.four { grid-template-columns: repeat(4, 1fr); }
+}
+
+/* ---------- Weekly chips ---------- */
+.rp-chips { display: grid; grid-template-columns: repeat(auto-fit, minmax(92px, 1fr)); gap: 8px; }
+.rp-chip { border: 1px solid #e3ebf7; border-radius: 12px; padding: 8px 10px; display: flex; flex-direction: column; gap: 2px; }
+.rp-chip span { font-size: 11px; font-weight: 700; color: #475569; }
+.rp-chip b { font-size: 13px; font-variant-numeric: tabular-nums; }
+
+/* ---------- Profit and loss statement ---------- */
+.rp-statement { display: flex; flex-direction: column; border: 1px solid #e3ebf7; border-radius: 14px; overflow: hidden; }
+.rp-line {
+  display: flex; justify-content: space-between; gap: 10px; padding: 10px 12px; font-size: 13px;
+  border-bottom: 1px solid #e3ebf7; font-variant-numeric: tabular-nums;
+}
+.rp-line:last-child { border-bottom: 0; }
+.rp-line span { color: #475569; font-weight: 600; }
+.rp-line b { font-weight: 800; white-space: nowrap; }
+.rp-line.plus b { color: #15803d; }
+.rp-line.minus b { color: #dc2626; }
+.rp-line.result { background: #f1f7ff; font-size: 15px; }
+.rp-line.result span { color: #0f2a55; font-weight: 800; }
+.rp-line.result.profit b { color: #15803d; }
+.rp-line.result.loss b { color: #dc2626; }
+.rp-verdict { font-size: 12px; font-weight: 800; padding: 4px 12px; border-radius: 999px; color: #fff; }
+.rp-verdict.profit { background: linear-gradient(90deg, #16a34a, #22c55e); }
+.rp-verdict.loss { background: #dc2626; }
+
+/* ---------- Vehicle cell in tables ---------- */
+.rp-veh { display: flex; align-items: center; gap: 10px; }
+.rp-veh-pic { width: 46px; height: 34px; flex: none; display: grid; place-items: center; }
+.rp-veh-pic img { max-width: 100%; max-height: 100%; object-fit: contain; }
+.rp-veh-pic svg { color: #b45309; }
+.rp-veh b { display: block; font-size: 13px; }
+.rp-veh small { display: block; color: #64748b; font-size: 11px; }
+.rp-tag { font-size: 11px; font-weight: 800; padding: 2px 8px; border-radius: 999px; }
+.rp-tag.vehicle { background: #fff7ed; color: #c2410c; }
+.rp-tag.personal { background: #eef5ff; color: #1d4ed8; }
+
+/* ---------- AI insight ---------- */
+.rp-ai { display: flex; align-items: center; gap: 12px; }
+.rp-ai img { width: 78px; height: auto; flex: none; }
+.rp-ai-body { flex: 1; min-width: 0; }
+.rp-ai-body h3 { margin: 0 0 4px; font-size: 16px; font-weight: 900; color: #1d4ed8; }
+.rp-ai-body p { margin: 0; font-size: 14px; line-height: 1.55; color: #1e3a6e; }
+.rp-ai-btn {
+  margin-top: 10px; border: 0; border-radius: 12px; padding: 10px 16px; color: #fff; font-weight: 800;
+  background: linear-gradient(90deg, #0a4fb8, #1566e0); cursor: pointer; font-size: 13px;
+}
+.rp-ai-btn:disabled { opacity: .6; cursor: wait; }
+
+/* ---------- Report column ---------- */
+.rp-report { display: flex; flex-direction: column; }
+.rp-foot { font-size: 11px; line-height: 1.6; color: #64748b; padding: 12px 14px; border-radius: 16px; background: #fff; border: 1px solid #e3ebf7; }
+.rp-foot p { margin: 0 0 6px; }
