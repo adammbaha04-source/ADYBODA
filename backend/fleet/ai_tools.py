@@ -119,10 +119,25 @@ def get_personal_expenses(user, args):
         raise PermissionDenied("Matumizi binafsi yanaonekana kwa Owner pekee.")
     start, end = _parse_range(args)
     qs = PersonalExpense.objects.filter(owner=user, day__range=(start, end)).order_by("-day", "-id")
+    all_rows = list(qs)
+    total = sum(x.amount for x in all_rows)
+    by_category = {}
+    by_month = {}
+    for x in all_rows:
+        label = x.get_category_display()
+        by_category[label] = by_category.get(label, 0) + x.amount
+        month = x.day.strftime("%Y-%m")
+        by_month[month] = by_month.get(month, 0) + x.amount
+    categories = [{"category": k, "total_tzs": v,
+                   "percent": round(v * 100 / total, 1) if total else 0}
+                  for k, v in sorted(by_category.items(), key=lambda kv: -kv[1])]
+    months = [{"month": k, "total_tzs": by_month[k]} for k in sorted(by_month)]
     rows = [{"day": x.day.isoformat(), "category": x.get_category_display(),
-             "amount_tzs": x.amount, "note": x.note} for x in qs[:MAX_ROWS]]
+             "amount_tzs": x.amount, "note": x.note} for x in all_rows[:MAX_ROWS]]
     return {"date_from": start.isoformat(), "date_to": end.isoformat(),
-            "total_records": qs.count(), "total_expenses_tzs": sum(x.amount for x in qs), "items": rows}
+            "total_records": len(all_rows), "total_expenses_tzs": total,
+            "totals_by_category": categories, "totals_by_month": months,
+            "items": rows}
 
 
 TOOL_HANDLERS = {
