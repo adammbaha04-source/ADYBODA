@@ -18,7 +18,8 @@ class VehicleSerializer(serializers.ModelSerializer):
         model = Vehicle
         fields = ["id", "name", "vehicle_type", "daily_target", "working_days_count",
                   "include_week5", "no_carry_months", "driver_periods",
-                  "active_days", "income_start", "income_end", "driver_account"]
+                  "active_days", "income_start", "income_end", "driver_account",
+                  "debt_limit"]
         read_only_fields = ["no_carry_months"]
 
     def get_driver_account(self, obj):
@@ -38,6 +39,11 @@ class VehicleSerializer(serializers.ModelSerializer):
     def validate_daily_target(self, value):
         if value <= 0:
             raise serializers.ValidationError("Daily target must be greater than 0.")
+        return value
+
+    def validate_debt_limit(self, value):
+        if value is not None and value <= 0:
+            raise serializers.ValidationError("Debt limit must be greater than 0.")
         return value
 
     def validate_active_days(self, value):

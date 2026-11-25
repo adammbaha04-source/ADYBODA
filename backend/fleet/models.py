@@ -16,6 +16,8 @@ class Vehicle(models.Model):
     # kipindi cha mapato (tarehe ya kuanza na ya mwisho). None = hakuna kikomo.
     income_start = models.DateField(null=True, blank=True)
     income_end = models.DateField(null=True, blank=True)
+    # monthly limit on NEW debt, in TZS. None = no limit.
+    debt_limit = models.PositiveIntegerField(null=True, blank=True)
 
     class Meta:
         unique_together = [("owner", "name")]
