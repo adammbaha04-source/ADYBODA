@@ -9,7 +9,6 @@ import iconProfit from "./assets/icon-profit.png";
 import iconExpenses from "./assets/icon-expenses.png";
 import "./DebtPage.css";
 
-// Fields the backend sends (or will send after the debt_limit change)
 type DriverAccount = { username: string; full_name: string; phone: string; avatar: string };
 type VehicleX = Vehicle & { debt_limit?: number | null; driver_account?: DriverAccount | null };
 
@@ -22,7 +21,7 @@ interface Props {
   vehicles: Vehicle[];
   month: string;
   onNavigate?: (page: string) => void;
-  /** Owner and manager: true. Driver view: false (hides the Set limit control). */
+  /** Owner and manager: true. Driver view: false (hides limit editing). */
   canEditLimit?: boolean;
 }
 
@@ -39,7 +38,6 @@ function latestDriver(v: Vehicle): DriverPeriod | undefined {
   return periods[periods.length - 1];
 }
 
-// Prefer the registered driver account (name, phone, photo); fall back to the driver period record
 function driverInfo(v: VehicleX): { name: string; phone: string; avatar: string } | null {
   const acc = v.driver_account;
   const p = latestDriver(v);
@@ -72,26 +70,36 @@ function DriverAvatar({ info }: { info: ReturnType<typeof driverInfo> }) {
   return <div className="dm-initials" aria-label={info.name}>{initials(info.name)}</div>;
 }
 
-function Ring({ percent, color }: { percent: number; color: string }) {
+type Part = { label: string; value: number; color: string };
+
+// Donut chart split into parts; each part's share is its value over the total
+function Donut({ parts }: { parts: Part[] }) {
   const r = 26;
   const c = 2 * Math.PI * r;
-  const p = Math.max(0, Math.min(100, percent));
+  const total = parts.reduce((a, p) => a + Math.max(0, p.value), 0);
+  let offset = 0;
   return (
-    <svg viewBox="0 0 64 64" className="dm-ring" aria-label={`${Math.round(p)}%`}>
+    <svg viewBox="0 0 64 64" className="dm-ring" aria-label="Debt breakdown">
       <circle cx="32" cy="32" r={r} className="dm-ring-track" />
-      <circle
-        cx="32"
-        cy="32"
-        r={r}
-        className="dm-ring-fill"
-        stroke={color}
-        strokeDasharray={c}
-        strokeDashoffset={c - (p / 100) * c}
-        transform="rotate(-90 32 32)"
-      />
-      <text x="32" y="37" textAnchor="middle" className="dm-ring-text">
-        {Math.round(p)}%
-      </text>
+      {total > 0 &&
+        parts.map((p) => {
+          const len = (Math.max(0, p.value) / total) * c;
+          const seg = (
+            <circle
+              key={p.label}
+              cx="32"
+              cy="32"
+              r={r}
+              className="dm-ring-fill"
+              stroke={p.color}
+              strokeDasharray={`${len} ${c - len}`}
+              strokeDashoffset={-offset}
+              transform="rotate(-90 32 32)"
+            />
+          );
+          offset += len;
+          return seg;
+        })}
     </svg>
   );
 }
@@ -143,10 +151,10 @@ export default function DebtPage({ vehicles, month, onNavigate, canEditLimit = t
   const [error, setError] = useState("");
   const [notice, setNotice] = useState("");
   const [openId, setOpenId] = useState<number | null>(null);
+  const [manageId, setManageId] = useState<number | null>(null);
 
   // Limits saved in this session, so the card updates right away
   const [limitOverride, setLimitOverride] = useState<Record<number, number | null>>({});
-  const [editLimitId, setEditLimitId] = useState<number | null>(null);
   const [limitInput, setLimitInput] = useState("");
 
   const [formMode, setFormMode] = useState<Mode | null>(null);
@@ -190,9 +198,9 @@ export default function DebtPage({ vehicles, month, onNavigate, canEditLimit = t
     try {
       await updateVehicle(v.id, { debt_limit: n } as Partial<Vehicle>);
       setLimitOverride((o) => ({ ...o, [v.id]: n }));
-      setEditLimitId(null);
       setNotice("Limit imehifadhiwa");
       setError("");
+      setLimitInput("");
     } catch (e) {
       setError((e as Error).message);
     }
@@ -347,18 +355,21 @@ export default function DebtPage({ vehicles, month, onNavigate, canEditLimit = t
       <section className="dm-list">
         {visible.length === 0 && <p className="dm-empty">No debts to show</p>}
         {visible.map((i) => {
+          const id = i.vehicle.id;
           const info = driverInfo(i.vehicle);
           const limit = limitOf(i.vehicle);
           const hasLimit = limit !== null && limit > 0;
-          const used = i.s.debt_added;
-          const over = hasLimit && used > limit!;
-          const usedPct = hasLimit ? (used / limit!) * 100 : 0;
-          const remaining = hasLimit ? limit! - used : 0;
+          const debtAdded = i.s.debt_added;
+          const over = hasLimit && debtAdded > limit!;
+          const debtPct = hasLimit ? (debtAdded / limit!) * 100 : 0;
+          const remaining = hasLimit ? limit! - debtAdded : 0;
+          const remainingPct = hasLimit ? Math.max(0, (remaining / limit!) * 100) : 0;
 
           const due = i.s.starting_debt + i.s.debt_added;
           const paidPct = due > 0 ? (i.s.payments / due) * 100 : 0;
           const isPending = i.s.ending_debt > 0;
-          const isOpen = openId === i.vehicle.id;
+          const isOpen = openId === id;
+          const isManage = manageId === id;
           const entries = fWeek === "ALL"
             ? i.entries
             : i.entries.filter((e) => String((e as WeekEntry).week_number ?? "") === fWeek);
@@ -369,11 +380,17 @@ export default function DebtPage({ vehicles, month, onNavigate, canEditLimit = t
           const statusMsg = !hasLimit
             ? "No monthly limit set yet."
             : over
-              ? `Driver is over the limit by ${tsh(used - limit!)}.`
+              ? `Driver is over the limit by ${tsh(debtAdded - limit!)}.`
               : `Still safe. ${tsh(remaining)} left before the limit.`;
 
+          const parts: Part[] = [
+            { label: "Debt payment", value: i.s.payments, color: "#16a34a" },
+            { label: "Balance", value: i.s.ending_debt, color: "#dc2626" },
+            { label: "Remaining debt", value: hasLimit ? Math.max(0, remaining) : 0, color: "#3b82f6" },
+          ];
+
           return (
-            <article key={i.vehicle.id} className="dm-card">
+            <article key={id} className="dm-card">
               <div className="dm-card-main">
                 <div className="dm-card-top">
                   <div className="dm-who">
@@ -406,71 +423,42 @@ export default function DebtPage({ vehicles, month, onNavigate, canEditLimit = t
                     <div>
                       <span>{over ? "Over Limit By" : "Limit Remaining"}</span>
                       <b className={over ? "red" : ""}>
-                        {hasLimit ? tsh(over ? used - limit! : remaining) : "-"}
+                        {hasLimit
+                          ? over
+                            ? tsh(debtAdded - limit!)
+                            : `${tsh(remaining)} (${Math.round(remainingPct)}%)`
+                          : "-"}
                       </b>
                     </div>
                   </div>
-                  <div className="dm-ring-wrap">
-                    <Ring
-                      percent={usedPct}
-                      color={over ? "#ef4444" : hasLimit ? "#3b82f6" : "#cbd5e1"}
-                    />
-                    <div className="dm-balance">
-                      <span>Paid</span>
-                      <b className="green">{tsh(i.s.payments)}</b>
-                      <span>Balance</span>
-                      <b className="red">{tsh(i.s.ending_debt)}</b>
-                    </div>
+                  <div className="dm-donut-wrap">
+                    <Donut parts={parts} />
+                    <ul className="dm-legend">
+                      {parts.map((p) => (
+                        <li key={p.label}>
+                          <i style={{ background: p.color }} />
+                          <span>{p.label}</span>
+                          <b>{tsh(p.value)}</b>
+                        </li>
+                      ))}
+                    </ul>
                   </div>
                 </div>
 
                 <div className="dm-limit-row">
                   <span className={`dm-status ${statusClass}`}>{statusLabel}</span>
-                  {canEditLimit && (
-                    <button
-                      type="button"
-                      className="dm-link"
-                      onClick={() => {
-                        setEditLimitId(i.vehicle.id);
-                        setLimitInput(hasLimit ? String(limit) : "");
-                      }}
-                    >
-                      {hasLimit ? "Edit limit" : "Set limit"}
-                    </button>
-                  )}
                 </div>
                 <p className="dm-limit-msg">{statusMsg}</p>
 
-                {canEditLimit && editLimitId === i.vehicle.id && (
-                  <form
-                    className="dm-limit-form"
-                    onSubmit={(e) => { e.preventDefault(); saveLimit(i.vehicle); }}
-                  >
-                    <input
-                      type="number"
-                      inputMode="numeric"
-                      min={1}
-                      placeholder="Limit (TSh)"
-                      value={limitInput}
-                      onChange={(e) => setLimitInput(e.target.value)}
-                      required
-                    />
-                    <button type="submit">Save</button>
-                    <button type="button" className="dm-ghost-btn" onClick={() => setEditLimitId(null)}>
-                      Cancel
-                    </button>
-                  </form>
-                )}
-
                 <div className="dm-bar-block">
                   <div className="dm-bar-labels">
-                    <span>Limit used</span>
-                    <span>{hasLimit ? `${Math.round(usedPct)}% of limit` : "No limit"}</span>
+                    <span>Debt</span>
+                    <span>{hasLimit ? `${Math.round(debtPct)}% of limit` : "No limit"}</span>
                   </div>
                   <div className="dm-bar">
                     <span
                       className={over ? "limit-over" : "limit-safe"}
-                      style={{ width: `${Math.min(100, usedPct)}%` }}
+                      style={{ width: `${Math.min(100, debtPct)}%` }}
                     />
                   </div>
                 </div>
@@ -489,16 +477,67 @@ export default function DebtPage({ vehicles, month, onNavigate, canEditLimit = t
               </div>
 
               <div className="dm-card-actions">
-                <button className="dm-btn dark" onClick={() => openForm("payment", i.vehicle.id)}>
+                <button className="dm-btn dark" onClick={() => openForm("payment", id)}>
                   Record Payment
                 </button>
-                <button className="dm-btn" onClick={() => setOpenId(isOpen ? null : i.vehicle.id)}>
+                <button className="dm-btn" onClick={() => setOpenId(isOpen ? null : id)}>
                   {isOpen ? "Hide Details" : "View Details"}
                 </button>
-                <button className="dm-btn" onClick={() => openForm("debt", i.vehicle.id)}>
-                  Manage Debt
+                <button
+                  className="dm-btn"
+                  onClick={() => setManageId(isManage ? null : id)}
+                >
+                  {isManage ? "Close" : "Manage Debt"}
                 </button>
               </div>
+
+              {isManage && (
+                <div className="dm-manage">
+                  <h4>Manage Debt</h4>
+                  <div className="dm-manage-stats">
+                    <div>
+                      <span>Limit</span>
+                      <b>{hasLimit ? tsh(limit!) : "Not set"}</b>
+                    </div>
+                    <div>
+                      <span>{over ? "Over limit by" : "Limit remaining"}</span>
+                      <b className={over ? "red" : ""}>
+                        {hasLimit
+                          ? over
+                            ? tsh(debtAdded - limit!)
+                            : `${tsh(remaining)} (${Math.round(remainingPct)}%)`
+                          : "-"}
+                      </b>
+                    </div>
+                  </div>
+
+                  {canEditLimit && (
+                    <form
+                      className="dm-limit-form"
+                      onSubmit={(e: FormEvent) => { e.preventDefault(); saveLimit(i.vehicle); }}
+                    >
+                      <input
+                        type="number"
+                        inputMode="numeric"
+                        min={1}
+                        placeholder={hasLimit ? "Change limit (TSh)" : "Set limit (TSh)"}
+                        value={limitInput}
+                        onChange={(e) => setLimitInput(e.target.value)}
+                        required
+                      />
+                      <button type="submit">Set limit</button>
+                    </form>
+                  )}
+
+                  <button
+                    type="button"
+                    className="dm-btn wide"
+                    onClick={() => openForm("debt", id)}
+                  >
+                    + Add debt for this vehicle
+                  </button>
+                </div>
+              )}
 
               {isOpen && <DetailTable entries={entries} />}
             </article>

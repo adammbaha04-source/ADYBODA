@@ -579,3 +579,83 @@
 
 .dm-bar span.limit-safe { background: #3b82f6; }
 .dm-bar span.limit-over { background: var(--dm-red); }
+
+/* ---- Donut with legend (Debt payment, Balance, Remaining debt) ---- */
+.dm-donut-wrap {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.dm-legend {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 6px;
+}
+
+.dm-legend li {
+  display: grid;
+  grid-template-columns: 10px 1fr;
+  column-gap: 6px;
+  align-items: center;
+  font-size: 12px;
+  color: var(--dm-muted);
+}
+
+.dm-legend i {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  display: inline-block;
+}
+
+.dm-legend b {
+  grid-column: 2;
+  font-size: 13px;
+  color: var(--dm-text);
+}
+
+.dm-legend li span { grid-column: 2; }
+
+.dm-legend li i { grid-row: 1 / span 2; }
+
+/* ---- Manage Debt panel ---- */
+.dm-btn.wide {
+  width: 100%;
+  margin-top: 10px;
+}
+
+.dm-manage {
+  border: 1px solid var(--dm-line);
+  border-radius: 14px;
+  padding: 12px;
+  display: grid;
+  gap: 10px;
+  background: #f8fafc;
+}
+
+.dm-manage h4 { font-size: 15px; }
+
+.dm-manage-stats {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+}
+
+.dm-manage-stats span {
+  display: block;
+  font-size: 12px;
+  color: var(--dm-muted);
+}
+
+.dm-manage-stats b { font-size: 15px; }
+
+.dm-manage .dm-limit-form input {
+  flex: 1;
+  width: auto;
+  min-width: 140px;
+}
+
+.dm-bar span.limit-over { background: var(--dm-red); }
