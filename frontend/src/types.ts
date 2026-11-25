@@ -22,6 +22,7 @@ export interface Vehicle {
   active_days: number[] | null;
   income_start: string | null;
   income_end: string | null;
+  debt_limit?: number | null;
 }
 
 export interface DebtSummary {
@@ -46,6 +47,7 @@ export interface DebtEntry {
   paid_debt: number;
   closed_debt: number;
   remaining_debt: number;
+  week_number?: number | null;
 }
 
 export interface ReturnRecord {

@@ -1,5 +1,6 @@
-import { useEffect, useState, type FormEvent } from "react";
-import { addManualEntry, getDebt, updateVehicle } from "./api";
+import { useEffect, useMemo, useState, type FormEvent } from "react";
+import { addManualEntry, getDebtSummaries, updateVehicle, type DebtBundle } from "./api";
+import { buildDebtCsv, downloadText, type ExportRow } from "./debtExport";
 import { shortDate, todayYMD, tsh } from "./format";
 import type { DebtEntry, DebtSummary, DriverPeriod, Vehicle } from "./types";
 import iconTarget from "./assets/icon-target.png";
@@ -10,12 +11,14 @@ import iconExpenses from "./assets/icon-expenses.png";
 import "./DebtPage.css";
 
 type DriverAccount = { username: string; full_name: string; phone: string; avatar: string };
-type VehicleX = Vehicle & { debt_limit?: number | null; driver_account?: DriverAccount | null };
+type VehicleX = Vehicle & { driver_account?: DriverAccount | null };
 
-type Item = { vehicle: VehicleX; s: DebtSummary; entries: DebtEntry[] };
-type Tab = "mine" | "drivers" | "all";
+// month = whole-month numbers from the server (used for the limit and for downloads).
+// view  = the same numbers narrowed to the selected week (used for the cards and totals).
+type Item = { vehicle: VehicleX; month: DebtSummary; entries: DebtEntry[] };
+type Row = Item & { view: { s: DebtSummary; entries: DebtEntry[] } };
+type Tab = "pending" | "drivers" | "all";
 type Mode = "debt" | "payment";
-type WeekEntry = DebtEntry & { week_number?: number | null };
 
 interface Props {
   vehicles: Vehicle[];
@@ -26,7 +29,7 @@ interface Props {
 }
 
 const TABS: { key: Tab; label: string }[] = [
-  { key: "mine", label: "My Debts" },
+  { key: "pending", label: "Pending" },
   { key: "drivers", label: "Driver Debts" },
   { key: "all", label: "All Debts" },
 ];
@@ -53,6 +56,28 @@ function initials(name: string): string {
   return name.split(" ").filter(Boolean).slice(0, 2).map((p) => p[0]).join("").toUpperCase();
 }
 
+/**
+ * Narrow one vehicle's month data to a single week.
+ * Returns null when the vehicle has no records in that week.
+ * Manual debts and manual payments have no week number, so they only show in "All weeks".
+ */
+function scopeToWeek(i: Item, week: string): Row["view"] | null {
+  if (week === "ALL") return { s: i.month, entries: i.entries };
+  const entries = i.entries.filter((e) => String(e.week_number ?? "") === week);
+  if (entries.length === 0) return null;
+  return {
+    entries,
+    s: {
+      ...i.month,
+      starting_debt: entries[0].previous_debt,
+      debt_added: entries.reduce((a, e) => a + e.new_debt, 0),
+      payments: entries.reduce((a, e) => a + e.paid_debt, 0),
+      closed_debt: entries.reduce((a, e) => a + e.closed_debt, 0),
+      ending_debt: entries[entries.length - 1].remaining_debt,
+    },
+  };
+}
+
 function DefaultAvatar() {
   return (
     <svg viewBox="0 0 64 64" className="dm-avatar" aria-hidden="true">
@@ -72,39 +97,48 @@ function DriverAvatar({ info }: { info: ReturnType<typeof driverInfo> }) {
 
 type Part = { label: string; value: number; color: string };
 
-// Donut chart split into parts; each part's share is its value over the total
-function Donut({ parts }: { parts: Part[] }) {
+// Donut chart. The parts add up to what was due, so each slice is its share of that.
+// A part that is above zero always gets a slice you can see (at least 5% of the ring),
+// so a small payment is not lost. The centre shows the percent paid.
+function Donut({ parts, centre }: { parts: Part[]; centre: string }) {
   const r = 26;
   const c = 2 * Math.PI * r;
   const total = parts.reduce((a, p) => a + Math.max(0, p.value), 0);
+  const raw = parts.map((p) => {
+    const v = Math.max(0, p.value);
+    return v > 0 && total > 0 ? Math.max((v / total) * c, c * 0.05) : 0;
+  });
+  const scale = raw.reduce((a, n) => a + n, 0) || 1;
   let offset = 0;
   return (
     <svg viewBox="0 0 64 64" className="dm-ring" aria-label="Debt breakdown">
       <circle cx="32" cy="32" r={r} className="dm-ring-track" />
-      {total > 0 &&
-        parts.map((p) => {
-          const len = (Math.max(0, p.value) / total) * c;
-          const seg = (
-            <circle
-              key={p.label}
-              cx="32"
-              cy="32"
-              r={r}
-              className="dm-ring-fill"
-              stroke={p.color}
-              strokeDasharray={`${len} ${c - len}`}
-              strokeDashoffset={-offset}
-              transform="rotate(-90 32 32)"
-            />
-          );
-          offset += len;
-          return seg;
-        })}
+      {parts.map((p, idx) => {
+        if (raw[idx] === 0) return null;
+        const len = (raw[idx] / scale) * c;
+        const seg = (
+          <circle
+            key={p.label}
+            cx="32"
+            cy="32"
+            r={r}
+            className="dm-ring-fill"
+            stroke={p.color}
+            strokeDasharray={`${len} ${c - len}`}
+            strokeDashoffset={-offset}
+            transform="rotate(-90 32 32)"
+          />
+        );
+        offset += len;
+        return seg;
+      })}
+      <text x="32" y="35" textAnchor="middle" fontSize="10" fontWeight="700" fill="#111827">{centre}</text>
     </svg>
   );
 }
 
-function DetailTable({ entries }: { entries: DebtEntry[] }) {
+// All weeks of the month in date order, with a month total at the bottom.
+function DetailTable({ entries, s, onDownload }: { entries: DebtEntry[]; s: DebtSummary; onDownload: () => void }) {
   if (entries.length === 0) return <p className="dm-empty">No debt records</p>;
   return (
     <div className="dm-details">
@@ -121,22 +155,30 @@ function DetailTable({ entries }: { entries: DebtEntry[] }) {
           </tr>
         </thead>
         <tbody>
-          {entries.map((e) => {
-            const w = (e as WeekEntry).week_number;
-            return (
-              <tr key={e.id}>
-                <td>{shortDate(e.date)}</td>
-                <td>{w ?? "-"}</td>
-                <td className="blue">{tsh(e.previous_debt)}</td>
-                <td className="red">{e.new_debt > 0 ? "+" + tsh(e.new_debt) : tsh(0)}</td>
-                <td className="green">{tsh(e.paid_debt)}</td>
-                <td className="orange"><b>{tsh(e.remaining_debt)}</b></td>
-                <td>{e.notes || e.type}</td>
-              </tr>
-            );
-          })}
+          {entries.map((e) => (
+            <tr key={e.id}>
+              <td>{shortDate(e.date)}</td>
+              <td>{e.week_number ?? "-"}</td>
+              <td className="blue">{tsh(e.previous_debt)}</td>
+              <td className="red">{e.new_debt > 0 ? "+" + tsh(e.new_debt) : tsh(0)}</td>
+              <td className="green">{tsh(e.paid_debt)}</td>
+              <td className="orange"><b>{tsh(e.remaining_debt)}</b></td>
+              <td>{e.notes || e.type}</td>
+            </tr>
+          ))}
         </tbody>
+        <tfoot>
+          <tr>
+            <td colSpan={2}><b>Month total</b></td>
+            <td className="blue"><b>{tsh(s.starting_debt)}</b></td>
+            <td className="red"><b>+{tsh(s.debt_added)}</b></td>
+            <td className="green"><b>{tsh(s.payments)}</b></td>
+            <td className="orange"><b>{tsh(s.ending_debt)}</b></td>
+            <td />
+          </tr>
+        </tfoot>
       </table>
+      <button type="button" className="dm-btn wide" onClick={onDownload}>⬇ Download this month (CSV)</button>
     </div>
   );
 }
@@ -146,8 +188,10 @@ export default function DebtPage({ vehicles, month, onNavigate, canEditLimit = t
 
   const [fMonth, setFMonth] = useState(month);
   const [fWeek, setFWeek] = useState("ALL");
-  const [items, setItems] = useState<Item[]>([]);
-  const [tab, setTab] = useState<Tab>("mine");
+  const [bundles, setBundles] = useState<DebtBundle[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [reloadKey, setReloadKey] = useState(0);
+  const [tab, setTab] = useState<Tab>("pending");
   const [error, setError] = useState("");
   const [notice, setNotice] = useState("");
   const [openId, setOpenId] = useState<number | null>(null);
@@ -164,25 +208,40 @@ export default function DebtPage({ vehicles, month, onNavigate, canEditLimit = t
   const [fNote, setFNote] = useState("");
   const [saving, setSaving] = useState(false);
 
-  async function load() {
-    try {
-      const list = await Promise.all(
-        vs.map((v) =>
-          getDebt(v.id, fMonth).then((d) => ({ vehicle: v, s: d.summary, entries: d.entries })),
-        ),
-      );
-      setItems(list);
-      setError("");
-    } catch (e) {
-      setError((e as Error).message);
-    }
+  function clearMessages() {
+    setError("");
+    setNotice("");
   }
 
   useEffect(() => { setFMonth(month); }, [month]);
+
+  // One request for all vehicles. If the month changes while a request is running,
+  // the old answer is thrown away so it cannot overwrite the new one.
   useEffect(() => {
-    load();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [fMonth, vehicles.map((v) => v.id).join(",")]);
+    let cancelled = false;
+    setLoading(true);
+    getDebtSummaries(fMonth)
+      .then((list) => {
+        if (cancelled) return;
+        setBundles(list);
+        setError("");
+      })
+      .catch((e) => {
+        if (!cancelled) setError((e as Error).message);
+      })
+      .finally(() => {
+        if (!cancelled) setLoading(false);
+      });
+    return () => { cancelled = true; };
+  }, [fMonth, reloadKey]);
+
+  const items: Item[] = useMemo(() => {
+    const byId = new Map(bundles.map((b) => [b.vehicle_id, b]));
+    return (vehicles as VehicleX[]).flatMap((v) => {
+      const b = byId.get(v.id);
+      return b ? [{ vehicle: v, month: b.summary, entries: b.entries }] : [];
+    });
+  }, [vehicles, bundles]);
 
   function limitOf(v: VehicleX): number | null {
     if (v.id in limitOverride) return limitOverride[v.id];
@@ -191,34 +250,66 @@ export default function DebtPage({ vehicles, month, onNavigate, canEditLimit = t
 
   async function saveLimit(v: VehicleX) {
     const n = Number(limitInput);
-    if (!n || n <= 0) {
-      setError("Weka kiasi sahihi cha limit");
+    if (!Number.isFinite(n) || n <= 0) {
+      setError("Enter a valid limit amount");
       return;
     }
     try {
-      await updateVehicle(v.id, { debt_limit: n } as Partial<Vehicle>);
+      await updateVehicle(v.id, { debt_limit: n });
       setLimitOverride((o) => ({ ...o, [v.id]: n }));
-      setNotice("Limit imehifadhiwa");
+      setNotice("Limit saved");
       setError("");
       setLimitInput("");
     } catch (e) {
+      setNotice("");
       setError((e as Error).message);
     }
   }
 
-  const total = items.reduce((a, i) => a + i.s.starting_debt + i.s.debt_added, 0);
-  const paid = items.reduce((a, i) => a + i.s.payments, 0);
-  const pending = items.reduce((a, i) => a + i.s.ending_debt, 0);
-  const drivers = new Set(vs.map((v) => driverInfo(v)?.name).filter(Boolean)).size;
+  // Rows for the selected week. Vehicles with no records in that week are left out.
+  const rows: Row[] = items.flatMap((i) => {
+    const view = scopeToWeek(i, fWeek);
+    return view ? [{ ...i, view }] : [];
+  });
 
-  const visible = items.filter((i) => {
-    if (tab === "mine") return i.s.ending_debt > 0;
-    if (tab === "drivers") return driverInfo(i.vehicle) !== null;
+  const isPendingRow = (r: Row) => r.view.s.ending_debt > 0;
+  const hasDriver = (r: Row) => driverInfo(r.vehicle) !== null;
+
+  const visible = rows.filter((r) => {
+    if (tab === "pending") return isPendingRow(r);
+    if (tab === "drivers") return hasDriver(r);
     return true;
   });
 
+  const counts: Record<Tab, number> = {
+    pending: rows.filter(isPendingRow).length,
+    drivers: rows.filter(hasDriver).length,
+    all: rows.length,
+  };
+
+  // Totals follow what is on screen: same tab, same week.
+  const total = visible.reduce((a, r) => a + r.view.s.starting_debt + r.view.s.debt_added, 0);
+  const paid = visible.reduce((a, r) => a + r.view.s.payments, 0);
+  const pending = visible.reduce((a, r) => a + r.view.s.ending_debt, 0);
+  const drivers = new Set(visible.map((r) => driverInfo(r.vehicle)?.name).filter(Boolean)).size;
+
   const [y, m] = fMonth.split("-").map(Number);
   const monthTitle = new Date(y, (m || 1) - 1, 1).toLocaleString("en-US", { month: "short", year: "numeric" });
+
+  // Downloads always use the whole month, all weeks, whatever week is selected on screen.
+  function exportRow(i: Item): ExportRow {
+    return { vehicle: i.vehicle.name, driver: driverInfo(i.vehicle)?.name ?? "", s: i.month, entries: i.entries };
+  }
+  function downloadVehicle(i: Item) {
+    downloadText(`debt-${i.vehicle.name}-${fMonth}.csv`, buildDebtCsv([exportRow(i)], fMonth));
+  }
+  function downloadAll() {
+    if (items.length === 0) {
+      setError("No debt records to download");
+      return;
+    }
+    downloadText(`debt-all-vehicles-${fMonth}.csv`, buildDebtCsv(items.map(exportRow), fMonth));
+  }
 
   function openForm(mode: Mode, vehicleId?: number) {
     setFormMode(mode);
@@ -226,12 +317,27 @@ export default function DebtPage({ vehicles, month, onNavigate, canEditLimit = t
     setFDay(todayYMD());
     setFAmount("");
     setFNote("");
-    setNotice("");
+    clearMessages();
+  }
+
+  function toggleManage(id: number) {
+    setManageId((cur) => (cur === id ? null : id));
+    setLimitInput(""); // a number typed on one card must not carry over to another
+  }
+
+  function changeTab(t: Tab) {
+    setTab(t);
+    clearMessages();
   }
 
   async function submit(e: FormEvent) {
     e.preventDefault();
-    if (!formMode) return;
+    if (!formMode || saving) return;
+    if (!fVehicle) {
+      setError("Select a vehicle");
+      return;
+    }
+    clearMessages();
     setSaving(true);
     try {
       await addManualEntry(
@@ -243,7 +349,7 @@ export default function DebtPage({ vehicles, month, onNavigate, canEditLimit = t
       );
       setNotice(formMode === "debt" ? "Debt added" : "Payment recorded");
       setFormMode(null);
-      await load();
+      setReloadKey((k) => k + 1);
     } catch (err) {
       setError((err as Error).message);
     } finally {
@@ -289,6 +395,7 @@ export default function DebtPage({ vehicles, month, onNavigate, canEditLimit = t
               aria-label="Month"
             />
           </label>
+          <button type="button" className="dm-btn" onClick={downloadAll}>⬇ Download month</button>
         </div>
       </header>
 
@@ -302,14 +409,16 @@ export default function DebtPage({ vehicles, month, onNavigate, canEditLimit = t
         ))}
       </section>
 
-      <nav className="dm-tabs">
+      <nav className="dm-tabs" role="tablist" aria-label="Debt views">
         {TABS.map((t) => (
           <button
             key={t.key}
+            role="tab"
+            aria-selected={tab === t.key}
             className={tab === t.key ? "active" : ""}
-            onClick={() => setTab(t.key)}
+            onClick={() => changeTab(t.key)}
           >
-            {t.label}
+            {t.label} ({counts[t.key]})
           </button>
         ))}
       </nav>
@@ -352,27 +461,71 @@ export default function DebtPage({ vehicles, month, onNavigate, canEditLimit = t
         </form>
       )}
 
+      {tab === "drivers" && visible.length > 0 && (
+        <section className="dm-details">
+          <table>
+            <thead>
+              <tr>
+                <th>Driver</th>
+                <th>Vehicle</th>
+                <th>Total debt</th>
+                <th>Paid</th>
+                <th>Balance</th>
+              </tr>
+            </thead>
+            <tbody>
+              {visible.map((r) => (
+                <tr key={r.vehicle.id}>
+                  <td>{driverInfo(r.vehicle)?.name}</td>
+                  <td>{r.vehicle.name}</td>
+                  <td className="blue">{tsh(r.view.s.starting_debt + r.view.s.debt_added)}</td>
+                  <td className="green">{tsh(r.view.s.payments)}</td>
+                  <td className="orange"><b>{tsh(r.view.s.ending_debt)}</b></td>
+                </tr>
+              ))}
+            </tbody>
+            <tfoot>
+              <tr>
+                <td colSpan={2}><b>Total</b></td>
+                <td className="blue"><b>{tsh(total)}</b></td>
+                <td className="green"><b>{tsh(paid)}</b></td>
+                <td className="orange"><b>{tsh(pending)}</b></td>
+              </tr>
+            </tfoot>
+          </table>
+        </section>
+      )}
+
       <section className="dm-list">
-        {visible.length === 0 && <p className="dm-empty">No debts to show</p>}
-        {visible.map((i) => {
-          const id = i.vehicle.id;
-          const info = driverInfo(i.vehicle);
-          const limit = limitOf(i.vehicle);
+        {loading && <p className="dm-empty">Loading…</p>}
+        {!loading && visible.length === 0 && (
+          <p className="dm-empty">
+            {fWeek === "ALL" ? "No debts to show" : `No debt records for week ${fWeek}`}
+          </p>
+        )}
+        {visible.map((r) => {
+          const id = r.vehicle.id;
+          const info = driverInfo(r.vehicle);
+          const s = r.view.s; // numbers for the selected week (or the whole month)
+
+          // The limit is monthly and counts NEW debt added this month only.
+          // Debt carried over from earlier months is not counted against it.
+          // It always uses the whole-month numbers, even when a week is selected.
+          const limit = limitOf(r.vehicle);
           const hasLimit = limit !== null && limit > 0;
-          const debtAdded = i.s.debt_added;
-          const over = hasLimit && debtAdded > limit!;
-          const debtPct = hasLimit ? (debtAdded / limit!) * 100 : 0;
-          const remaining = hasLimit ? limit! - debtAdded : 0;
+          const monthAdded = r.month.debt_added;
+          const over = hasLimit && monthAdded > limit!;
+          const limitPct = hasLimit ? (monthAdded / limit!) * 100 : 0;
+          const remaining = hasLimit ? limit! - monthAdded : 0;
           const remainingPct = hasLimit ? Math.max(0, (remaining / limit!) * 100) : 0;
 
-          const due = i.s.starting_debt + i.s.debt_added;
-          const paidPct = due > 0 ? (i.s.payments / due) * 100 : 0;
-          const isPending = i.s.ending_debt > 0;
+          // Total debt = what was owed at the start + new debt. Balance = total - paid - closed.
+          const due = s.starting_debt + s.debt_added;
+          const paidPct = due > 0 ? (s.payments / due) * 100 : 0;
+          const balancePct = due > 0 ? (s.ending_debt / due) * 100 : 0;
+          const isPending = s.ending_debt > 0;
           const isOpen = openId === id;
           const isManage = manageId === id;
-          const entries = fWeek === "ALL"
-            ? i.entries
-            : i.entries.filter((e) => String((e as WeekEntry).week_number ?? "") === fWeek);
           const tone = isPending ? "red" : "green";
 
           const statusClass = !hasLimit ? "none" : over ? "over" : "safe";
@@ -380,13 +533,14 @@ export default function DebtPage({ vehicles, month, onNavigate, canEditLimit = t
           const statusMsg = !hasLimit
             ? "No monthly limit set yet."
             : over
-              ? `Driver is over the limit by ${tsh(debtAdded - limit!)}.`
-              : `Still safe. ${tsh(remaining)} left before the limit.`;
+              ? `New debt this month is over the limit by ${tsh(monthAdded - limit!)}.`
+              : `Still safe. ${tsh(remaining)} of new debt allowed before the limit.`;
 
+          // What was due splits into: paid, closed without payment, still owed.
           const parts: Part[] = [
-            { label: "Debt payment", value: i.s.payments, color: "#16a34a" },
-            { label: "Balance", value: i.s.ending_debt, color: "#dc2626" },
-            { label: "Remaining debt", value: hasLimit ? Math.max(0, remaining) : 0, color: "#3b82f6" },
+            { label: "Paid", value: s.payments, color: "#16a34a" },
+            ...(s.closed_debt > 0 ? [{ label: "Closed", value: s.closed_debt, color: "#9ca3af" }] : []),
+            { label: "Balance", value: s.ending_debt, color: "#dc2626" },
           ];
 
           return (
@@ -396,21 +550,22 @@ export default function DebtPage({ vehicles, month, onNavigate, canEditLimit = t
                   <div className="dm-who">
                     <DriverAvatar info={info} />
                     <div>
-                      <h4>{i.vehicle.name}</h4>
+                      <h4>{r.vehicle.name}</h4>
                       {info && (
                         <p className="dm-driver">
                           {info.name}
                           {info.phone && <span> · {info.phone}</span>}
                         </p>
                       )}
-                      <span className="dm-type">{i.vehicle.vehicle_type}</span>
+                      <span className="dm-type">{r.vehicle.vehicle_type}</span>
                     </div>
                   </div>
                   <div className="dm-amount-col">
                     <span className={`dm-pill ${isPending ? "pending" : "paid"}`}>
                       {isPending ? "PENDING" : "PAID"}
                     </span>
-                    <b className={tone}>{tsh(i.s.ending_debt)}</b>
+                    <span style={{ display: "block", fontSize: 12, opacity: 0.7 }}>Balance</span>
+                    <b className={tone}>{tsh(s.ending_debt)}</b>
                   </div>
                 </div>
 
@@ -425,15 +580,20 @@ export default function DebtPage({ vehicles, month, onNavigate, canEditLimit = t
                       <b className={over ? "red" : ""}>
                         {hasLimit
                           ? over
-                            ? tsh(debtAdded - limit!)
+                            ? tsh(monthAdded - limit!)
                             : `${tsh(remaining)} (${Math.round(remainingPct)}%)`
                           : "-"}
                       </b>
                     </div>
                   </div>
                   <div className="dm-donut-wrap">
-                    <Donut parts={parts} />
+                    <Donut parts={parts} centre={`${Math.round(paidPct)}%`} />
                     <ul className="dm-legend">
+                      <li>
+                        <i style={{ background: "transparent" }} />
+                        <span>Total debt</span>
+                        <b>{tsh(due)}</b>
+                      </li>
                       {parts.map((p) => (
                         <li key={p.label}>
                           <i style={{ background: p.color }} />
@@ -445,21 +605,27 @@ export default function DebtPage({ vehicles, month, onNavigate, canEditLimit = t
                   </div>
                 </div>
 
+                {/* The sum, written out, so every number on the card can be checked */}
+                <p className="dm-limit-msg">
+                  Before {tsh(s.starting_debt)} + New {tsh(s.debt_added)} − Paid {tsh(s.payments)}
+                  {s.closed_debt > 0 ? ` − Closed ${tsh(s.closed_debt)}` : ""} = Balance {tsh(s.ending_debt)}
+                </p>
+
                 <div className="dm-limit-row">
                   <span className={`dm-status ${statusClass}`}>{statusLabel}</span>
                 </div>
                 <p className="dm-limit-msg">{statusMsg}</p>
 
+                {/* First bar: the actual debt still owed, out of everything that was due */}
                 <div className="dm-bar-block">
                   <div className="dm-bar-labels">
-                    <span>Debt</span>
-                    <span>{hasLimit ? `${Math.round(debtPct)}% of limit` : "No limit"}</span>
+                    <span>Debt balance</span>
+                    <span className={`${tone} dm-due`}>
+                      {tsh(s.ending_debt)} · {Math.round(balancePct)}% of debt left
+                    </span>
                   </div>
                   <div className="dm-bar">
-                    <span
-                      className={over ? "limit-over" : "limit-safe"}
-                      style={{ width: `${Math.min(100, debtPct)}%` }}
-                    />
+                    <span className="limit-over" style={{ width: `${Math.min(100, balancePct)}%` }} />
                   </div>
                 </div>
 
@@ -467,13 +633,28 @@ export default function DebtPage({ vehicles, month, onNavigate, canEditLimit = t
                   <div className="dm-bar-labels">
                     <span>Debt payment</span>
                     <span className={`${tone} dm-due`}>
-                      {Math.round(paidPct)}% paid · {isPending ? "Ongoing" : "Cleared"}
+                      {tsh(s.payments)} · {Math.round(paidPct)}% paid · {isPending ? "Ongoing" : "Cleared"}
                     </span>
                   </div>
                   <div className="dm-bar">
                     <span className="green" style={{ width: `${Math.min(100, paidPct)}%` }} />
                   </div>
                 </div>
+
+                {hasLimit && (
+                  <div className="dm-bar-block">
+                    <div className="dm-bar-labels">
+                      <span>New debt vs monthly limit</span>
+                      <span>{tsh(monthAdded)} · {Math.round(limitPct)}% of limit</span>
+                    </div>
+                    <div className="dm-bar">
+                      <span
+                        className={over ? "limit-over" : "limit-safe"}
+                        style={{ width: `${Math.min(100, limitPct)}%` }}
+                      />
+                    </div>
+                  </div>
+                )}
               </div>
 
               <div className="dm-card-actions">
@@ -483,10 +664,7 @@ export default function DebtPage({ vehicles, month, onNavigate, canEditLimit = t
                 <button className="dm-btn" onClick={() => setOpenId(isOpen ? null : id)}>
                   {isOpen ? "Hide Details" : "View Details"}
                 </button>
-                <button
-                  className="dm-btn"
-                  onClick={() => setManageId(isManage ? null : id)}
-                >
+                <button className="dm-btn" onClick={() => toggleManage(id)}>
                   {isManage ? "Close" : "Manage Debt"}
                 </button>
               </div>
@@ -504,7 +682,7 @@ export default function DebtPage({ vehicles, month, onNavigate, canEditLimit = t
                       <b className={over ? "red" : ""}>
                         {hasLimit
                           ? over
-                            ? tsh(debtAdded - limit!)
+                            ? tsh(monthAdded - limit!)
                             : `${tsh(remaining)} (${Math.round(remainingPct)}%)`
                           : "-"}
                       </b>
@@ -514,7 +692,7 @@ export default function DebtPage({ vehicles, month, onNavigate, canEditLimit = t
                   {canEditLimit && (
                     <form
                       className="dm-limit-form"
-                      onSubmit={(e: FormEvent) => { e.preventDefault(); saveLimit(i.vehicle); }}
+                      onSubmit={(e: FormEvent) => { e.preventDefault(); saveLimit(r.vehicle); }}
                     >
                       <input
                         type="number"
@@ -539,7 +717,14 @@ export default function DebtPage({ vehicles, month, onNavigate, canEditLimit = t
                 </div>
               )}
 
-              {isOpen && <DetailTable entries={entries} />}
+              {/* The record always covers the whole month, all weeks, with a month total */}
+              {isOpen && (
+                <DetailTable
+                  entries={r.entries}
+                  s={r.month}
+                  onDownload={() => downloadVehicle(r)}
+                />
+              )}
             </article>
           );
         })}
@@ -558,10 +743,10 @@ export default function DebtPage({ vehicles, month, onNavigate, canEditLimit = t
             <span className="dm-qa-title">Record Payment</span>
             <span className="dm-qa-sub">Make payment</span>
           </button>
-          <button className="dm-qa orange" onClick={() => onNavigate?.("reports")}>
+          <button className="dm-qa orange" onClick={downloadAll}>
             <img src={iconTarget} alt="" />
-            <span className="dm-qa-title">View Report</span>
-            <span className="dm-qa-sub">Debt report</span>
+            <span className="dm-qa-title">Download Record</span>
+            <span className="dm-qa-sub">Month debt (CSV)</span>
           </button>
           <button className="dm-qa purple" onClick={() => onNavigate?.("users")}>
             <img src={iconProfit} alt="" />
@@ -572,7 +757,7 @@ export default function DebtPage({ vehicles, month, onNavigate, canEditLimit = t
       </section>
 
       <footer className="dm-footer">
-        <span className="dm-brand">AdyBajaj… <em>Your Business Partner</em></span>
+        <span className="dm-brand">AdyBajaj <em>Your Business Partner</em></span>
         <span className="dm-tagline">Keep Your Debts Under Control!</span>
       </footer>
     </div>
