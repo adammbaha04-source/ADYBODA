@@ -165,7 +165,15 @@ export function VehicleCard(props: {
   const dashboardTarget = period.mode === "week"
     ? (week?.target ?? vehicle.daily_target * vehicle.working_days_count)
     : monthTarget;
-  const dashboardPaid = period.mode === "week" ? (week?.income ?? 0) : (s?.payments ?? 0);
+
+  // Mapato ya mwezi = jumla ya mapato ya kila wiki ya mwezi huu (si deni lililolipwa).
+  const monthIncome = entries.reduce((sum, e) => {
+    if (!WEEK_TYPES.includes(e.type) || e.month !== month) return sum;
+    const m = e.notes.match(WEEK_RE);
+    return m ? sum + Number(m[2]) : sum;
+  }, 0);
+  const dashboardPaid = period.mode === "week" ? (week?.income ?? 0) : monthIncome;
+
   const dashboardDebt = s?.ending_debt ?? 0;
   const totalDays = vehicle.working_days_count * (period.mode === "week" ? 1 : (vehicle.include_week5 ? 5 : 4));
 
