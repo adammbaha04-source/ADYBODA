@@ -687,3 +687,44 @@ button.link:hover { transform: none; }
 .fleet-debt-note{margin:0 auto 12px;width:max-content;max-width:100%;padding:7px 13px;border-radius:20px;background:#fff1f2;color:#be123c;font-size:12px;font-weight:850;text-align:center}
 .fleet-summary-footer{display:flex;align-items:center;justify-content:center;gap:10px;margin-top:9px;padding:13px 8px;border:1px solid #bfdbfe;border-radius:18px;background:linear-gradient(100deg,#eff6ff,#dbeafe);color:#1746a2;font-size:13px;font-weight:850;text-align:center}
 @media(min-width:600px){.fleet-summary-card{padding:22px 24px}.fleet-stat{padding:15px}.fleet-stat-grid{gap:12px}.fleet-income-gauge{height:210px}.fleet-gauge{height:165px}.gauge-center{top:108px}.gauge-min,.gauge-max{top:160px}.fleet-debt-gauge{height:190px}.fleet-debt-gauge .gauge-center{top:100px}.fleet-debt-gauge .gauge-min,.fleet-debt-gauge .gauge-max{top:150px}}
+
+/* ---------- Profile page (professional layout) ---------- */
+.profile-page { display: flex; flex-direction: column; gap: 14px; }
+.profile-hero { padding: 0; overflow: hidden; text-align: left; }
+.profile-cover { height: 96px; background: var(--brand-grad); }
+.profile-id { display: flex; align-items: flex-end; gap: 16px; padding: 0 20px 18px; margin-top: -44px; flex-wrap: wrap; }
+.avatar-wrap { position: relative; width: 96px; height: 96px; flex-shrink: 0; }
+.profile-hero .avatar-big { width: 96px; height: 96px; margin: 0; border: 4px solid var(--card-bg, #fff); font-size: 36px; }
+.avatar-btn { position: absolute; width: 30px; height: 30px; border-radius: 50%; border: 2px solid var(--card-bg, #fff);
+  display: flex; align-items: center; justify-content: center; cursor: pointer; padding: 0; color: #fff; box-shadow: 0 4px 10px rgba(0,0,0,.2); }
+.avatar-btn:disabled { opacity: .6; cursor: default; }
+.avatar-cam { right: -2px; bottom: -2px; background: var(--ink-1); }
+.avatar-del { right: -2px; top: -2px; background: #dc2626; width: 26px; height: 26px; }
+.profile-title { flex: 1; min-width: 180px; padding-bottom: 4px; }
+.profile-name { margin: 0; font-size: 22px; font-weight: 800; color: var(--ink-1); display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+.profile-handle { margin: 2px 0 8px; color: var(--ink-3); font-size: 14px; }
+.role-badge { display: inline-block; padding: 3px 10px; border-radius: 999px; font-size: 12px; font-weight: 700;
+  background: var(--line-soft); color: var(--ink-2); letter-spacing: .3px; }
+.profile-section h3 { margin: 0 0 8px; font-size: 15px; color: var(--ink-1); }
+.contact-row { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 12px 0; border-bottom: 1px solid var(--line-soft); }
+.contact-row:last-child { border-bottom: 0; }
+.contact-label { font-size: 13px; font-weight: 700; color: var(--ink-3); min-width: 110px; }
+.contact-value { display: flex; align-items: center; justify-content: space-between; gap: 10px; flex: 1; font-size: 15px; color: var(--ink-1); word-break: break-all; }
+.icon-edit { background: none; border: 0; color: var(--ink-3); font-size: 13px; font-weight: 700; cursor: pointer; padding: 4px 8px; border-radius: 8px; text-decoration: underline; text-underline-offset: 3px; }
+.icon-edit:hover { color: var(--ink-1); background: var(--line-soft); }
+.inline-edit { display: flex; flex-direction: column; gap: 8px; flex: 1; }
+.inline-edit input { width: 100%; }
+.inline-actions { display: flex; gap: 8px; justify-content: flex-end; }
+.inline-actions button { margin: 0; padding: 8px 14px; }
+.profile-section .info-list { margin-top: 0; }
+body.theme-dark .profile-hero .avatar-big { border-color: #111827; }
+body.theme-dark .avatar-btn { border-color: #111827; }
+body.theme-dark .role-badge { background: #1f2937; color: #e5e7eb; }
+body.theme-dark .profile-name, body.theme-dark .profile-section h3, body.theme-dark .contact-value { color: #f1f5f9; }
+@media (max-width: 480px) {
+  .profile-id { justify-content: center; text-align: center; }
+  .profile-title { width: 100%; }
+  .profile-name { justify-content: center; }
+  .contact-row { flex-direction: column; align-items: flex-start; }
+  .contact-value { width: 100%; }
+}

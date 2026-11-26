@@ -169,7 +169,7 @@ export const deleteTeamMember = (id: number) => request<void>(`/team/${id}/`, { 
 
 export interface MeProfile { username: string; email: string; role: string; business_owner: string; full_name: string; business_name: string; phone: string; avatar: string; theme: "light" | "dark"; background: string; accent: string; vehicles: { id: number; name: string }[]; }
 export const getMe = () => request<MeProfile>("/me/");
-export const patchMe = (data: Partial<Pick<MeProfile, "full_name" | "phone" | "avatar" | "theme" | "background" | "accent">>) => request<MeProfile>("/me/", { method: "PATCH", body: JSON.stringify(data) });
+export const patchMe = (data: Partial<Pick<MeProfile, "full_name" | "phone" | "email" | "avatar" | "theme" | "background" | "accent">>) => request<MeProfile>("/me/", { method: "PATCH", body: JSON.stringify(data) });
 
 export interface Challenge { id: number; vehicle: number; vehicle_name: string; title: string; description: string; status: "open" | "resolved"; created_at: string; resolved_at: string | null; created_by_name: string; }
 export const listChallenges = (status: string, vehicle: string) => { const q = [status !== "ALL" ? `status=${status}` : "", vehicle !== "ALL" ? `vehicle=${vehicle}` : ""].filter(Boolean).join("&"); return request<Challenge[]>(`/challenges/${q ? "?" + q : ""}`); };
