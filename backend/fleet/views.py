@@ -533,6 +533,20 @@ class MeView(APIView):
         if "first_name" in d:
             request.user.first_name = str(d.get("first_name") or "")[:150]
             request.user.save(update_fields=["first_name"])
+        if "email" in d:
+            new_email = str(d.get("email") or "").strip().lower()[:254]
+            if new_email and not re.fullmatch(r"[^@\s]+@[^@\s]+\.[^@\s]+", new_email):
+                return Response({"email": "Andika email sahihi, mfano jina@mfano.com."}, status=400)
+            if new_email != (request.user.email or "").lower():
+                taken = get_user_model().objects.filter(username=new_email).exclude(pk=request.user.pk).exists() \
+                    or get_user_model().objects.filter(email__iexact=new_email).exclude(pk=request.user.pk).exists()
+                if taken:
+                    return Response({"email": "Email hii tayari inatumika."}, status=400)
+                # Owner login uses the email as username, so keep them in sync.
+                if (request.user.username or "").lower() == (request.user.email or "").lower():
+                    request.user.username = new_email
+                request.user.email = new_email
+                request.user.save(update_fields=["email", "username"])
         if "full_name" in d:
             p.full_name = str(d.get("full_name") or "")[:120]
         if "business_name" in d:
