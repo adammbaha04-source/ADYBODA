@@ -43,6 +43,46 @@ export function FeedbackProvider({ children }: { children: ReactNode }) {
     info: (m, t) => push("info", m, t),
   }), [push]);
 
+  // Daraja la app nzima: kila message ya ndani yenye class ya "error" au "notice" (kwa mfano
+  // error, lg-error, dm-error, v2-error, notice, dm-notice, v2-notice) inaonyeshwa kama popup,
+  // kisha inafichwa kwenye ukurasa. Message ile ile haitoi popup mara mbili.
+  const push_ = useRef(push);
+  push_.current = push;
+  useEffect(() => {
+    const SELECTOR = '.error,.notice,[class*="-error"],[class*="-notice"]';
+    const lastText = new WeakMap<Element, string>();
+
+    const check = (el: Element) => {
+      if (el.closest(".fb-overlay")) return;
+      const text = (el.textContent || "").trim();
+      if (!text) { lastText.delete(el); return; }
+      if (lastText.get(el) === text) return;
+      lastText.set(el, text);
+      const isError = /error/.test(el.className);
+      el.classList.add("fb-bridged");
+      push_.current(isError ? "error" : "success", text);
+    };
+
+    const scan = (root: Node) => {
+      if (!(root instanceof Element)) return;
+      if (root.matches(SELECTOR)) check(root);
+      root.querySelectorAll(SELECTOR).forEach(check);
+    };
+
+    scan(document.body);
+    const observer = new MutationObserver((mutations) => {
+      for (const m of mutations) {
+        m.addedNodes.forEach((n) => scan(n));
+        if (m.type === "characterData" || m.type === "childList") {
+          const host = (m.target instanceof Element ? m.target : m.target.parentElement)?.closest(SELECTOR);
+          if (host) check(host);
+        }
+      }
+    });
+    observer.observe(document.body, { childList: true, subtree: true, characterData: true });
+    return () => observer.disconnect();
+  }, []);
+
   const current = items[0];
 
   useEffect(() => {
