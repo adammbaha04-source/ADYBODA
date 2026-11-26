@@ -59,6 +59,19 @@ const TOKEN_KEY = "adybajaj_token";
 export function getToken(): string | null { return localStorage.getItem(TOKEN_KEY); }
 export function clearToken(): void { localStorage.removeItem(TOKEN_KEY); }
 
+export function extractErrorMessage(body: string): string {
+  try {
+    const data = JSON.parse(body);
+    if (typeof data === "string") return data;
+    if (data && typeof data === "object") {
+      if (typeof data.detail === "string") return data.detail;
+      const first = Object.values(data).flat()[0];
+      if (typeof first === "string") return first;
+    }
+  } catch { /* si JSON, rudisha maandishi yenyewe */ }
+  return body;
+}
+
 export async function request<T>(path: string, init: RequestInit = {}): Promise<T> {
   const headers: Record<string, string> = {
     "Content-Type": "application/json",
@@ -89,7 +102,7 @@ export async function request<T>(path: string, init: RequestInit = {}): Promise<
     let errorMessage = `Hitilafu ${res.status}`;
     try {
       const body = await res.text();
-      if (body) errorMessage = body;
+      if (body) errorMessage = extractErrorMessage(body);
     } catch(e) {}
     if (res.status === 504 || res.status === 502) {
       errorMessage = "Seva inachelewa kujibu. Jaribu tena.";

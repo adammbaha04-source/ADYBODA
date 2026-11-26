@@ -1,40 +1,42 @@
 import { useEffect, useRef, useState, type ChangeEvent, type FormEvent } from "react";
 import { getMe, patchMe, type MeProfile } from "./api";
 import { fileToAvatar } from "./theme";
+import { useFeedback } from "./feedback";
 
 const ROLE_LABEL: Record<string, string> = { owner: "Owner", manager: "Manager", driver: "Driver" };
 const EMAIL_RE = /^[^@\s]+@[^@\s]+\.[^@\s]+$/;
 type Field = "name" | "phone" | "email";
 
 export default function ProfilePage({ onChanged }: { onChanged: (p: MeProfile) => void }) {
+  const fb = useFeedback();
   const [me, setMe] = useState<MeProfile | null>(null);
+  const [loadError, setLoadError] = useState("");
   const [avatar, setAvatar] = useState("");
   const [editing, setEditing] = useState<Field | null>(null);
   const [draft, setDraft] = useState("");
-  const [error, setError] = useState("");
-  const [notice, setNotice] = useState("");
   const [busy, setBusy] = useState(false);
   const fileRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     getMe().then((p) => { setMe(p); setAvatar(p.avatar); })
-      .catch((e: Error) => setError(e.message));
+      .catch((e: Error) => setLoadError(e.message));
   }, []);
 
-  function flash(msg: string) {
-    setNotice(msg);
-    setTimeout(() => setNotice(""), 2500);
-  }
-
-  async function run(data: Parameters<typeof patchMe>[0], okMsg: string) {
-    setBusy(true); setError(""); setNotice("");
+  // Inatuma data kwa server. Ikifanikiwa: popup ya ushindi. Ikishindwa: popup ya kosa yenye ujumbe wa server.
+  async function run(data: Parameters<typeof patchMe>[0], okMsg: string, failTitle?: string): Promise<boolean> {
+    setBusy(true);
     try {
       const updated = await patchMe(data);
       setMe(updated); setAvatar(updated.avatar); onChanged(updated);
       setEditing(null);
-      flash(okMsg);
-    } catch (err) { setError((err as Error).message); }
-    finally { setBusy(false); }
+      fb.success(okMsg);
+      return true;
+    } catch (err) {
+      fb.error((err as Error).message, failTitle);
+      return false;
+    } finally {
+      setBusy(false);
+    }
   }
 
   async function pickPhoto(e: ChangeEvent<HTMLInputElement>) {
@@ -43,13 +45,14 @@ export default function ProfilePage({ onChanged }: { onChanged: (p: MeProfile) =
     if (!f) return;
     try {
       const url = await fileToAvatar(f);
-      await run({ avatar: url }, "Picha imebadilishwa.");
-    } catch (err) { setError((err as Error).message); }
+      await run({ avatar: url }, "Picha imebadilishwa.", "Picha haikuhifadhiwa");
+    } catch (err) {
+      fb.error((err as Error).message, "Picha haikubaliki");
+    }
   }
 
   function startEdit(field: Field) {
     if (!me) return;
-    setError(""); setNotice("");
     setDraft(field === "name" ? me.full_name : field === "phone" ? me.phone : me.email);
     setEditing(field);
   }
@@ -58,21 +61,21 @@ export default function ProfilePage({ onChanged }: { onChanged: (p: MeProfile) =
     e.preventDefault();
     const value = draft.trim();
     if (editing === "email") {
-      if (value && !EMAIL_RE.test(value)) { setError("Andika email sahihi, mfano jina@mfano.com."); return; }
-      if (!value) { setError("Email haiwezi kuwa tupu."); return; }
-      return run({ email: value }, "Email imehifadhiwa.");
+      if (!value) return fb.warning("Email haiwezi kuwa tupu.", "Email inahitajika");
+      if (!EMAIL_RE.test(value)) return fb.warning("Andika email sahihi, mfano jina@mfano.com.", "Email si sahihi");
+      return void run({ email: value }, "Email imehifadhiwa.", "Email imetumika");
     }
     if (editing === "phone") {
-      if (value && !/^\+?[0-9\s]{9,15}$/.test(value)) { setError("Namba ya simu si sahihi."); return; }
-      return run({ phone: value.replace(/\s/g, "") }, "Namba ya simu imehifadhiwa.");
+      if (value && !/^\+?[0-9\s]{9,15}$/.test(value)) return fb.warning("Namba ya simu si sahihi. Mfano: 0712345678.", "Namba si sahihi");
+      return void run({ phone: value.replace(/\s/g, "") }, "Namba ya simu imehifadhiwa.", "Namba haikuhifadhiwa");
     }
     if (editing === "name") {
-      if (!value) { setError("Jina haliwezi kuwa tupu."); return; }
-      return run({ full_name: value }, "Jina limehifadhiwa.");
+      if (!value) return fb.warning("Jina haliwezi kuwa tupu.", "Jina inahitajika");
+      return void run({ full_name: value }, "Jina limehifadhiwa.", "Jina haikuhifadhiwa");
     }
   }
 
-  if (!me) return <p className="hint">{error || "Inapakia..."}</p>;
+  if (!me) return <p className="hint">{loadError || "Inapakia..."}</p>;
   const initial = (me.full_name || me.username).charAt(0).toUpperCase();
 
   const rows: { field: Field; label: string; value: string }[] = [
@@ -82,9 +85,6 @@ export default function ProfilePage({ onChanged }: { onChanged: (p: MeProfile) =
 
   return (
     <div className="profile-page">
-      {error && <p className="error">{error}</p>}
-      {notice && <p className="notice">{notice}</p>}
-
       <section className="card profile-hero">
         <div className="profile-cover" />
         <div className="profile-id">
@@ -98,7 +98,7 @@ export default function ProfilePage({ onChanged }: { onChanged: (p: MeProfile) =
             </button>
             {avatar && (
               <button type="button" className="avatar-btn avatar-del" title="Ondoa picha"
-                onClick={() => run({ avatar: "" }, "Picha imeondolewa.")} disabled={busy} aria-label="Ondoa picha">
+                onClick={() => run({ avatar: "" }, "Picha imeondolewa.", "Picha haikuondolewa")} disabled={busy} aria-label="Ondoa picha">
                 <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><path d="M3 6h18M8 6V4h8v2M6 6l1 14h10l1-14"/></svg>
               </button>
             )}
