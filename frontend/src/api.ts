@@ -57,7 +57,32 @@ window.fetch = async (input, init) => {
 
 const TOKEN_KEY = "adybajaj_token";
 export function getToken(): string | null { return localStorage.getItem(TOKEN_KEY); }
-export function clearToken(): void { localStorage.removeItem(TOKEN_KEY); }
+export function clearToken(): void { localStorage.removeItem(TOKEN_KEY); clearApiCache(); }
+
+// ---- Cache ya GET (haraka kwenye kubadili tabs) ----
+// Data ya GET inahifadhiwa kwa muda mfupi. Ombi lile lile likiwa linaendelea, linashirikishwa badala ya kutumwa mara mbili.
+// Kila ombi la POST/PATCH/DELETE linafuta cache, kwa hiyo data haibaki ya zamani baada ya mabadiliko.
+const GET_TTL_MS = 30_000;
+const GET_CACHE = new Map<string, { data: unknown; at: number }>();
+const INFLIGHT = new Map<string, Promise<unknown>>();
+export function clearApiCache(): void { GET_CACHE.clear(); INFLIGHT.clear(); }
+
+export async function request<T>(path: string, init: RequestInit = {}): Promise<T> {
+  const method = (init.method || "GET").toUpperCase();
+  if (method !== "GET") {
+    try { return await requestRaw<T>(path, init); }
+    finally { clearApiCache(); }
+  }
+  const hit = GET_CACHE.get(path);
+  if (hit && Date.now() - hit.at < GET_TTL_MS) return hit.data as T;
+  const pending = INFLIGHT.get(path);
+  if (pending) return pending as Promise<T>;
+  const p = requestRaw<T>(path, init)
+    .then((data) => { GET_CACHE.set(path, { data, at: Date.now() }); return data; })
+    .finally(() => { INFLIGHT.delete(path); });
+  INFLIGHT.set(path, p);
+  return p;
+}
 
 export function extractErrorMessage(body: string): string {
   try {
@@ -72,24 +97,16 @@ export function extractErrorMessage(body: string): string {
   return body;
 }
 
-export async function request<T>(path: string, init: RequestInit = {}): Promise<T> {
+async function requestRaw<T>(path: string, init: RequestInit = {}): Promise<T> {
   const headers: Record<string, string> = {
     "Content-Type": "application/json",
-    "Cache-Control": "no-cache",
   };
 
   const token = getToken();
   if (token) headers["Authorization"] = `Token ${token}`;
 
-  // Cache Buster: Inalazimisha mtandao mpya kila mara
-  const timestamp = new Date().getTime();
-  const separator = path.includes("?") ? "&" : "?";
-  const urlWithBuster = `${API_BASE}/api${path}${separator}_t=${timestamp}`;
-
-  const res = await fetch(urlWithBuster, {
+  const res = await fetch(`${API_BASE}/api${path}`, {
     ...init,
-    cache: "no-store",
-    keepalive: false,
     headers: { ...headers, ...(init.headers as Record<string, string>) },
   });
 
