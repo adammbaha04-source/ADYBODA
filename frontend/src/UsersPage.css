@@ -1,0 +1,60 @@
+/* Users page. All classes start with "up-" so nothing else in the app is touched. */
+.up { display: flex; flex-direction: column; gap: 14px; padding-bottom: 12px; }
+
+.up-head { display: flex; align-items: center; gap: 12px; }
+.up-head-ico { font-size: 40px; }
+.up-head h2 { margin: 0; font-size: 28px; color: #0f172a; }
+.up-head p { margin: 0; font-size: 15px; color: #475569; }
+
+/* Number cards */
+.up-stats { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
+.up-stat { display: flex; align-items: center; gap: 8px; padding: 10px; border-radius: 16px; border: 1px solid; border-bottom-width: 4px; background: #fff; }
+.up-stat b { display: block; font-size: 26px; line-height: 1; color: #111827; }
+.up-stat small { font-size: 13px; font-weight: 600; color: #374151; }
+.up-stat-ico { width: 42px; height: 42px; border-radius: 50%; display: grid; place-items: center; font-size: 22px; flex: none; }
+.up-stat.blue { border-color: #93c5fd; background: #eff6ff; }
+.up-stat.blue .up-stat-ico { background: #bfdbfe; }
+.up-stat.orange { border-color: #fdba74; background: #fff7ed; }
+.up-stat.orange .up-stat-ico { background: #fed7aa; }
+.up-stat.green { border-color: #86efac; background: #f0fdf4; }
+.up-stat.green .up-stat-ico { background: #bbf7d0; }
+
+/* Add-user button */
+.up-add { width: 100%; padding: 14px; border: 0; border-radius: 16px; background: linear-gradient(135deg, #fb923c, #ea580c); color: #fff; font-size: 18px; font-weight: 800; cursor: pointer; box-shadow: 0 4px 12px rgba(234, 88, 12, .3); }
+
+/* Search and filter */
+.up-tools { display: flex; gap: 8px; }
+.up-search { flex: 1; min-width: 0; display: flex; align-items: center; gap: 8px; padding: 0 12px; border-radius: 999px; border: 1px solid #cbd5e1; background: #fff; }
+.up-search input { flex: 1; min-width: 0; border: 0; outline: 0; background: transparent; padding: 12px 0; font-size: 15px; }
+.up-filter { flex: none; max-width: 130px; padding: 0 10px; border-radius: 999px; border: 1px solid #cbd5e1; background: #fff; font-size: 14px; font-weight: 600; }
+
+/* People list */
+.up-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 10px; }
+.up-empty { text-align: center; color: #6b7280; padding: 18px 0; }
+.up-card { background: #fff; border-radius: 18px; padding: 12px; border: 1px solid #e5e7eb; border-left-width: 5px; box-shadow: 0 2px 8px rgba(15, 23, 42, .07); }
+.up-card.manager { border-left-color: #2563eb; }
+.up-card.driver { border-left-color: #f97316; }
+.up-row { display: flex; align-items: center; gap: 10px; }
+.up-avatar { width: 56px; height: 56px; border-radius: 50%; display: grid; place-items: center; color: #fff; font-size: 20px; font-weight: 800; flex: none; }
+.up-avatar.manager { background: linear-gradient(135deg, #3b82f6, #1d4ed8); }
+.up-avatar.driver { background: linear-gradient(135deg, #fb923c, #ea580c); }
+.up-info { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
+.up-name { font-size: 17px; color: #0f172a; overflow-wrap: anywhere; }
+.up-line { font-size: 14px; color: #374151; overflow-wrap: anywhere; }
+.up-side { display: flex; flex-direction: column; align-items: flex-end; gap: 8px; flex: none; }
+.up-badge { padding: 4px 12px; border-radius: 999px; font-size: 13px; font-weight: 700; color: #fff; }
+.up-badge.manager { background: #2563eb; }
+.up-badge.driver { background: #f97316; }
+.up-actions { display: flex; gap: 6px; }
+.up-btn { width: 38px; height: 38px; border-radius: 10px; background: #fff; font-size: 17px; cursor: pointer; padding: 0; }
+.up-btn.edit { border: 1.5px solid #3b82f6; }
+.up-btn.del { border: 1.5px solid #ef4444; }
+.up-editor { width: 100%; }
+
+/* Footer */
+.up-foot { display: flex; align-items: center; gap: 10px; padding: 12px 14px; border-radius: 16px; background: #eaf0fb; }
+.up-foot-ico { font-size: 30px; }
+.up-foot b { display: block; font-size: 16px; color: #0f172a; }
+.up-foot small { font-size: 13px; color: #475569; }
+.up-brand { margin-left: auto; text-align: right; font-weight: 800; font-style: italic; color: #1d4ed8; font-size: 18px; line-height: 1.1; }
+.up-brand em { display: block; font-size: 11px; font-weight: 600; color: #374151; }

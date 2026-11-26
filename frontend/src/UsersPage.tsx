@@ -2,6 +2,7 @@ import { useEffect, useState, type FormEvent } from "react";
 import { createTeamMember, deleteTeamMember, listTeam } from "./api";
 import { updateTeamMember } from "./api_extra";
 import type { TeamMember, Vehicle } from "./types";
+import "./UsersPage.css";
 
 type TeamRole = "manager" | "driver";
 
@@ -80,6 +81,10 @@ function TeamEditor({
   );
 }
 
+function initials(name: string): string {
+  return name.split(/[\s._-]+/).filter(Boolean).slice(0, 2).map((p) => p[0]).join("").toUpperCase() || "?";
+}
+
 export default function UsersPage({ vehicles }: { vehicles: Vehicle[] }) {
   const [team, setTeam] = useState<TeamMember[]>([]);
   const [error, setError] = useState("");
@@ -91,6 +96,9 @@ export default function UsersPage({ vehicles }: { vehicles: Vehicle[] }) {
   const [role, setRole] = useState<TeamRole>("manager");
   const [picked, setPicked] = useState<number[]>([]);
   const [editingId, setEditingId] = useState<number | null>(null);
+  const [showAdd, setShowAdd] = useState(false);
+  const [search, setSearch] = useState("");
+  const [roleFilter, setRoleFilter] = useState<"ALL" | TeamRole>("ALL");
 
   async function load() {
     try { setTeam(await listTeam()); setError(""); }
@@ -116,87 +124,149 @@ export default function UsersPage({ vehicles }: { vehicles: Vehicle[] }) {
       setNotice("Mtumiaji amesajiliwa.");
       setUsername(""); setPassword(""); setPhone(""); setPicked([]);
       setError("");
+      setShowAdd(false);
       load();
-    } catch (err) { setError((err as Error).message); }
+    } catch (err) { setNotice(""); setError((err as Error).message); }
     finally { setBusy(false); }
   }
 
   async function remove(m: TeamMember) {
     if (!confirm(`Futa ${m.username} kutoka kwenye timu?`)) return;
-    try { await deleteTeamMember(m.id); setNotice("Mtumiaji amefutwa."); load(); }
-    catch (err) { setError((err as Error).message); }
+    try { await deleteTeamMember(m.id); setNotice("Mtumiaji amefutwa."); setError(""); load(); }
+    catch (err) { setNotice(""); setError((err as Error).message); }
   }
 
+  const managers = team.filter((m) => m.role === "manager").length;
+  const drivers = team.filter((m) => m.role === "driver").length;
+
+  // Search looks at name, phone and vehicle names.
+  const q = search.trim().toLowerCase();
+  const shown = team.filter((m) => {
+    if (roleFilter !== "ALL" && m.role !== roleFilter) return false;
+    if (!q) return true;
+    const text = [m.username, m.phone, ...m.vehicles.map((v) => v.name)].join(" ").toLowerCase();
+    return text.includes(q);
+  });
+
   return (
-    <>
+    <div className="up">
       {error && <p className="error">{error}</p>}
       {notice && <p className="notice">{notice}</p>}
 
-      <section className="card">
-        <h3>Sajili Manager au Driver</h3>
-        <form onSubmit={submit}>
-          <label>Jina la mtumiaji
-            <input value={username} onChange={(e) => setUsername(e.target.value)} placeholder="mfano: hemed" required />
-          </label>
-          <label>Nenosiri (herufi 6 au zaidi)
-            <input type="password" value={password} onChange={(e) => setPassword(e.target.value)} required minLength={6} />
-          </label>
-          <label>Simu
-            <input value={phone} onChange={(e) => setPhone(e.target.value)} placeholder="e.g. 0712345678" />
-          </label>
-          <label>Role
-            <select value={role} onChange={(e) => { setRole(e.target.value as TeamRole); setPicked([]); }}>
-              <option value="manager">Manager</option>
-              <option value="driver">Driver</option>
-            </select>
-          </label>
-          <p className="hint">{role === "driver" ? "Dereva anapangiwa gari moja." : "Manager anaweza kupangiwa magari kadhaa."}</p>
-          <div className="pick-list">
-            {vehicles.length === 0 && <p className="empty">Hakuna gari bado.</p>}
-            {vehicles.map((v) => (
-              <label key={v.id} className="pick-item">
-                <input type="checkbox" checked={picked.includes(v.id)} onChange={() => toggle(v.id)} />
-                <span>{v.name}</span>
-              </label>
-            ))}
-          </div>
-          <button type="submit" disabled={busy}>{busy ? "Inasajili..." : "Sajili Mtumiaji"}</button>
-        </form>
+      <header className="up-head">
+        <span className="up-head-ico">👥</span>
+        <div>
+          <h2>Users</h2>
+          <p>Manage your team members</p>
+        </div>
+      </header>
+
+      <section className="up-stats">
+        <div className="up-stat blue"><span className="up-stat-ico">👔</span><div><b>{managers}</b><small>Managers</small></div></div>
+        <div className="up-stat orange"><span className="up-stat-ico">🧢</span><div><b>{drivers}</b><small>Drivers</small></div></div>
+        <div className="up-stat green"><span className="up-stat-ico">👥</span><div><b>{team.length}</b><small>Total Users</small></div></div>
       </section>
 
-      <section className="card">
-        <h3>Timu Yako</h3>
-        <ul className="team-list">
-          {team.length === 0 && <li className="empty">Bado hujasajili mtu yeyote</li>}
-          {team.map((m) => (
-            <li key={m.id} className="team-item" style={editingId === m.id ? { display: "block" } : undefined}>
-              {editingId === m.id ? (
+      <button type="button" className="up-add" onClick={() => setShowAdd((s) => !s)} aria-expanded={showAdd}>
+        {showAdd ? "× Funga fomu" : "+ Ongeza Mtumiaji"}
+      </button>
+
+      {showAdd && (
+        <section className="card up-form">
+          <h3>Sajili Manager au Driver</h3>
+          <form onSubmit={submit}>
+            <label>Jina la mtumiaji
+              <input value={username} onChange={(e) => setUsername(e.target.value)} placeholder="mfano: hemed" required />
+            </label>
+            <label>Nenosiri (herufi 6 au zaidi)
+              <input type="password" value={password} onChange={(e) => setPassword(e.target.value)} required minLength={6} />
+            </label>
+            <label>Simu
+              <input value={phone} onChange={(e) => setPhone(e.target.value)} placeholder="e.g. 0712345678" />
+            </label>
+            <label>Role
+              <select value={role} onChange={(e) => { setRole(e.target.value as TeamRole); setPicked([]); }}>
+                <option value="manager">Manager</option>
+                <option value="driver">Driver</option>
+              </select>
+            </label>
+            <p className="hint">{role === "driver" ? "Dereva anapangiwa gari moja." : "Manager anaweza kupangiwa magari kadhaa."}</p>
+            <div className="pick-list">
+              {vehicles.length === 0 && <p className="empty">Hakuna gari bado.</p>}
+              {vehicles.map((v) => (
+                <label key={v.id} className="pick-item">
+                  <input type="checkbox" checked={picked.includes(v.id)} onChange={() => toggle(v.id)} />
+                  <span>{v.name}</span>
+                </label>
+              ))}
+            </div>
+            <button type="submit" disabled={busy}>{busy ? "Inasajili..." : "Sajili Mtumiaji"}</button>
+          </form>
+        </section>
+      )}
+
+      <div className="up-tools">
+        <label className="up-search">
+          <span>🔍</span>
+          <input
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            placeholder="Search by name, phone or vehicle..."
+            aria-label="Search"
+          />
+        </label>
+        <select className="up-filter" value={roleFilter} onChange={(e) => setRoleFilter(e.target.value as "ALL" | TeamRole)} aria-label="Role">
+          <option value="ALL">All Roles</option>
+          <option value="manager">Managers</option>
+          <option value="driver">Drivers</option>
+        </select>
+      </div>
+
+      <ul className="up-list">
+        {team.length === 0 && <li className="up-empty">Bado hujasajili mtu yeyote</li>}
+        {team.length > 0 && shown.length === 0 && <li className="up-empty">Hakuna mtumiaji aliyepatikana</li>}
+        {shown.map((m) => (
+          <li key={m.id} className={"up-card " + m.role}>
+            {editingId === m.id ? (
+              <div className="up-editor">
                 <TeamEditor
                   member={m}
                   vehicles={vehicles}
                   onSaved={() => { setEditingId(null); setNotice("Mabadiliko yamehifadhiwa."); load(); }}
                   onCancel={() => setEditingId(null)}
                 />
-              ) : (
-                <>
-                  <div className="team-main">
-                    <b>{m.username}</b>
-                    <span className={"role-badge " + m.role}>{m.role.toUpperCase()}</span>
+              </div>
+            ) : (
+              <div className="up-row">
+                <span className={"up-avatar " + m.role} aria-hidden="true">{initials(m.username)}</span>
+                <div className="up-info">
+                  <b className="up-name">{m.username}</b>
+                  <span className="up-line">📞 {m.phone || "—"}</span>
+                  <span className="up-line">🚘 {m.vehicles.length ? m.vehicles.map((v) => v.name).join(", ") : "Hakuna gari"}</span>
+                </div>
+                <div className="up-side">
+                  <span className={"up-badge " + m.role}>{m.role === "manager" ? "Manager" : "Driver"}</span>
+                  <div className="up-actions">
+                    <button type="button" className="up-btn edit" aria-label={`Hariri ${m.username}`}
+                      onClick={() => { setEditingId(m.id); setNotice(""); }}>✏️</button>
+                    <button type="button" className="up-btn del" aria-label={`Futa ${m.username}`}
+                      onClick={() => remove(m)}>🗑️</button>
                   </div>
-                  <div className="team-sub">
-                    {m.phone ? `Simu: ${m.phone} · ` : ""}
-                    {m.vehicles.length ? `Gari: ${m.vehicles.map((v) => v.name).join(", ")}` : "Hakuna gari"}
-                  </div>
-                  <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
-                    <button className="ghost" onClick={() => { setEditingId(m.id); setNotice(""); }}>Hariri</button>
-                    <button className="danger" onClick={() => remove(m)}>Futa</button>
-                  </div>
-                </>
-              )}
-            </li>
-          ))}
-        </ul>
-      </section>
-    </>
+                </div>
+              </div>
+            )}
+          </li>
+        ))}
+      </ul>
+
+      <footer className="up-foot">
+        <span className="up-foot-ico">👥</span>
+        <div>
+          <b>Total Users: {team.length}</b>
+          <small>{managers} Managers, {drivers} Drivers</small>
+        </div>
+        <span className="up-brand">AdyBajaj<em>Together We Grow</em></span>
+      </footer>
+    </div>
   );
 }
