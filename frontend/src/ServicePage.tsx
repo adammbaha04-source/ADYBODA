@@ -88,7 +88,7 @@ export default function ServicePage({ vehicles, month }: { vehicles: Vehicle[]; 
       {error && <p className="error">{error}</p>}
       {notice && <p className="notice">{notice}</p>}
 
-      <header className="sv-hero">
+      <div className="sv-hero">
         <div className="sv-hero-top">
           <span className="sv-hero-ico">🔧</span>
           <div>
@@ -99,7 +99,7 @@ export default function ServicePage({ vehicles, month }: { vehicles: Vehicle[]; 
         </div>
         <small>Jumla ya Service</small>
         <b>{tsh(total)}</b>
-      </header>
+      </div>
 
       <section className="sv-tools">
         <label className="sv-pick">
