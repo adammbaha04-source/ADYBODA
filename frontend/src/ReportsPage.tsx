@@ -673,7 +673,7 @@ export default function ReportsPage({
           {/* Expenses table */}
           <Section icon="🧾" title="Expenses table">
             <div className="v2-scroll">
-              <table className="v2-table">
+              <table className="v2-table v2-etable">
                 <thead><tr><th>Expense category</th><th>Type</th><th className="num">Amount</th><th className="num">Share</th></tr></thead>
                 <tbody>
                   {expCats.length === 0 && <tr><td colSpan={4}>No expenses recorded for this period</td></tr>}
