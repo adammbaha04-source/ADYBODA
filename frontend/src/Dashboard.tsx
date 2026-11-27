@@ -16,6 +16,7 @@ import SettingsPage from "./SettingsPage";
 import Analytics from "./Analytics"; // <-- IMPORT MPYA YA ANALYTICS
 import AIChatPage from "./AIChatPage"; // <-- ChartBot kwenye menyu
 import PeriodBar from "./PeriodBar"; // <-- upau MMOJA wa mwezi/wiki
+import "./appbar.css"; // <-- muonekano mpya wa upau wa juu (menyu + picha)
 import type { Vehicle } from "./types";
 
 // Pages that do not use the month/period bar.
@@ -118,12 +119,16 @@ export default function Dashboard({ onLogout }: { onLogout: () => void }) {
         <button className="logout-btn" onClick={onLogout}>Logout</button>
       </aside>
 
-      <header className="appbar">
-        <button className="hamburger" aria-label="Menyu" onClick={() => setMenuOpen(true)}>☰</button>
-        <div className="app-title">{menu.find((m) => m.key === view)?.label ?? ""}</div>
-        <div className="avatar-wrap">
-          <button className="avatar-btn" aria-label="Akaunti yangu" onClick={() => setAvatarOpen((v) => !v)}>
-            <span className="avatar small">{avatarSrc ? <img src={avatarSrc} alt="" className="avatar-img" /> : initial}</span>
+      <header className="ab">
+        <button type="button" className="ab-menu" aria-label="Menyu" onClick={() => setMenuOpen(true)}>
+          <svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true">
+            <path d="M4 7h16M4 12h16M4 17h16" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" fill="none" />
+          </svg>
+        </button>
+        <div className="ab-title">{menu.find((m) => m.key === view)?.label ?? ""}</div>
+        <div className="ab-user">
+          <button type="button" className="ab-avatar" aria-label="Akaunti yangu" onClick={() => setAvatarOpen((v) => !v)}>
+            {avatarSrc ? <img src={avatarSrc} alt="" /> : <span>{initial}</span>}
           </button>
           {avatarOpen && (
             <div className="avatar-menu">

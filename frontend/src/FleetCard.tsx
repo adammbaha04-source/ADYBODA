@@ -4,6 +4,10 @@ type DriverAccount = { username: string; full_name: string; phone: string; avata
 
 const money = (n: number) => `TSh ${Math.round(n).toLocaleString("en-US")}`;
 
+// Short number for the end of a gauge: 384000 -> 384K, 1500000 -> 1.5M
+const compact = (n: number) =>
+  n >= 1_000_000 ? `${(n / 1_000_000).toFixed(1).replace(/\.0$/, "")}M` : n >= 1000 ? `${Math.round(n / 1000)}K` : String(Math.round(n));
+
 const CSS = `
 .fc{border-radius:26px;overflow:hidden;background:#fff;margin:14px 0;box-shadow:0 10px 28px rgba(30,64,175,.18);border:1px solid #dbe6fb;cursor:pointer}
 .fc-head{padding:14px;color:#fff}.fc-blue{background:linear-gradient(135deg,#1d4ed8,#0b3aa8)}.fc-green{background:linear-gradient(135deg,#16a34a,#0f6b32)}
@@ -15,10 +19,13 @@ const CSS = `
 .fc-b{padding:4px 10px;border-radius:14px;font-size:12px;font-weight:900;background:#22c55e;color:#fff}.fc-act{background:#16a34a;border:1px solid #bbf7d0}
 .fc-drv{margin:6px 0 0;font-size:14px;font-weight:700;overflow-wrap:anywhere}
 .fc-body{padding:12px}.fc-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px}
-.fc-tile{position:relative;border-radius:20px;padding:8px 6px 10px;border:1px solid #e5e7f3;text-align:center;min-width:0}
+.fc-tile{position:relative;border-radius:20px;padding:8px 6px 16px;border:1px solid #e5e7f3;text-align:center;min-width:0}
 .fc-t-red{background:#fff5f5}.fc-t-green{background:#f0fdf4}.fc-t-purple{background:#faf5ff}.fc-t-orange{background:#fffaf0}
 .fc-pill{display:inline-block;padding:3px 16px;border-radius:14px;color:#fff;font-size:13px;font-weight:900}
+.fc-gw{position:relative}
 .fc-gauge{width:100%;height:auto;display:block;margin-top:2px}.fc-track,.fc-val{fill:none;stroke-width:11;stroke-linecap:round}.fc-track{stroke:#dfe5f1}
+.fc-end{position:absolute;top:100%;margin-top:-2px;transform:translateX(-50%);font-size:11px;font-weight:800;line-height:1.2;color:#64748b;white-space:nowrap}
+.fc-end-l{left:10%}.fc-end-r{left:90%}
 .fc-center{margin-top:-30px;position:relative}.fc-center b{display:block;font-size:20px;color:#102b66;font-weight:950}.fc-center span{display:block;font-size:13px;font-weight:900}
 .fc-table{margin-top:12px;border:1px solid #dbe6fb;border-radius:18px;background:#f3f8ff;padding:4px 12px}
 .fc-row{display:flex;justify-content:space-between;align-items:center;padding:9px 0;border-bottom:1px solid #e1e9f7;font-size:14px;color:#29416f}.fc-row:last-child{border-bottom:0}.fc-row b{font-size:16px;font-weight:900}
@@ -45,11 +52,16 @@ function Gauge({ pct, from, to, id }: { pct: number; from: string; to: string; i
   );
 }
 
-function Tile(props: { cls: string; label: string; pill: string; pct: number; from: string; to: string; id: string; big: string; sub: string; subColor: string }) {
+// Each half circle shows 0 at its left end and the full value (target) at its right end.
+function Tile(props: { cls: string; label: string; pill: string; pct: number; from: string; to: string; id: string; big: string; sub: string; subColor: string; max: string }) {
   return (
     <div className={`fc-tile ${props.cls}`}>
       <span className="fc-pill" style={{ background: props.pill }}>{props.label}</span>
-      <Gauge pct={props.pct} from={props.from} to={props.to} id={props.id} />
+      <div className="fc-gw">
+        <Gauge pct={props.pct} from={props.from} to={props.to} id={props.id} />
+        <span className="fc-end fc-end-l">0</span>
+        <span className="fc-end fc-end-r">{props.max}</span>
+      </div>
       <div className="fc-center">
         <b>{props.big}</b>
         <span style={{ color: props.subColor }}>{props.sub}</span>
@@ -96,6 +108,7 @@ export default function FleetCard(p: {
       ? "Ongeza mapato ya ziada na rekebisha ratiba."
       : "Endelea kuongeza mapato na punguza deni!";
   const stop = (fn: () => void) => (e: React.MouseEvent) => { e.stopPropagation(); fn(); };
+  const targetText = compact(target);
 
   return (
     <article className="fc" onClick={p.onOpen}>
@@ -115,10 +128,10 @@ export default function FleetCard(p: {
       </div>
       <div className="fc-body">
         <div className="fc-grid">
-          <Tile cls="fc-t-red" label="Debt" pill="#ef4444" pct={debtPct} from="#f87171" to="#dc2626" id={`d-${key}`} big={`${Math.round(debtPct)}%`} sub={money(debt)} subColor="#dc2626" />
-          <Tile cls="fc-t-green" label="Income" pill="#22c55e" pct={incomePct} from="#4ade80" to="#16a34a" id={`i-${key}`} big={`${Math.round(incomePct)}%`} sub={money(paid)} subColor="#16a34a" />
-          <Tile cls="fc-t-purple" label="Day Loss" pill="#7c3aed" pct={dayPct} from="#a78bfa" to="#7c3aed" id={`l-${key}`} big={`${lostDays} / ${totalDays}`} sub="Working Days" subColor="#6d28d9" />
-          <Tile cls="fc-t-orange" label="Loss Amount" pill="#f59e0b" pct={lossPct} from="#fbbf24" to="#f97316" id={`a-${key}`} big={money(lostAmount)} sub="This Month" subColor="#d97706" />
+          <Tile cls="fc-t-red" label="Debt" pill="#ef4444" pct={debtPct} from="#f87171" to="#dc2626" id={`d-${key}`} big={`${Math.round(debtPct)}%`} sub={money(debt)} subColor="#dc2626" max={targetText} />
+          <Tile cls="fc-t-green" label="Income" pill="#22c55e" pct={incomePct} from="#4ade80" to="#16a34a" id={`i-${key}`} big={`${Math.round(incomePct)}%`} sub={money(paid)} subColor="#16a34a" max={targetText} />
+          <Tile cls="fc-t-purple" label="Day Loss" pill="#7c3aed" pct={dayPct} from="#a78bfa" to="#7c3aed" id={`l-${key}`} big={`${lostDays} / ${totalDays}`} sub="Working Days" subColor="#6d28d9" max={String(totalDays)} />
+          <Tile cls="fc-t-orange" label="Loss Amount" pill="#f59e0b" pct={lossPct} from="#fbbf24" to="#f97316" id={`a-${key}`} big={money(lostAmount)} sub="This Month" subColor="#d97706" max={targetText} />
         </div>
         <div className="fc-table">
           <div className="fc-row"><span>🎯 Target (Month)</span><b style={{ color: "#1d4ed8" }}>{money(target)}</b></div>
