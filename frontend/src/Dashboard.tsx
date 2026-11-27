@@ -15,10 +15,13 @@ import ProfilePage from "./ProfilePage";
 import SettingsPage from "./SettingsPage";
 import Analytics from "./Analytics"; // <-- IMPORT MPYA YA ANALYTICS
 import AIChatPage from "./AIChatPage"; // <-- ChartBot kwenye menyu
+import PeriodBar from "./PeriodBar"; // <-- upau MMOJA wa mwezi/wiki
 import type { Vehicle } from "./types";
 
-// Pages that do not use the month/period card.
+// Pages that do not use the month/period bar.
 const NO_PERIOD: View[] = ["profile", "settings", "changamoto", "users", "chatbot"];
+// Pages that also use the week choice (Mwezi / Wiki).
+const WEEK_VIEWS: View[] = ["vehicles", "debt"];
 
 export default function Dashboard({ onLogout }: { onLogout: () => void }) {
   const [vehicles, setVehicles] = useState<Vehicle[]>([]);
@@ -88,6 +91,8 @@ export default function Dashboard({ onLogout }: { onLogout: () => void }) {
   const avatarSrc = me?.avatar || "";
   const drawerName = me?.full_name || me?.business_name || "AdyBajaj";
 
+  const showPeriodBar = !NO_PERIOD.includes(view) && !(view === "vehicles" && detail);
+
   function logout() {
     onLogout();
   }
@@ -135,31 +140,18 @@ export default function Dashboard({ onLogout }: { onLogout: () => void }) {
       <div className="wrap">
         {error && <p className="error">{error}</p>}
 
-        {(view === "ripoti" || view === "grafu") && (
-          <section className="card period">
-            <label>Mwezi:
-              <input type="month" value={month} onChange={(e) => setMonth(e.target.value)} />
-            </label>
-          </section>
-        )}
-
-        {!NO_PERIOD.includes(view) && view !== "ripoti" && view !== "grafu" && !(view === "vehicles" && detail) && (
-          <section className="card period">
-            <div className="seg">
-              <button className={"seg-btn" + (periodMode === "month" ? " active" : "")} onClick={() => setPeriodMode("month")}>Mwezi</button>
-              <button className={"seg-btn" + (periodMode === "week" ? " active" : "")} onClick={() => setPeriodMode("week")}>Wiki</button>
-            </div>
-            <label>Mwezi:
-              <input type="month" value={month} onChange={(e) => setMonth(e.target.value)} />
-            </label>
-            {periodMode === "week" && (
-              <div className="week-chips">
-                {weeks.map((w) => (
-                  <button key={w} className={"chip" + (week === w ? " on" : "")} onClick={() => setWeek(w)}>Week {w}</button>
-                ))}
-              </div>
-            )}
-          </section>
+        {/* Upau MMOJA wa mwezi kwa kurasa zote. Wiki inaonekana kwenye Vehicles na Deni tu. */}
+        {showPeriodBar && (
+          <PeriodBar
+            month={month}
+            onMonth={setMonth}
+            showWeek={WEEK_VIEWS.includes(view)}
+            mode={periodMode}
+            onMode={setPeriodMode}
+            week={week}
+            weeks={weeks}
+            onWeek={setWeek}
+          />
         )}
 
         {view === "vehicles" && detail && (
@@ -193,15 +185,15 @@ export default function Dashboard({ onLogout }: { onLogout: () => void }) {
 
         {view === "income" && <ExpensesPage month={month} />}
         {view === "service" && <ServicePage vehicles={vehicles} month={month} />}
-        {view === "debt" && <DebtPage vehicles={vehicles} month={month} />}
+        {view === "debt" && <DebtPage vehicles={vehicles} month={month} period={period} />}
         {view === "changamoto" && <ChallengesPage vehicles={vehicles} role={role} />}
-        
+
         {/* HAPA NDIPO ANALYTICS INAPOINGIA BADALA YA REPORTS ZA GRAFYS */}
         {view === "grafu" && <Analytics vehicles={vehicles} month={month} />}
 
         {/* ChartBot: inafunguka mtu akibonyeza menyu, na kufunga kunarudi Vehicles */}
         {view === "chatbot" && <AIChatPage vehicles={vehicles} month={month} onClose={() => go("vehicles")} />}
-        
+
         {view === "ripoti" && <ReportsPage vehicles={vehicles} month={month} onMonthChange={setMonth} />}
         {view === "users" && <UsersPage vehicles={vehicles} />}
         {view === "profile" && <ProfilePage onChanged={(p) => applyAppearance(p)} />}

@@ -22,7 +22,9 @@ type Mode = "debt" | "payment";
 
 interface Props {
   vehicles: Vehicle[];
+  /** Month and week come from the ONE period bar at the top of the app (Dashboard). */
   month: string;
+  period?: { mode: "month" | "week"; week: number };
   onNavigate?: (page: string) => void;
   /** Owner and manager: true. Driver view: false (hides limit editing). */
   canEditLimit?: boolean;
@@ -33,8 +35,6 @@ const TABS: { key: Tab; label: string }[] = [
   { key: "drivers", label: "Driver Debts" },
   { key: "all", label: "All Debts" },
 ];
-
-const WEEKS = ["ALL", "1", "2", "3", "4", "5"];
 
 function latestDriver(v: Vehicle): DriverPeriod | undefined {
   const periods = [...(v.driver_periods ?? [])].sort((a, b) => a.from_date.localeCompare(b.from_date));
@@ -183,11 +183,13 @@ function DetailTable({ entries, s, onDownload }: { entries: DebtEntry[]; s: Debt
   );
 }
 
-export default function DebtPage({ vehicles, month, onNavigate, canEditLimit = true }: Props) {
+export default function DebtPage({ vehicles, month, period, onNavigate, canEditLimit = true }: Props) {
   const vs = vehicles as VehicleX[];
 
-  const [fMonth, setFMonth] = useState(month);
-  const [fWeek, setFWeek] = useState("ALL");
+  // Month and week are chosen in the ONE period bar at the top, not on this page.
+  const fMonth = month;
+  const fWeek = period?.mode === "week" ? String(period.week) : "ALL";
+
   const [bundles, setBundles] = useState<DebtBundle[]>([]);
   const [loading, setLoading] = useState(true);
   const [reloadKey, setReloadKey] = useState(0);
@@ -212,8 +214,6 @@ export default function DebtPage({ vehicles, month, onNavigate, canEditLimit = t
     setError("");
     setNotice("");
   }
-
-  useEffect(() => { setFMonth(month); }, [month]);
 
   // One request for all vehicles. If the month changes while a request is running,
   // the old answer is thrown away so it cannot overwrite the new one.
@@ -374,27 +374,10 @@ export default function DebtPage({ vehicles, month, onNavigate, canEditLimit = t
           <img src={iconExpenses} alt="" className="dm-title-icon" />
           <div>
             <h2>Deni Management</h2>
-            <p>Track and manage all debts easily</p>
+            <p>{monthTitle}{fWeek === "ALL" ? " · All weeks" : ` · Week ${fWeek}`}</p>
           </div>
         </div>
         <div className="dm-selectors">
-          <label className="dm-pick">
-            <span>Week ▾ {fWeek === "ALL" ? "All" : fWeek}</span>
-            <select value={fWeek} onChange={(e) => setFWeek(e.target.value)} aria-label="Week">
-              {WEEKS.map((w) => (
-                <option key={w} value={w}>{w === "ALL" ? "All weeks" : `Week ${w}`}</option>
-              ))}
-            </select>
-          </label>
-          <label className="dm-pick">
-            <span>📅 {monthTitle} ▾</span>
-            <input
-              type="month"
-              value={fMonth}
-              onChange={(e) => setFMonth(e.target.value)}
-              aria-label="Month"
-            />
-          </label>
           <button type="button" className="dm-btn" onClick={downloadAll}>⬇ Download month</button>
         </div>
       </header>

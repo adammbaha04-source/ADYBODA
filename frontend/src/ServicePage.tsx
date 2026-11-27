@@ -8,18 +8,23 @@ type Row = ServiceRecord & { vehicleId: number; vehicleName: string };
 
 const SUGGEST = ["Oil", "Spear", "Grisi", "Matengenezo ya bodi", "Brake", "Chain", "Battery"];
 
+// A date inside the selected month: today if today is in that month, otherwise the 1st.
+function dayIn(month: string): string {
+  const t = todayYMD();
+  return t.startsWith(month) ? t : `${month}-01`;
+}
+
+// The month comes from the ONE period bar at the top of the app (Dashboard).
 export default function ServicePage({ vehicles, month }: { vehicles: Vehicle[]; month: string }) {
   const [rows, setRows] = useState<Row[]>([]);
   const [fVehicle, setFVehicle] = useState("");
-  const [fMonth, setFMonth] = useState(month);
   const [adding, setAdding] = useState(false);
   const [error, setError] = useState("");
   const [notice, setNotice] = useState("");
 
   // form
   const [chombo, setChombo] = useState("ALL");
-  const [fmMonth, setFmMonth] = useState(month);
-  const [day, setDay] = useState(todayYMD());
+  const [day, setDay] = useState(dayIn(month));
   const [tool, setTool] = useState("");
   const [count, setCount] = useState("1");
   const [unit, setUnit] = useState("");
@@ -34,11 +39,11 @@ export default function ServicePage({ vehicles, month }: { vehicles: Vehicle[]; 
     } catch (e) { setError((e as Error).message); }
   }
   useEffect(() => { load(); /* eslint-disable-next-line react-hooks/exhaustive-deps */ }, [vehicles.map((v) => v.id).join(",")]);
-  useEffect(() => { setFMonth(month); setFmMonth(month); }, [month]);
+  useEffect(() => { setDay(dayIn(month)); setNotice(""); }, [month]);
 
   const filtered = useMemo(
-    () => rows.filter((r) => (!fVehicle || String(r.vehicleId) === fVehicle) && r.day.startsWith(fMonth)),
-    [rows, fVehicle, fMonth],
+    () => rows.filter((r) => (!fVehicle || String(r.vehicleId) === fVehicle) && r.day.startsWith(month)),
+    [rows, fVehicle, month],
   );
   const total = filtered.reduce((a, r) => a + r.total, 0);
   const byTool = useMemo(() => {
@@ -49,8 +54,7 @@ export default function ServicePage({ vehicles, month }: { vehicles: Vehicle[]; 
 
   function openAdd() {
     setAdding((v) => !v);
-    setFmMonth(fMonth);
-    setDay(`${fMonth}-${todayYMD().slice(8)}`);
+    setDay(dayIn(month));
     setNotice("");
   }
 
@@ -66,7 +70,6 @@ export default function ServicePage({ vehicles, month }: { vehicles: Vehicle[]; 
       setNotice(chombo === "ALL" ? "Service imehifadhiwa kwa vyombo vyote." : "Service imehifadhiwa.");
       setTool(""); setUnit(""); setSeller(""); setNote(""); setCount("1");
       setAdding(false);
-      setFMonth(fmMonth);
       load();
     } catch (err) { setError((err as Error).message); }
   }
@@ -81,22 +84,32 @@ export default function ServicePage({ vehicles, month }: { vehicles: Vehicle[]; 
 
   return (
     <>
+      <style>{CSS}</style>
       {error && <p className="error">{error}</p>}
       {notice && <p className="notice">{notice}</p>}
 
-      <section className="card">
-        <div className="filter-row">
-          <label>Chombo
-            <select value={fVehicle} onChange={(e) => setFVehicle(e.target.value)}>
-              <option value="">Vyombo Vyote</option>
-              {vehicles.map((v) => <option key={v.id} value={v.id}>{v.name}</option>)}
-            </select>
-          </label>
-          <label>Mwezi
-            <input type="month" value={fMonth} onChange={(e) => setFMonth(e.target.value)} />
-          </label>
+      <header className="sv-hero">
+        <div className="sv-hero-top">
+          <span className="sv-hero-ico">🔧</span>
+          <div>
+            <h2>Service</h2>
+            <p>{monthLabel(month)}</p>
+          </div>
+          <span className="sv-count">{filtered.length} rekodi</span>
         </div>
-        <button className="btn-add" onClick={openAdd}>{adding ? "Funga" : "+ Ongeza Service"}</button>
+        <small>Jumla ya Service</small>
+        <b>{tsh(total)}</b>
+      </header>
+
+      <section className="sv-tools">
+        <label className="sv-pick">
+          <span>Chombo</span>
+          <select value={fVehicle} onChange={(e) => setFVehicle(e.target.value)}>
+            <option value="">Vyombo Vyote</option>
+            {vehicles.map((v) => <option key={v.id} value={v.id}>{v.name}</option>)}
+          </select>
+        </label>
+        <button type="button" className="sv-add" onClick={openAdd}>{adding ? "Funga" : "+ Ongeza Service"}</button>
       </section>
 
       {adding && (
@@ -109,10 +122,6 @@ export default function ServicePage({ vehicles, month }: { vehicles: Vehicle[]; 
                 {vehicles.map((v) => <option key={v.id} value={v.id}>{v.name}</option>)}
               </select>
             </label>
-            <label>Mwezi wa Record
-              <input type="month" value={fmMonth} onChange={(e) => { setFmMonth(e.target.value); setDay(`${e.target.value}-01`); }} />
-            </label>
-            <p className="hint">{monthLabel(fmMonth)}</p>
             <label>Tarehe<input type="date" value={day} onChange={(e) => setDay(e.target.value)} required /></label>
             <label>Kifaa / Huduma
               <input list="svc-suggest" value={tool} onChange={(e) => setTool(e.target.value)} placeholder="Oil, Spear, Grisi, Matengenezo ya bodi" required />
@@ -130,12 +139,7 @@ export default function ServicePage({ vehicles, month }: { vehicles: Vehicle[]; 
       )}
 
       <section className="card">
-        <h3>Muhtasari wa Service · {monthLabel(fMonth)}</h3>
-        <div className="kv-grid">
-          <div><span>JUMLA YA SERVICE</span><b className="red">{tsh(total)}</b></div>
-          <div><span>IDADI YA REKODI</span><b className="purple">{filtered.length}</b></div>
-        </div>
-        <h4 className="sub-title">Service kwa % (kwa kifaa/huduma)</h4>
+        <h3>Service kwa kifaa / huduma</h3>
         <Pie data={byTool} />
         <h4 className="sub-title">Asilimia kwa kila huduma</h4>
         {byTool.length === 0 && <p className="empty">No service records found</p>}
@@ -161,3 +165,19 @@ export default function ServicePage({ vehicles, month }: { vehicles: Vehicle[]; 
     </>
   );
 }
+
+// Styles of this page (prefix sv- so nothing else in the app is touched).
+const CSS = `
+.sv-hero{margin:0 0 12px;padding:16px;border-radius:24px;color:#fff;background:linear-gradient(135deg,#0b2a6b,#0a1f4d);box-shadow:0 10px 24px rgba(10,31,77,.35)}
+.sv-hero-top{display:flex;align-items:center;gap:12px;margin-bottom:12px}
+.sv-hero-ico{flex:none;width:46px;height:46px;border-radius:50%;display:grid;place-items:center;font-size:22px;background:linear-gradient(145deg,#3b82f6,#1d4ed8)}
+.sv-hero h2{margin:0;font-size:19px;line-height:1.15;color:#fff}
+.sv-hero p{margin:2px 0 0;font-size:12px;color:#c7d8fa}
+.sv-count{margin-left:auto;padding:6px 11px;border-radius:999px;font-size:12px;font-weight:700;color:#0b2a5b;background:#fde047;white-space:nowrap}
+.sv-hero small{display:block;font-size:13px;font-weight:600;color:#dbe7ff}
+.sv-hero b{display:block;margin-top:2px;font-size:28px;line-height:1.1;color:#fde047}
+.sv-tools{display:flex;align-items:flex-end;gap:10px;margin:0 0 12px}
+.sv-pick{flex:1;min-width:0;margin:0;font-size:12px;font-weight:700;color:#3b5a8c}
+.sv-pick select{display:block;width:100%;margin-top:4px;height:46px;border-radius:14px}
+.sv-add{flex:none;width:auto;height:46px;padding:0 16px;border:0;border-radius:14px;font-size:14px;font-weight:700;color:#fff;background:linear-gradient(135deg,#34d399,#059669);box-shadow:0 6px 14px rgba(5,150,105,.3);cursor:pointer}
+`;
