@@ -161,3 +161,27 @@
 @media (min-width: 720px) {
   .v2-actions { grid-template-columns: repeat(4, 1fr); }
 }
+
+/* =========================================================
+   Expenses table: fixed column widths so every row, including
+   the TOTAL row, lines up under its own heading.
+   Needs the class v2-etable on the Expenses <table> in ReportsPage.tsx
+   ========================================================= */
+.v2-etable {
+  table-layout: fixed;
+  min-width: 0 !important;
+  width: 100%;
+}
+.v2-etable th, .v2-etable td {
+  padding: 10px 6px;
+  white-space: normal;
+  vertical-align: middle;
+  overflow-wrap: anywhere;
+}
+.v2-etable th:nth-child(1), .v2-etable td:nth-child(1) { width: 36%; }
+.v2-etable th:nth-child(2), .v2-etable td:nth-child(2) { width: 20%; }
+.v2-etable th:nth-child(3), .v2-etable td:nth-child(3) { width: 28%; }
+.v2-etable th:nth-child(4), .v2-etable td:nth-child(4) { width: 16%; }
+.v2-etable .num { white-space: normal; text-align: right; }
+.v2-etable .v2-mini-bar { width: 100%; max-width: none; }
+.v2-etable tr.total td { font-size: 12px; }
