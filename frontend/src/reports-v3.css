@@ -134,3 +134,51 @@
 .rp-report { display: flex; flex-direction: column; }
 .rp-foot { font-size: 11px; line-height: 1.6; color: #64748b; padding: 12px 14px; border-radius: 16px; background: #fff; border: 1px solid #e3ebf7; }
 .rp-foot p { margin: 0 0 6px; }
+
+/* =========================================================
+   Table arrangement: label column stays visible while the
+   numbers scroll sideways; labels wrap instead of being cut.
+   ========================================================= */
+.v2-table th, .v2-table td { vertical-align: middle; }
+.v2-table td:first-child,
+.v2-table th:first-child {
+  position: sticky; left: 0; z-index: 1;
+  min-width: 150px; max-width: 200px;
+  white-space: normal; word-break: break-word;
+  box-shadow: 4px 0 6px -4px rgba(15, 42, 85, .18);
+}
+.v2-table th:first-child { z-index: 2; }
+.v2-table td:first-child { background: #fff; }
+.v2-table tbody tr:nth-child(odd) td:first-child { background: #f7faff; }
+.v2-table tr.total td:first-child { background: #e8f0ff !important; }
+.v2-table td.num, .v2-table th.num { white-space: nowrap; }
+.v2-table tbody tr td { padding: 12px 10px; }
+.v2-mini-bar { max-width: 180px; height: 7px; }
+.v2-scroll { border-radius: 12px; }
+
+/* =========================================================
+   Download buttons: solid colours, bigger targets, clear icon
+   ========================================================= */
+.v2-actions {
+  grid-template-columns: 1fr 1fr; gap: 12px; margin-top: 16px;
+}
+.v2-action {
+  min-height: 56px; padding: 14px 12px; border-radius: 16px;
+  font-size: 15px; font-weight: 900; letter-spacing: .2px;
+  color: #fff; border: 2px solid rgba(255, 255, 255, .35);
+  text-shadow: 0 1px 2px rgba(0, 0, 0, .25);
+  box-shadow: 0 8px 18px rgba(15, 42, 85, .3);
+}
+.v2-action span {
+  display: grid; place-items: center; width: 28px; height: 28px; border-radius: 50%;
+  background: rgba(255, 255, 255, .25); font-size: 16px; line-height: 1;
+}
+.v2-action.green { background: #15803d; }
+.v2-action.orange { background: #ea580c; }
+.v2-action.blue { background: #0a4fb8; }
+.v2-action.purple { background: #7c3aed; }
+.v2-action:active { transform: translateY(1px); }
+.v2-action:disabled { opacity: .5; cursor: not-allowed; box-shadow: none; }
+@media (min-width: 720px) {
+  .v2-actions { grid-template-columns: repeat(4, 1fr); }
+}
