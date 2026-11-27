@@ -185,3 +185,37 @@
 .v2-etable .num { white-space: normal; text-align: right; }
 .v2-etable .v2-mini-bar { width: 100%; max-width: none; }
 .v2-etable tr.total td { font-size: 12px; }
+
+/* =========================================================
+   TOTAL rows: the app's global .total class (styles.css) turns
+   rows into flex boxes with big text. Reset it inside report tables
+   so TOTAL rows are normal table rows that line up with the columns.
+   ========================================================= */
+.v2-table tr.total {
+  display: table-row;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  font-size: inherit;
+  color: inherit;
+}
+.v2-table tr.total td {
+  display: table-cell;
+  margin: 0;
+  padding: 12px 8px;
+  border-top: 2px solid #c7d7f5;
+  border-bottom: 0;
+  background: #e8f0ff !important;
+  color: #0f2a55;
+  font-size: 13px;
+  font-weight: 900;
+  line-height: 1.3;
+  white-space: nowrap;
+  vertical-align: middle;
+}
+.v2-table tr.total td b {
+  font-size: inherit;
+  color: inherit;
+}
+.v2-etable th:nth-child(1), .v2-etable td:nth-child(1) { width: 34%; }
+.v2-etable th:nth-child(4), .v2-etable td:nth-child(4) { width: 18%; }
